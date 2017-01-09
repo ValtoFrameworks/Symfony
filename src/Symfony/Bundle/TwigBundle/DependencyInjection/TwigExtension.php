@@ -78,7 +78,7 @@ class TwigExtension extends Extension
         $envConfiguratorDefinition->replaceArgument(4, $config['number_format']['decimal_point']);
         $envConfiguratorDefinition->replaceArgument(5, $config['number_format']['thousands_separator']);
 
-        $twigFilesystemLoaderDefinition = $container->getDefinition('twig.loader.filesystem');
+        $twigFilesystemLoaderDefinition = $container->getDefinition('twig.loader.native_filesystem');
 
         // register user-configured paths
         foreach ($config['paths'] as $path => $namespace) {
@@ -137,16 +137,18 @@ class TwigExtension extends Extension
 
         $container->getDefinition('twig')->replaceArgument(1, $config);
 
-        $this->addClassesToCompile(array(
-            'Twig_Environment',
-            'Twig_Extension',
-            'Twig_Extension_Core',
-            'Twig_Extension_Escaper',
-            'Twig_Extension_Optimizer',
-            'Twig_LoaderInterface',
-            'Twig_Markup',
-            'Twig_Template',
-        ));
+        if (PHP_VERSION_ID < 70000) {
+            $this->addClassesToCompile(array(
+                'Twig_Environment',
+                'Twig_Extension',
+                'Twig_Extension_Core',
+                'Twig_Extension_Escaper',
+                'Twig_Extension_Optimizer',
+                'Twig_LoaderInterface',
+                'Twig_Markup',
+                'Twig_Template',
+            ));
+        }
     }
 
     private function addTwigPath($twigFilesystemLoaderDefinition, $dir, $bundle)

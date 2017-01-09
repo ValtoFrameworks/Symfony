@@ -11,6 +11,9 @@
 
 namespace Symfony\Component\DependencyInjection;
 
+use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 use Symfony\Component\DependencyInjection\Compiler\Compiler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -99,6 +102,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @var int[] a map of env vars to their resolution counter
      */
     private $envCounters = array();
+
+    /**
+     * @var array a map of case less to case sensitive ids
+     */
+    private $caseSensitiveIds = array();
 
     /**
      * Sets the track resources flag.
@@ -364,7 +372,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     public function set($id, $service)
     {
-        $id = strtolower($id);
+        $caseSensitiveId = $id;
+        $id = strtolower($caseSensitiveId);
 
         if ($this->isFrozen() && (isset($this->definitions[$id]) && !$this->definitions[$id]->isSynthetic())) {
             // setting a synthetic service on a frozen container is alright
@@ -372,6 +381,9 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         unset($this->definitions[$id], $this->aliasDefinitions[$id]);
+        if ($id !== $caseSensitiveId) {
+            $this->caseSensitiveIds[$id] = $caseSensitiveId;
+        }
 
         parent::set($id, $service);
     }
@@ -625,7 +637,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     public function setAlias($alias, $id)
     {
-        $alias = strtolower($alias);
+        $caseSensitiveAlias = $alias;
+        $alias = strtolower($caseSensitiveAlias);
 
         if (is_string($id)) {
             $id = new Alias($id);
@@ -638,6 +651,9 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         unset($this->definitions[$alias]);
+        if ($alias !== $caseSensitiveAlias) {
+            $this->caseSensitiveIds[$alias] = $caseSensitiveAlias;
+        }
 
         $this->aliasDefinitions[$alias] = $id;
     }
@@ -775,9 +791,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             throw new BadMethodCallException('Adding definition to a frozen container is not allowed');
         }
 
-        $id = strtolower($id);
+        $caseSensitiveId = $id;
+        $id = strtolower($caseSensitiveId);
 
         unset($this->aliasDefinitions[$id]);
+        if ($id !== $caseSensitiveId) {
+            $this->caseSensitiveIds[$id] = $caseSensitiveId;
+        }
 
         return $this->definitions[$id] = $definition;
     }
@@ -834,6 +854,22 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         return $this->getDefinition($id);
+    }
+
+    /**
+     * Returns the case sensitive id used at registration time.
+     *
+     * @param string $id
+     *
+     * @return string
+     *
+     * @internal
+     */
+    public function getCaseSensitiveId($id)
+    {
+        $id = strtolower($id);
+
+        return isset($this->caseSensitiveIds[$id]) ? $this->caseSensitiveIds[$id] : $id;
     }
 
     /**
@@ -961,6 +997,44 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             foreach ($value as $k => $v) {
                 $value[$k] = $this->resolveServices($v);
             }
+        } elseif ($value instanceof IteratorArgument) {
+            $parameterBag = $this->getParameterBag();
+            $value = new RewindableGenerator(function () use ($value, $parameterBag) {
+                foreach ($value->getValues() as $k => $v) {
+                    foreach (self::getServiceConditionals($v) as $s) {
+                        if (!$this->has($s)) {
+                            continue 2;
+                        }
+                    }
+
+                    yield $k => $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
+                }
+            });
+        } elseif ($value instanceof ClosureProxyArgument) {
+            $parameterBag = $this->getParameterBag();
+            list($reference, $method) = $value->getValues();
+            if ('service_container' === $id = (string) $reference) {
+                $class = parent::class;
+            } elseif (!$this->hasDefinition($id) && ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $reference->getInvalidBehavior()) {
+                return null;
+            } else {
+                $class = $parameterBag->resolveValue($this->findDefinition($id)->getClass());
+            }
+            if (!method_exists($class, $method = $parameterBag->resolveValue($method))) {
+                throw new InvalidArgumentException(sprintf('Cannot create closure-proxy for service "%s": method "%s::%s" does not exist.', $id, $class, $method));
+            }
+            $r = new \ReflectionMethod($class, $method);
+            if (!$r->isPublic()) {
+                throw new RuntimeException(sprintf('Cannot create closure-proxy for service "%s": method "%s::%s" must be public.', $id, $class, $method));
+            }
+            foreach ($r->getParameters() as $p) {
+                if ($p->isPassedByReference()) {
+                    throw new RuntimeException(sprintf('Cannot create closure-proxy for service "%s": parameter "$%s" of method "%s::%s" must not be passed by reference.', $id, $p->name, $class, $method));
+                }
+            }
+            $value = function () use ($id, $method) {
+                return call_user_func_array(array($this->get($id), $method), func_get_args());
+            };
         } elseif ($value instanceof Reference) {
             $value = $this->get((string) $value, $value->getInvalidBehavior());
         } elseif ($value instanceof Definition) {

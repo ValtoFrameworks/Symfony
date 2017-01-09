@@ -28,6 +28,7 @@ class SymfonyTestsListener extends \PHPUnit_Framework_BaseTestListener
     private $expectedDeprecations = array();
     private $gatheredDeprecations = array();
     private $previousErrorHandler;
+    private $testsWithWarnings;
 
     /**
      * @param array $mockedNamespaces List of namespaces, indexed by mocked features (time-sensitive or dns-sensitive)
@@ -77,6 +78,7 @@ class SymfonyTestsListener extends \PHPUnit_Framework_BaseTestListener
     public function startTestSuite(\PHPUnit_Framework_TestSuite $suite)
     {
         $suiteName = $suite->getName();
+        $this->testsWithWarnings = array();
 
         if (-1 === $this->state) {
             echo "Testing $suiteName\n";
@@ -172,15 +174,26 @@ class SymfonyTestsListener extends \PHPUnit_Framework_BaseTestListener
         }
     }
 
+    public function addWarning(\PHPUnit_Framework_Test $test, \PHPUnit_Framework_Warning $e, $time)
+    {
+        if ($test instanceof \PHPUnit_Framework_TestCase) {
+            $this->testsWithWarnings[$test->getName()] = true;
+        }
+    }
+
     public function endTest(\PHPUnit_Framework_Test $test, $time)
     {
+        $className = get_class($test);
+        $classGroups = \PHPUnit_Util_Test::getGroups($className);
+        $groups = \PHPUnit_Util_Test::getGroups($className, $test->getName(false));
+
         if ($this->expectedDeprecations) {
             restore_error_handler();
 
             if (!in_array($test->getStatus(), array(\PHPUnit_Runner_BaseTestRunner::STATUS_SKIPPED, \PHPUnit_Runner_BaseTestRunner::STATUS_INCOMPLETE, \PHPUnit_Runner_BaseTestRunner::STATUS_FAILURE, \PHPUnit_Runner_BaseTestRunner::STATUS_ERROR), true)) {
                 try {
-                    $prefix = "@expectedDeprecation:\n  ";
-                    $test->assertStringMatchesFormat($prefix.implode("\n  ", $this->expectedDeprecations), $prefix.implode("\n  ", $this->gatheredDeprecations));
+                    $prefix = "@expectedDeprecation:\n";
+                    $test->assertStringMatchesFormat($prefix.'%A  '.implode("\n%A  ", $this->expectedDeprecations)."\n%A", $prefix.'  '.implode("\n  ", $this->gatheredDeprecations)."\n");
                 } catch (\PHPUnit_Framework_AssertionFailedError $e) {
                     $test->getTestResultObject()->addFailure($test, $e, $time);
                 }
@@ -190,13 +203,27 @@ class SymfonyTestsListener extends \PHPUnit_Framework_BaseTestListener
             $this->previousErrorHandler = null;
         }
         if (-2 < $this->state && $test instanceof \PHPUnit_Framework_TestCase) {
-            $groups = \PHPUnit_Util_Test::getGroups(get_class($test), $test->getName(false));
-
             if (in_array('time-sensitive', $groups, true)) {
                 ClockMock::withClockMock(false);
             }
             if (in_array('dns-sensitive', $groups, true)) {
                 DnsMock::withMockedHosts(array());
+            }
+        }
+
+        if ($test instanceof \PHPUnit_Framework_TestCase && 0 === strpos($test->getName(), 'testLegacy') && !isset($this->testsWithWarnings[$test->getName()]) && !in_array('legacy', $groups, true)) {
+            $result = $test->getTestResultObject();
+
+            if (method_exists($result, 'addWarning')) {
+                $result->addWarning($test, new \PHPUnit_Framework_Warning('Using the "testLegacy" prefix to mark tests as legacy is deprecated since version 3.3 and will be removed in 4.0. Use the "@group legacy" notation instead to add the test to the legacy group.'), $time);
+            }
+        }
+
+        if ($test instanceof \PHPUnit_Framework_TestCase && strpos($className, '\Legacy') && !isset($this->testsWithWarnings[$test->getName()]) && !in_array('legacy', $classGroups, true)) {
+            $result = $test->getTestResultObject();
+
+            if (method_exists($result, 'addWarning')) {
+                $result->addWarning($test, new \PHPUnit_Framework_Warning('Using the "Legacy" prefix to mark all tests of a class as legacy is deprecated since version 3.3 and will be removed in 4.0. Use the "@group legacy" notation instead to add the test to the legacy group.'), $time);
             }
         }
     }

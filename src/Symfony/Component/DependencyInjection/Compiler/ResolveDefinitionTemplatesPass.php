@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\DependencyInjection\Compiler;
 
+use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -63,6 +64,8 @@ class ResolveDefinitionTemplatesPass implements CompilerPassInterface
             }
             if (is_array($argument)) {
                 $arguments[$k] = $this->resolveArguments($container, $argument);
+            } elseif ($argument instanceof ArgumentInterface) {
+                $argument->setValues($this->resolveArguments($container, $argument->getValues()));
             } elseif ($argument instanceof Definition) {
                 if ($argument instanceof ChildDefinition) {
                     $arguments[$k] = $argument = $this->resolveDefinition($container, $argument);
@@ -212,6 +215,15 @@ class ResolveDefinitionTemplatesPass implements CompilerPassInterface
         $def->setAbstract($definition->isAbstract());
         $def->setShared($definition->isShared());
         $def->setTags($definition->getTags());
+
+        // append parent tags when inheriting is enabled
+        if ($definition->getInheritTags()) {
+            foreach ($parentDef->getTags() as $k => $v) {
+                foreach ($v as $v) {
+                    $def->addTag($k, $v);
+                }
+            }
+        }
 
         return $def;
     }

@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\DependencyInjection\Tests\Loader;
 
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
@@ -19,6 +20,7 @@ use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\ExpressionLanguage\Expression;
 
 class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
@@ -149,6 +151,9 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue(isset($aliases['another_alias_for_foo']));
         $this->assertEquals('foo', (string) $aliases['another_alias_for_foo']);
         $this->assertFalse($aliases['another_alias_for_foo']->isPublic());
+        $this->assertTrue(isset($aliases['another_third_alias_for_foo']));
+        $this->assertEquals('foo', (string) $aliases['another_third_alias_for_foo']);
+        $this->assertTrue($aliases['another_third_alias_for_foo']->isPublic());
 
         $this->assertEquals(array('decorated', null, 0), $services['decorator_service']->getDecoratedService());
         $this->assertEquals(array('decorated', 'decorated.pif-pouf', 0), $services['decorator_service_with_name']->getDecoratedService());
@@ -316,6 +321,17 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(array('Foo'), $container->getDefinition('baz_service')->getAutowiringTypes());
     }
 
+    public function testParsesIteratorArgument()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('services9.yml');
+
+        $lazyDefinition = $container->getDefinition('lazy_context');
+
+        $this->assertEquals(array(new IteratorArgument(array('foo', new Reference('foo.baz'), array('%foo%' => 'foo is %foo%', 'foobar' => '%foo%'), true, new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
+    }
+
     public function testAutowire()
     {
         $container = new ContainerBuilder();
@@ -327,6 +343,48 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
 
         $loader->load('services27.yml');
         $this->assertEquals(array('set*', 'bar'), $container->getDefinition('autowire_array')->getAutowiredMethods());
+    }
+
+    public function testClassFromId()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('class_from_id.yml');
+        $container->compile();
+
+        $this->assertEquals(CaseSensitiveClass::class, $container->getDefinition(CaseSensitiveClass::class)->getClass());
+    }
+
+    public function testDefaults()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('services28.yml');
+
+        $this->assertFalse($container->getDefinition('with_defaults')->isPublic());
+        $this->assertSame(array('foo' => array(array())), $container->getDefinition('with_defaults')->getTags());
+        $this->assertTrue($container->getDefinition('with_defaults')->isAutowired());
+
+        $this->assertFalse($container->getAlias('with_defaults_aliased')->isPublic());
+        $this->assertFalse($container->getAlias('with_defaults_aliased_short')->isPublic());
+
+        $this->assertArrayNotHasKey('public', $container->getDefinition('no_defaults_child')->getChanges());
+        $this->assertArrayNotHasKey('autowire', $container->getDefinition('no_defaults_child')->getChanges());
+
+        $container->compile();
+
+        $this->assertTrue($container->getDefinition('with_null')->isPublic());
+        $this->assertTrue($container->getDefinition('no_defaults')->isPublic());
+        $this->assertTrue($container->getDefinition('no_defaults_child')->isPublic());
+
+        $this->assertSame(array(), $container->getDefinition('with_null')->getTags());
+        $this->assertSame(array(), $container->getDefinition('no_defaults')->getTags());
+        $this->assertSame(array('bar' => array(array())), $container->getDefinition('no_defaults_child')->getTags());
+        $this->assertSame(array('baz' => array(array()), 'foo' => array(array())), $container->getDefinition('with_defaults_child')->getTags());
+
+        $this->assertTrue($container->getDefinition('with_null')->isAutowired());
+        $this->assertFalse($container->getDefinition('no_defaults')->isAutowired());
+        $this->assertFalse($container->getDefinition('no_defaults_child')->isAutowired());
     }
 
     /**

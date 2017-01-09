@@ -16,6 +16,9 @@ require_once __DIR__.'/Fixtures/includes/ProjectExtension.php';
 
 use Symfony\Component\Config\Resource\ResourceInterface;
 use Symfony\Component\DependencyInjection\Alias;
+use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -29,6 +32,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\Config\Resource\FileResource;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\ExpressionLanguage\Expression;
 
 class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
@@ -405,6 +409,29 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         } catch (\InvalidArgumentException $e) {
             $this->assertEquals('The configure callable for class "Bar\FooClass" is not a callable.', $e->getMessage(), '->createService() throws an InvalidArgumentException if the configure callable is not a valid callable');
         }
+    }
+
+    public function testCreateServiceWithIteratorArgument()
+    {
+        $builder = new ContainerBuilder();
+        $builder->register('bar', 'stdClass');
+        $builder
+            ->register('lazy_context', 'LazyContext')
+            ->setArguments(array(new IteratorArgument(array('k1' => new Reference('bar'), new Reference('invalid', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)))))
+        ;
+
+        $lazyContext = $builder->get('lazy_context');
+        $this->assertInstanceOf(RewindableGenerator::class, $lazyContext->lazyValues);
+
+        $i = 0;
+        foreach ($lazyContext->lazyValues as $k => $v) {
+            ++$i;
+            $this->assertEquals('k1', $k);
+            $this->assertInstanceOf('\stdClass', $v);
+        }
+
+        // The second argument should have been ignored.
+        $this->assertEquals(1, $i);
     }
 
     /**
@@ -843,6 +870,101 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals('a', (string) $container->getDefinition('b')->getArgument(0));
     }
+
+    public function testClosureProxy()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('foo', 'stdClass')
+            ->setProperty('foo', new ClosureProxyArgument('bar', 'c'))
+        ;
+        $container->register('bar', A::class);
+
+        $foo = $container->get('foo');
+
+        $this->assertInstanceOf('Closure', $foo->foo);
+        $this->assertSame(123, call_user_func($foo->foo));
+    }
+
+    public function testClosureProxyContainer()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('foo', 'stdClass')
+            ->setProperty('foo', new ClosureProxyArgument('service_container', 'get'))
+        ;
+
+        $foo = $container->get('foo');
+
+        $this->assertInstanceOf('Closure', $foo->foo);
+        $this->assertSame($foo, call_user_func($foo->foo, 'foo'));
+    }
+
+    public function testClosureProxyOnInvalidNull()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('foo', 'stdClass')
+            ->setProperty('foo', new ClosureProxyArgument('bar', 'c', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+        ;
+
+        $foo = $container->get('foo');
+
+        $this->assertNull($foo->foo);
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException
+     * @expectedExceptionMessage You have requested a non-existent service "bar".
+     */
+    public function testClosureProxyOnInvalidException()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('foo', 'stdClass')
+            ->setProperty('foo', new ClosureProxyArgument('bar', 'c'))
+        ;
+
+        $container->get('foo');
+    }
+
+    public function testClassFromId()
+    {
+        $container = new ContainerBuilder();
+
+        $unknown = $container->register('unknown_class');
+        $class = $container->register(\stdClass::class);
+        $autoloadClass = $container->register(CaseSensitiveClass::class);
+        $container->compile();
+
+        $this->assertSame('unknown_class', $unknown->getClass());
+        $this->assertEquals(\stdClass::class, $class->getClass());
+        $this->assertEquals(CaseSensitiveClass::class, $autoloadClass->getClass());
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     * @expectedExceptionMessage The definition for "123_abc" has no class.
+     */
+    public function testNoClassFromNonClassId()
+    {
+        $container = new ContainerBuilder();
+
+        $definition = $container->register('123_abc');
+        $container->compile();
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     * @expectedExceptionMessage The definition for "\foo" has no class.
+     */
+    public function testNoClassFromNsSeparatorId()
+    {
+        $container = new ContainerBuilder();
+
+        $definition = $container->register('\\foo');
+        $container->compile();
+    }
 }
 
 class FooClass
@@ -851,6 +973,10 @@ class FooClass
 
 class A
 {
+    public function c()
+    {
+        return 123;
+    }
 }
 
 class B

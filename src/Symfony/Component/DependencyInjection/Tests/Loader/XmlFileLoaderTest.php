@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\DependencyInjection\Tests\Loader;
 
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
@@ -19,6 +20,7 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
 use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\ExpressionLanguage\Expression;
 
 class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
@@ -255,6 +257,17 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(array('decorated', null, 0), $services['decorator_service']->getDecoratedService());
         $this->assertEquals(array('decorated', 'decorated.pif-pouf', 0), $services['decorator_service_with_name']->getDecoratedService());
         $this->assertEquals(array('decorated', 'decorated.pif-pouf', 5), $services['decorator_service_with_name_and_priority']->getDecoratedService());
+    }
+
+    public function testParsesIteratorArgument()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services9.xml');
+
+        $lazyDefinition = $container->getDefinition('lazy_context');
+
+        $this->assertEquals(array(new IteratorArgument(array('foo', new Reference('foo.baz'), array('%foo%' => 'foo is %foo%', 'foobar' => '%foo%'), true, new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
     }
 
     public function testParsesTags()
@@ -570,6 +583,16 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $loader->load('services28.xml');
     }
 
+    public function testClassFromId()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('class_from_id.xml');
+        $container->compile();
+
+        $this->assertEquals(CaseSensitiveClass::class, $container->getDefinition(CaseSensitiveClass::class)->getClass());
+    }
+
     /**
      * @group legacy
      * @expectedDeprecation Using the attribute "class" is deprecated for the service "bar" which is defined as an alias %s.
@@ -593,5 +616,43 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $loader->load('with_key_outside_collection.xml');
 
         $this->assertSame(array('type' => 'foo', 'bar'), $container->getDefinition('foo')->getArguments());
+    }
+
+    public function testDefaults()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services29.xml');
+
+        $this->assertFalse($container->getDefinition('with_defaults')->isPublic());
+        $this->assertSame(array('foo' => array(array())), $container->getDefinition('with_defaults')->getTags());
+        $this->assertTrue($container->getDefinition('with_defaults')->isAutowired());
+
+        $this->assertArrayNotHasKey('public', $container->getDefinition('no_defaults_child')->getChanges());
+        $this->assertArrayNotHasKey('autowire', $container->getDefinition('no_defaults_child')->getChanges());
+
+        $container->compile();
+
+        $this->assertTrue($container->getDefinition('no_defaults')->isPublic());
+        $this->assertTrue($container->getDefinition('no_defaults_child')->isPublic());
+
+        $this->assertSame(array(), $container->getDefinition('no_defaults')->getTags());
+        $this->assertSame(array('bar' => array(array())), $container->getDefinition('no_defaults_child')->getTags());
+        $this->assertSame(array('baz' => array(array()), 'foo' => array(array())), $container->getDefinition('with_defaults_child')->getTags());
+
+        $this->assertFalse($container->getDefinition('no_defaults')->isAutowired());
+        $this->assertFalse($container->getDefinition('no_defaults_child')->isAutowired());
+    }
+
+    public function testDefaultsWithAutowiredMethods()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services30.xml');
+
+        $this->assertSame(array('__construct'), $container->getDefinition('with_defaults')->getAutowiredMethods());
+        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults')->getAutowiredMethods());
+        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults_child')->getAutowiredMethods());
+        $this->assertSame(array(), $container->getDefinition('with_defaults_child')->getAutowiredMethods());
     }
 }
