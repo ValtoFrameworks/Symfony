@@ -13,6 +13,8 @@ use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
  *
  * This class has been auto-generated
  * by the Symfony Dependency Injection Component.
+ *
+ * @final since Symfony 3.3
  */
 class ProjectServiceContainer extends Container
 {
@@ -46,7 +48,6 @@ class ProjectServiceContainer extends Container
             'lazy_context_ignore_invalid_ref' => 'getLazyContextIgnoreInvalidRefService',
             'method_call1' => 'getMethodCall1Service',
             'new_factory_service' => 'getNewFactoryServiceService',
-            'request' => 'getRequestService',
             'service_from_static_method' => 'getServiceFromStaticMethodService',
         );
         $this->aliases = array(
@@ -375,19 +376,6 @@ class ProjectServiceContainer extends Container
         $instance->foo = 'bar';
 
         return $instance;
-    }
-
-    /**
-     * Gets the 'request' service.
-     *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @throws RuntimeException always since this service is expected to be injected dynamically
-     */
-    protected function getRequestService()
-    {
-        throw new RuntimeException('You have requested a synthetic service ("request"). The DIC does not know how to construct this service.');
     }
 
     /**

@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\DependencyInjection\Tests;
 
+use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -144,7 +145,7 @@ class ContainerTest extends \PHPUnit_Framework_TestCase
     {
         $sc = new Container();
         $sc->set('foo', $foo = new \stdClass());
-        $this->assertEquals($foo, $sc->get('foo'), '->set() sets a service');
+        $this->assertSame($foo, $sc->get('foo'), '->set() sets a service');
     }
 
     public function testSetWithNullResetTheService()
@@ -166,14 +167,13 @@ class ContainerTest extends \PHPUnit_Framework_TestCase
     {
         $sc = new ProjectServiceContainer();
         $sc->set('foo', $foo = new \stdClass());
-        $this->assertEquals($foo, $sc->get('foo'), '->get() returns the service for the given id');
-        $this->assertEquals($foo, $sc->get('Foo'), '->get() returns the service for the given id, and converts id to lowercase');
-        $this->assertEquals($sc->__bar, $sc->get('bar'), '->get() returns the service for the given id');
-        $this->assertEquals($sc->__foo_bar, $sc->get('foo_bar'), '->get() returns the service if a get*Method() is defined');
-        $this->assertEquals($sc->__foo_baz, $sc->get('foo.baz'), '->get() returns the service if a get*Method() is defined');
+        $this->assertSame($foo, $sc->get('foo'), '->get() returns the service for the given id');
+        $this->assertSame($sc->__bar, $sc->get('bar'), '->get() returns the service for the given id');
+        $this->assertSame($sc->__foo_bar, $sc->get('foo_bar'), '->get() returns the service if a get*Method() is defined');
+        $this->assertSame($sc->__foo_baz, $sc->get('foo.baz'), '->get() returns the service if a get*Method() is defined');
 
         $sc->set('bar', $bar = new \stdClass());
-        $this->assertEquals($bar, $sc->get('bar'), '->get() prefers to return a service defined with set() than one defined with a getXXXMethod()');
+        $this->assertSame($bar, $sc->get('bar'), '->get() prefers to return a service defined with set() than one defined with a getXXXMethod()');
 
         try {
             $sc->get('');
@@ -186,6 +186,41 @@ class ContainerTest extends \PHPUnit_Framework_TestCase
 
     /**
      * @group legacy
+     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "Foo" instead of "foo" is deprecated since version 3.3.
+     */
+    public function testGetInsensitivity()
+    {
+        $sc = new ProjectServiceContainer();
+        $sc->set('foo', $foo = new \stdClass());
+        $this->assertSame($foo, $sc->get('Foo'), '->get() returns the service for the given id, and converts id to lowercase');
+    }
+
+    /**
+     * @group legacy
+     * @expectedDeprecation Non-string service identifiers are deprecated since Symfony 3.3 and won't be supported in 4.0 for service "foo" ("Symfony\Component\DependencyInjection\Alias" given.) Cast it to string beforehand.
+     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "Foo" instead of "foo" is deprecated since version 3.3.
+     */
+    public function testNonStringNormalizeId()
+    {
+        $sc = new ProjectServiceContainer();
+        $this->assertSame('foo', $sc->normalizeId(new Alias('foo')));
+        $this->assertSame('foo', $sc->normalizeId('Foo'));
+    }
+
+    /**
+     * @group legacy
+     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "foo" instead of "Foo" is deprecated since version 3.3.
+     */
+    public function testNormalizeIdKeepsCase()
+    {
+        $sc = new ProjectServiceContainer();
+        $sc->normalizeId('Foo', true);
+        $this->assertSame('Foo', $sc->normalizeId('foo'));
+    }
+
+    /**
+     * @group legacy
+     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "Foo" instead of "foo" is deprecated since version 3.3.
      * @expectedDeprecation Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.
      * @expectedDeprecation Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.
      * @expectedDeprecation Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.
@@ -196,15 +231,15 @@ class ContainerTest extends \PHPUnit_Framework_TestCase
         $sc = new LegacyProjectServiceContainer();
         $sc->set('foo', $foo = new \stdClass());
 
-        $this->assertEquals($foo, $sc->get('foo'), '->get() returns the service for the given id');
-        $this->assertEquals($foo, $sc->get('Foo'), '->get() returns the service for the given id, and converts id to lowercase');
-        $this->assertEquals($sc->__bar, $sc->get('bar'), '->get() returns the service for the given id');
-        $this->assertEquals($sc->__foo_bar, $sc->get('foo_bar'), '->get() returns the service if a get*Method() is defined');
-        $this->assertEquals($sc->__foo_baz, $sc->get('foo.baz'), '->get() returns the service if a get*Method() is defined');
-        $this->assertEquals($sc->__foo_baz, $sc->get('foo\\baz'), '->get() returns the service if a get*Method() is defined');
+        $this->assertSame($foo, $sc->get('foo'), '->get() returns the service for the given id');
+        $this->assertSame($foo, $sc->get('Foo'), '->get() returns the service for the given id, and converts id to lowercase');
+        $this->assertSame($sc->__bar, $sc->get('bar'), '->get() returns the service for the given id');
+        $this->assertSame($sc->__foo_bar, $sc->get('foo_bar'), '->get() returns the service if a get*Method() is defined');
+        $this->assertSame($sc->__foo_baz, $sc->get('foo.baz'), '->get() returns the service if a get*Method() is defined');
+        $this->assertSame($sc->__foo_baz, $sc->get('foo\\baz'), '->get() returns the service if a get*Method() is defined');
 
         $sc->set('bar', $bar = new \stdClass());
-        $this->assertEquals($bar, $sc->get('bar'), '->get() prefers to return a service defined with set() than one defined with a getXXXMethod()');
+        $this->assertSame($bar, $sc->get('bar'), '->get() prefers to return a service defined with set() than one defined with a getXXXMethod()');
 
         try {
             $sc->get('');
@@ -251,15 +286,15 @@ class ContainerTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage You have requested a synthetic service ("request"). The DIC does not know how to construct this service.
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException
+     * @expectedExceptionMessage You have requested a non-existent service "request".
      */
-    public function testGetSyntheticServiceAlwaysThrows()
+    public function testGetSyntheticServiceThrows()
     {
         require_once __DIR__.'/Fixtures/php/services9.php';
 
         $container = new \ProjectServiceContainer();
-        $container->get('request', ContainerInterface::NULL_ON_INVALID_REFERENCE);
+        $container->get('request');
     }
 
     public function testHas()

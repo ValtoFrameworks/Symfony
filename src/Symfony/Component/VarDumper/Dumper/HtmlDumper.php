@@ -462,14 +462,14 @@ return function (root, x) {
                 reveal(currentNode);
                 highlight(root, currentNode, state.nodes);
             }
-            counter.textContent = (state.isEmpty() ? 0 : state.idx + 1) + ' on ' + state.count();
+            counter.textContent = (state.isEmpty() ? 0 : state.idx + 1) + ' of ' + state.count();
         }
 
         var search = doc.createElement('div');
         search.className = 'sf-dump-search-wrapper sf-dump-search-hidden';
         search.innerHTML = '
             <input type="text" class="sf-dump-search-input">
-            <span class="sf-dump-search-count">0 on 0<\/span>
+            <span class="sf-dump-search-count">0 of 0<\/span>
             <button type="button" class="sf-dump-search-input-previous" tabindex="-1">
                 <svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg">
                     <path d="M1683 1331l-166 165q-19 19-45 19t-45-19l-531-531-531 531q-19 19-45 19t-45-19l-166-165q-19-19-19-45.5t19-45.5l742-741q19-19 45-19t45 19l742 741q19 19 19 45.5t-19 45.5z"\/>
@@ -487,21 +487,22 @@ return function (root, x) {
         var searchInput = search.querySelector('.sf-dump-search-input');
         var counter = search.querySelector('.sf-dump-search-count');
         var searchInputTimer = 0;
+        var previousSearchQuery = '';
 
-        addEventListener(searchInput, 'keydown', function (e) {
-            /* Don't intercept escape key in order to not start a search */
-            if (27 === e.keyCode) {
+        addEventListener(searchInput, 'keyup', function (e) {
+            var searchQuery = e.target.value;
+            /* Don't perform anything if the pressed key didn't change the query */
+            if (searchQuery === previousSearchQuery) {
                 return;
             }
-
+            previousSearchQuery = searchQuery;
             clearTimeout(searchInputTimer);
             searchInputTimer = setTimeout(function () {
                 state.reset();
                 collapseAll(root);
                 resetHighlightedNodes(root);
-                var searchQuery = e.target.value;
                 if ('' === searchQuery) {
-                    counter.textContent = '0 on 0';
+                    counter.textContent = '0 of 0';
 
                     return;
                 }
@@ -526,17 +527,29 @@ return function (root, x) {
         });
 
         addEventListener(root, 'keydown', function (e) {
-            if (114 === e.keyCode || (isCtrlKey(e) && 70 === e.keyCode)) {
-                /* CTRL + F or CMD + F */
+            var isSearchActive = !/\bsf-dump-search-hidden\b/.test(search.className);
+            if ((114 === e.keyCode && !isSearchActive) || (isCtrlKey(e) && 70 === e.keyCode)) {
+                /* F3 or CMD/CTRL + F */
                 e.preventDefault();
                 search.className = search.className.replace(/\bsf-dump-search-hidden\b/, '');
                 searchInput.focus();
-            } else if (27 === e.keyCode && !/\bsf-dump-search-hidden\b/.test(search.className)) {
-                /* ESC key */
-                search.className += ' sf-dump-search-hidden';
-                e.preventDefault();
-                resetHighlightedNodes(root);
-                searchInput.value = '';
+            } else if (isSearchActive) {
+                if (27 === e.keyCode) {
+                    /* ESC key */
+                    search.className += ' sf-dump-search-hidden';
+                    e.preventDefault();
+                    resetHighlightedNodes(root);
+                    searchInput.value = '';
+                } else if (
+                    (isCtrlKey(e) && 71 === e.keyCode) /* CMD/CTRL + G */
+                    || 13 === e.keyCode /* Enter */
+                    || 114 === e.keyCode /* F3 */
+                ) {
+                    e.preventDefault();
+                    e.shiftKey ? state.previous() : state.next();
+                    collapseAll(root);
+                    showCurrent(state);
+                }
             }
         });
     }

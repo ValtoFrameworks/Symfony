@@ -10,6 +10,10 @@ ClassLoader
 DependencyInjection
 -------------------
 
+ * The `Reference` and `Alias` classes do not make service identifiers lowercase anymore.
+
+ * Case insensitivity of service identifiers is deprecated and will be removed in 4.0.
+
  * Using the `PhpDumper` with an uncompiled `ContainerBuilder` is deprecated and
    will not be supported anymore in 4.0.
 
@@ -26,6 +30,11 @@ Finder
 ------
 
  * The `ExceptionInterface` has been deprecated and will be removed in 4.0.
+
+FrameworkBundle
+---------------
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been deprecated. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
 HttpKernel
 -----------

@@ -22,6 +22,10 @@ Debug
 DependencyInjection
 -------------------
 
+ * Service identifiers are now case sensitive.
+
+ * The `Reference` and `Alias` classes do not make service identifiers lowercase anymore.
+
  * Using the `PhpDumper` with an uncompiled `ContainerBuilder` is not supported
    anymore.
 
@@ -150,6 +154,8 @@ FrameworkBundle
  * The `framework.serializer.cache` option and the services
    `serializer.mapping.cache.apc` and `serializer.mapping.cache.doctrine.apc`
    have been removed. APCu should now be automatically used when available.
+   
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been removed. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
 SecurityBundle
 --------------
@@ -290,7 +296,7 @@ Validator
    ```
    
  * The default value of the strict option of the `Choice` Constraint has been
-   changed to `true` as of 4.0. If you need the the previous behaviour ensure to 
+   changed to `true` as of 4.0. If you need the previous behaviour ensure to 
    set the option to `false`.
 
 Yaml

@@ -86,7 +86,7 @@ class JsonDescriptor extends Descriptor
         if ($service instanceof Alias) {
             $this->describeContainerAlias($service, $options, $builder);
         } elseif ($service instanceof Definition) {
-            $this->writeData($this->getContainerDefinitionData($service), $options);
+            $this->writeData($this->getContainerDefinitionData($service, isset($options['omit_tags']) && $options['omit_tags'], isset($options['show_arguments']) && $options['show_arguments']), $options);
         } else {
             $this->writeData(get_class($service), $options);
         }
@@ -99,6 +99,8 @@ class JsonDescriptor extends Descriptor
     {
         $serviceIds = isset($options['tag']) && $options['tag'] ? array_keys($builder->findTaggedServiceIds($options['tag'])) : $builder->getServiceIds();
         $showPrivate = isset($options['show_private']) && $options['show_private'];
+        $omitTags = isset($options['omit_tags']) && $options['omit_tags'];
+        $showArguments = isset($options['show_arguments']) && $options['show_arguments'];
         $data = array('definitions' => array(), 'aliases' => array(), 'services' => array());
 
         foreach ($this->sortServiceIds($serviceIds) as $serviceId) {
@@ -108,7 +110,7 @@ class JsonDescriptor extends Descriptor
                 $data['aliases'][$serviceId] = $this->getContainerAliasData($service);
             } elseif ($service instanceof Definition) {
                 if (($showPrivate || $service->isPublic())) {
-                    $data['definitions'][$serviceId] = $this->getContainerDefinitionData($service);
+                    $data['definitions'][$serviceId] = $this->getContainerDefinitionData($service, $omitTags, $showArguments);
                 }
             } else {
                 $data['services'][$serviceId] = get_class($service);
@@ -123,7 +125,7 @@ class JsonDescriptor extends Descriptor
      */
     protected function describeContainerDefinition(Definition $definition, array $options = array())
     {
-        $this->writeData($this->getContainerDefinitionData($definition, isset($options['omit_tags']) && $options['omit_tags']), $options);
+        $this->writeData($this->getContainerDefinitionData($definition, isset($options['omit_tags']) && $options['omit_tags'], isset($options['show_arguments']) && $options['show_arguments']), $options);
     }
 
     /**
@@ -136,7 +138,7 @@ class JsonDescriptor extends Descriptor
         }
 
         $this->writeData(
-            array($this->getContainerAliasData($alias), $this->getContainerDefinitionData($builder->getDefinition((string) $alias))),
+            array($this->getContainerAliasData($alias), $this->getContainerDefinitionData($builder->getDefinition((string) $alias), isset($options['omit_tags']) && $options['omit_tags'], isset($options['show_arguments']) && $options['show_arguments'])),
             array_merge($options, array('id' => (string) $alias))
         );
     }
@@ -208,7 +210,7 @@ class JsonDescriptor extends Descriptor
      *
      * @return array
      */
-    private function getContainerDefinitionData(Definition $definition, $omitTags = false)
+    private function getContainerDefinitionData(Definition $definition, $omitTags = false, $showArguments = false)
     {
         $data = array(
             'class' => (string) $definition->getClass(),
@@ -229,6 +231,23 @@ class JsonDescriptor extends Descriptor
             $data['autowiring_types'] = array();
             foreach ($definition->getAutowiringTypes() as $autowiringType) {
                 $data['autowiring_types'][] = $autowiringType;
+            }
+        }
+
+        if ($showArguments) {
+            $data['arguments'] = array();
+
+            foreach ($definition->getArguments() as $argument) {
+                if ($argument instanceof Reference) {
+                    $data['arguments'][] = array(
+                        'type' => 'service',
+                        'id' => (string) $argument,
+                    );
+                } elseif ($argument instanceof Definition) {
+                    $data['arguments'][] = $this->getContainerDefinitionData($argument, $omitTags, $showArguments);
+                } else {
+                    $data['arguments'][] = $argument;
+                }
             }
         }
 
