@@ -4,8 +4,7 @@ UPGRADE FROM 3.x to 4.0
 ClassLoader
 -----------
 
- * The ApcClassLoader, WinCacheClassLoader and XcacheClassLoader classes have been removed
-   in favor of the `--apcu-autoloader` option introduced in composer 1.3
+ * The component has been removed. Use Composer instead.
 
 Console
 -------
@@ -154,7 +153,7 @@ FrameworkBundle
  * The `framework.serializer.cache` option and the services
    `serializer.mapping.cache.apc` and `serializer.mapping.cache.doctrine.apc`
    have been removed. APCu should now be automatically used when available.
-   
+
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been removed. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
 SecurityBundle
@@ -216,7 +215,7 @@ Serializer
  * The ability to pass a Doctrine `Cache` instance to the `ClassMetadataFactory`
    class has been removed. You should use the `CacheClassMetadataFactory` class
    instead.
-   
+
  * Not defining the 6th argument `$format = null` of the
    `AbstractNormalizer::instantiateObject()` method when overriding it is not
    supported anymore.
@@ -294,9 +293,9 @@ Validator
        // ...
    }
    ```
-   
+
  * The default value of the strict option of the `Choice` Constraint has been
-   changed to `true` as of 4.0. If you need the previous behaviour ensure to 
+   changed to `true` as of 4.0. If you need the previous behaviour ensure to
    set the option to `false`.
 
 Yaml
@@ -390,3 +389,16 @@ Yaml
    the `!php/object` tag.
 
  * Duplicate mapping keys lead to a `ParseException`.
+
+ * The constructor arguments `$offset`, `$totalNumberOfLines` and
+   `$skippedLineNumbers` of the `Parser` class were removed.
+
+Ldap
+----
+
+ * The `RenameEntryInterface` has been deprecated, and merged with `EntryManagerInterface`
+
+Workflow
+--------
+
+ * Removed class name support in `WorkflowRegistry::add()` as second parameter.

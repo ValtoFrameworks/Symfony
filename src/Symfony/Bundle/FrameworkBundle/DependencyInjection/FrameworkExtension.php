@@ -36,6 +36,7 @@ use Symfony\Component\Serializer\Normalizer\DataUriNormalizer;
 use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\JsonSerializableNormalizer;
 use Symfony\Component\Workflow;
+use Symfony\Component\Workflow\SupportStrategy\ClassInstanceSupportStrategy;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -356,6 +357,7 @@ class FrameworkExtension extends Extension
 
         $loader->load('profiling.xml');
         $loader->load('collectors.xml');
+        $loader->load('cache_debug.xml');
 
         if ($this->formConfigEnabled) {
             $loader->load('form_debug.xml');
@@ -474,8 +476,14 @@ class FrameworkExtension extends Extension
             $container->setDefinition(sprintf('%s.definition', $workflowId), $definitionDefinition);
 
             // Add workflow to Registry
-            foreach ($workflow['supports'] as $supportedClass) {
-                $registryDefinition->addMethodCall('add', array(new Reference($workflowId), $supportedClass));
+            if ($workflow['supports']) {
+                foreach ($workflow['supports'] as $supportedClassName) {
+                    $strategyDefinition = new Definition(ClassInstanceSupportStrategy::class, array($supportedClassName));
+                    $strategyDefinition->setPublic(false);
+                    $registryDefinition->addMethodCall('add', array(new Reference($workflowId), $strategyDefinition));
+                }
+            } elseif (isset($workflow['support_strategy'])) {
+                $registryDefinition->addMethodCall('add', array(new Reference($workflowId), new Reference($workflow['support_strategy'])));
             }
         }
     }

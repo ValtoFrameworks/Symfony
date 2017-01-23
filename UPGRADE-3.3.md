@@ -4,8 +4,7 @@ UPGRADE FROM 3.2 to 3.3
 ClassLoader
 -----------
 
- * The ApcClassLoader, WinCacheClassLoader and XcacheClassLoader classes have been deprecated
-   in favor of the `--apcu-autoloader` option introduced in composer 1.3
+ * The component is deprecated and will be removed in 4.0. Use Composer instead.
 
 DependencyInjection
 -------------------
@@ -59,3 +58,16 @@ TwigBridge
 
  * The `TwigRendererEngine::setEnvironment()` method has been deprecated and will be removed
    in 4.0. Pass the Twig Environment as second argument of the constructor instead.
+
+Workflow
+--------
+
+ * Deprecated class name support in `WorkflowRegistry::add()` as second parameter.
+   Wrap the class name in an instance of ClassInstanceSupportStrategy instead.
+
+Yaml
+----
+
+ * The constructor arguments `$offset`, `$totalNumberOfLines` and
+   `$skippedLineNumbers` of the `Parser` class are deprecated and will be
+   removed in 4.0
