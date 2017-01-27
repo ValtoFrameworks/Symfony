@@ -153,6 +153,8 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('factory', $services['new_factory1']->getFactory(), '->load() parses the factory tag');
         $this->assertEquals(array(new Reference('baz'), 'getClass'), $services['new_factory2']->getFactory(), '->load() parses the factory tag');
         $this->assertEquals(array('BazClass', 'getInstance'), $services['new_factory3']->getFactory(), '->load() parses the factory tag');
+        $this->assertSame(array(null, 'getInstance'), $services['new_factory4']->getFactory(), '->load() accepts factory tag without class');
+        $this->assertEquals(array('foo', new Reference('baz')), $services['with_shortcut_args']->getArguments(), '->load() parses short service definition');
 
         $aliases = $container->getAliases();
         $this->assertTrue(isset($aliases['alias_for_foo']), '->load() parses aliases');
@@ -383,6 +385,10 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertArrayNotHasKey('public', $container->getDefinition('no_defaults_child')->getChanges());
         $this->assertArrayNotHasKey('autowire', $container->getDefinition('no_defaults_child')->getChanges());
 
+        $this->assertFalse($container->getDefinition('with_shortcut_args')->isPublic());
+        $this->assertSame(array('foo' => array(array())), $container->getDefinition('with_shortcut_args')->getTags());
+        $this->assertTrue($container->getDefinition('with_shortcut_args')->isAutowired());
+
         $container->compile();
 
         $this->assertTrue($container->getDefinition('with_null')->isPublic());
@@ -407,5 +413,15 @@ class YamlFileLoaderTest extends \PHPUnit_Framework_TestCase
     {
         $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
         $loader->load('bad_decorates.yml');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessage Parameter "tags" must be an array for service "Foo\Bar" in services31_invalid_tags.yml. Check your YAML syntax.
+     */
+    public function testInvalidTagsWithDefaults()
+    {
+        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('services31_invalid_tags.yml');
     }
 }

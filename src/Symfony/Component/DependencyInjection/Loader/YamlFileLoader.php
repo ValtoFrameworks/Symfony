@@ -175,7 +175,7 @@ class YamlFileLoader extends FileLoader
     private function parseDefaults(array &$content, $file)
     {
         if (!isset($content['services']['_defaults'])) {
-            return $content;
+            return array();
         }
         if (!is_array($defaults = $content['services']['_defaults'])) {
             throw new InvalidArgumentException(sprintf('Service defaults must be an array, "%s" given in "%s".', gettype($defaults), $file));
@@ -183,7 +183,7 @@ class YamlFileLoader extends FileLoader
         if (isset($defaults['alias']) || isset($defaults['class']) || isset($defaults['factory'])) {
             @trigger_error('Giving a service the "_defaults" name is deprecated since Symfony 3.3 and will be forbidden in 4.0. Rename your service.', E_USER_DEPRECATED);
 
-            return $content;
+            return array();
         }
 
         $defaultKeys = array('public', 'tags', 'inherit_tags', 'autowire');
@@ -243,6 +243,10 @@ class YamlFileLoader extends FileLoader
             $this->container->setAlias($id, new Alias(substr($service, 1), $public));
 
             return;
+        }
+
+        if (is_array($service) && array_values($service) === $service) {
+            $service = array('arguments' => $service);
         }
 
         if (null === $service) {
@@ -348,6 +352,9 @@ class YamlFileLoader extends FileLoader
         }
 
         $tags = isset($service['tags']) ? $service['tags'] : array();
+        if (!is_array($tags)) {
+            throw new InvalidArgumentException(sprintf('Parameter "tags" must be an array for service "%s" in %s. Check your YAML syntax.', $id, $file));
+        }
 
         if (!isset($defaults['tags'])) {
             // no-op
@@ -359,34 +366,28 @@ class YamlFileLoader extends FileLoader
             $tags = array_merge($tags, $defaults['tags']);
         }
 
-        if (null !== $tags) {
-            if (!is_array($tags)) {
-                throw new InvalidArgumentException(sprintf('Parameter "tags" must be an array for service "%s" in %s. Check your YAML syntax.', $id, $file));
+        foreach ($tags as $tag) {
+            if (!is_array($tag)) {
+                $tag = array('name' => $tag);
             }
 
-            foreach ($tags as $tag) {
-                if (!is_array($tag)) {
-                    $tag = array('name' => $tag);
-                }
-
-                if (!isset($tag['name'])) {
-                    throw new InvalidArgumentException(sprintf('A "tags" entry is missing a "name" key for service "%s" in %s.', $id, $file));
-                }
-                $name = $tag['name'];
-                unset($tag['name']);
-
-                if (!is_string($name) || '' === $name) {
-                    throw new InvalidArgumentException(sprintf('The tag name for service "%s" in %s must be a non-empty string.', $id, $file));
-                }
-
-                foreach ($tag as $attribute => $value) {
-                    if (!is_scalar($value) && null !== $value) {
-                        throw new InvalidArgumentException(sprintf('A "tags" attribute must be of a scalar-type for service "%s", tag "%s", attribute "%s" in %s. Check your YAML syntax.', $id, $name, $attribute, $file));
-                    }
-                }
-
-                $definition->addTag($name, $tag);
+            if (!isset($tag['name'])) {
+                throw new InvalidArgumentException(sprintf('A "tags" entry is missing a "name" key for service "%s" in %s.', $id, $file));
             }
+            $name = $tag['name'];
+            unset($tag['name']);
+
+            if (!is_string($name) || '' === $name) {
+                throw new InvalidArgumentException(sprintf('The tag name for service "%s" in %s must be a non-empty string.', $id, $file));
+            }
+
+            foreach ($tag as $attribute => $value) {
+                if (!is_scalar($value) && null !== $value) {
+                    throw new InvalidArgumentException(sprintf('A "tags" attribute must be of a scalar-type for service "%s", tag "%s", attribute "%s" in %s. Check your YAML syntax.', $id, $name, $attribute, $file));
+                }
+            }
+
+            $definition->addTag($name, $tag);
         }
 
         if (isset($service['decorates'])) {
@@ -460,6 +461,10 @@ class YamlFileLoader extends FileLoader
         if (is_array($callable)) {
             if (isset($callable[0]) && isset($callable[1])) {
                 return array($this->resolveServices($callable[0]), $callable[1]);
+            }
+
+            if ('factory' === $parameter && isset($callable[1]) && null === $callable[0]) {
+                return $callable;
             }
 
             throw new InvalidArgumentException(sprintf('Parameter "%s" must contain an array with two elements for service "%s" in %s. Check your YAML syntax.', $parameter, $id, $file));

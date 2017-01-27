@@ -28,6 +28,7 @@ use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Resource\ClassExistenceResource;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\Encoder\YamlEncoder;
 use Symfony\Component\Serializer\Encoder\CsvEncoder;
@@ -38,6 +39,7 @@ use Symfony\Component\Serializer\Normalizer\JsonSerializableNormalizer;
 use Symfony\Component\Workflow;
 use Symfony\Component\Workflow\SupportStrategy\ClassInstanceSupportStrategy;
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Component\Console\Application;
 
 /**
  * FrameworkExtension.
@@ -82,6 +84,11 @@ class FrameworkExtension extends Extension
         }
 
         $loader->load('fragment_renderer.xml');
+
+        $container->addResource(new ClassExistenceResource(Application::class));
+        if (class_exists(Application::class)) {
+            $loader->load('console.xml');
+        }
 
         // Property access is used by both the Form and the Validator component
         $loader->load('property_access.xml');
@@ -947,13 +954,16 @@ class FrameworkExtension extends Extension
 
         $container->setParameter('validator.translation_domain', $config['translation_domain']);
 
-        list($xmlMappings, $yamlMappings) = $this->getValidatorMappingFiles($container);
-        if (count($xmlMappings) > 0) {
-            $validatorBuilder->addMethodCall('addXmlMappings', array($xmlMappings));
+        $files = array('xml' => array(), 'yml' => array());
+        $this->getValidatorMappingFiles($container, $files);
+        $this->getValidatorMappingFilesFromConfig($config, $files);
+
+        if (!empty($files['xml'])) {
+            $validatorBuilder->addMethodCall('addXmlMappings', array($files['xml']));
         }
 
-        if (count($yamlMappings) > 0) {
-            $validatorBuilder->addMethodCall('addYamlMappings', array($yamlMappings));
+        if (!empty($files['yml'])) {
+            $validatorBuilder->addMethodCall('addYamlMappings', array($files['yml']));
         }
 
         $definition = $container->findDefinition('validator.email');
@@ -987,41 +997,58 @@ class FrameworkExtension extends Extension
         }
     }
 
-    private function getValidatorMappingFiles(ContainerBuilder $container)
+    private function getValidatorMappingFiles(ContainerBuilder $container, array &$files)
     {
-        $files = array(array(), array());
-
         if (interface_exists('Symfony\Component\Form\FormInterface')) {
             $reflClass = new \ReflectionClass('Symfony\Component\Form\FormInterface');
-            $files[0][] = dirname($reflClass->getFileName()).'/Resources/config/validation.xml';
-            $container->addResource(new FileResource($files[0][0]));
+            $files['xml'][] = $file = dirname($reflClass->getFileName()).'/Resources/config/validation.xml';
+            $container->addResource(new FileResource($file));
         }
 
         foreach ($container->getParameter('kernel.bundles_metadata') as $bundle) {
             $dirname = $bundle['path'];
-            if (is_file($file = $dirname.'/Resources/config/validation.xml')) {
-                $files[0][] = $file;
+
+            if (is_file($file = $dirname.'/Resources/config/validation.yml')) {
+                $files['yml'][] = $file;
                 $container->addResource(new FileResource($file));
             }
 
-            if (is_file($file = $dirname.'/Resources/config/validation.yml')) {
-                $files[1][] = $file;
+            if (is_file($file = $dirname.'/Resources/config/validation.xml')) {
+                $files['xml'][] = $file;
                 $container->addResource(new FileResource($file));
             }
 
             if (is_dir($dir = $dirname.'/Resources/config/validation')) {
-                foreach (Finder::create()->followLinks()->files()->in($dir)->name('*.xml') as $file) {
-                    $files[0][] = $file->getPathname();
-                }
-                foreach (Finder::create()->followLinks()->files()->in($dir)->name('*.yml') as $file) {
-                    $files[1][] = $file->getPathname();
-                }
-
+                $this->getValidatorMappingFilesFromDir($dir, $files);
                 $container->addResource(new DirectoryResource($dir));
             }
         }
+    }
 
-        return $files;
+    private function getValidatorMappingFilesFromDir($dir, array &$files)
+    {
+        foreach (Finder::create()->followLinks()->files()->in($dir)->name('/\.(xml|ya?ml)$/') as $file) {
+            $extension = $file->getExtension();
+            $files['yaml' === $extension ? 'yml' : $extension][] = $file->getRealpath();
+        }
+    }
+
+    private function getValidatorMappingFilesFromConfig(array $config, array &$files)
+    {
+        foreach ($config['mapping']['paths'] as $path) {
+            if (is_dir($path)) {
+                $this->getValidatorMappingFilesFromDir($path, $files);
+            } elseif (is_file($path)) {
+                if (preg_match('/\.(xml|ya?ml)$/', $path, $matches)) {
+                    $extension = $matches[1];
+                    $files['yaml' === $extension ? 'yml' : $extension][] = $path;
+                } else {
+                    throw new \RuntimeException(sprintf('Unsupported mapping type in "%s", supported types are XML & Yaml.', $path));
+                }
+            } else {
+                throw new \RuntimeException(sprintf('Could not open file or directory "%s".', $path));
+            }
+        }
     }
 
     private function registerAnnotationsConfiguration(array $config, ContainerBuilder $container, $loader)
