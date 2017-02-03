@@ -554,6 +554,9 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertSame('configureBar', $barConfigurator[1]);
     }
 
+    /**
+     * @group legacy
+     */
     public function testType()
     {
         $container = new ContainerBuilder();
@@ -574,6 +577,15 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
 
         $loader->load('services27.xml');
         $this->assertEquals(array('set*', 'bar'), $container->getDefinition('autowire_array')->getAutowiredMethods());
+    }
+
+    public function testGetter()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services31.xml');
+
+        $this->assertEquals(array('getbar' => array('bar' => new Reference('bar'))), $container->getDefinition('foo')->getOverriddenGetters());
     }
 
     /**

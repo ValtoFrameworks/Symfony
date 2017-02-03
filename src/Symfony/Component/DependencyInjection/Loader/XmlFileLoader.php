@@ -244,6 +244,7 @@ class XmlFileLoader extends FileLoader
 
         $definition->setArguments($this->getArgumentsAsPhp($service, 'argument'));
         $definition->setProperties($this->getArgumentsAsPhp($service, 'property'));
+        $definition->setOverriddenGetters($this->getArgumentsAsPhp($service, 'getter'));
 
         if ($factories = $this->getChildren($service, 'factory')) {
             $factory = $factories[0];
@@ -385,7 +386,7 @@ class XmlFileLoader extends FileLoader
         $xpath->registerNamespace('container', self::NS);
 
         // anonymous services as arguments/properties
-        if (false !== $nodes = $xpath->query('//container:argument[@type="service"][not(@id)]|//container:property[@type="service"][not(@id)]')) {
+        if (false !== $nodes = $xpath->query('//container:argument[@type="service"][not(@id)]|//container:property[@type="service"][not(@id)]|//container:getter[@type="service"][not(@id)]')) {
             foreach ($nodes as $node) {
                 // give it a unique name
                 $id = sprintf('%d_%s', ++$count, hash('sha256', $file));
@@ -474,6 +475,10 @@ class XmlFileLoader extends FileLoader
 
             switch ($arg->getAttribute('type')) {
                 case 'service':
+                    if ($arg->hasAttribute('strict')) {
+                        @trigger_error(sprintf('The "strict" attribute used when referencing the "%s" service is deprecated since version 3.3 and will be removed in 4.0.', $arg->getAttribute('id')), E_USER_DEPRECATED);
+                    }
+
                     $arguments[$key] = new Reference($arg->getAttribute('id'), $invalidBehavior);
                     break;
                 case 'expression':

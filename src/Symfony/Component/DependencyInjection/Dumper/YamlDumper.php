@@ -107,7 +107,7 @@ class YamlDumper extends Dumper
         }
 
         $autowiringTypesCode = '';
-        foreach ($definition->getAutowiringTypes() as $autowiringType) {
+        foreach ($definition->getAutowiringTypes(false) as $autowiringType) {
             $autowiringTypesCode .= sprintf("            - %s\n", $this->dumper->dump($autowiringType));
         }
         if ($autowiringTypesCode) {
@@ -124,6 +124,10 @@ class YamlDumper extends Dumper
 
         if ($definition->getProperties()) {
             $code .= sprintf("        properties: %s\n", $this->dumper->dump($this->dumpValue($definition->getProperties()), 0));
+        }
+
+        if ($definition->getOverriddenGetters()) {
+            $code .= sprintf("        getters:\n%s\n", $this->dumper->dump($this->dumpValue($definition->getOverriddenGetters()), 0));
         }
 
         if ($definition->getMethodCalls()) {

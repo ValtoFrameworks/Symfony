@@ -23,7 +23,7 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
  * @author Johannes M. Schmitt <schmittjoh@gmail.com>
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class ResolveDefinitionTemplatesPass extends AbstractRecursivePass implements CompilerPassInterface
+class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
 {
     protected function processValue($value, $isRoot = false)
     {
@@ -80,8 +80,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass implements Co
             $this->currentId = $id;
         }
 
-        $compiler = $this->container->getCompiler();
-        $compiler->addLogMessage($compiler->getLoggingFormatter()->formatResolveInheritance($this, $this->currentId, $parent));
+        $this->container->log($this, sprintf('Resolving inheritance for "%s" (parent: %s).', $this->currentId, $parent));
         $def = new Definition();
 
         // merge in parent definition
@@ -89,8 +88,11 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass implements Co
         $def->setClass($parentDef->getClass());
         $def->setArguments($parentDef->getArguments());
         $def->setMethodCalls($parentDef->getMethodCalls());
+        $def->setOverriddenGetters($parentDef->getOverriddenGetters());
         $def->setProperties($parentDef->getProperties());
-        $def->setAutowiringTypes($parentDef->getAutowiringTypes());
+        if ($parentDef->getAutowiringTypes(false)) {
+            $def->setAutowiringTypes($parentDef->getAutowiringTypes(false));
+        }
         if ($parentDef->isDeprecated()) {
             $def->setDeprecated(true, $parentDef->getDeprecationMessage('%service_id%'));
         }
@@ -161,8 +163,13 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass implements Co
             $def->setMethodCalls(array_merge($def->getMethodCalls(), $calls));
         }
 
+        // merge overridden getters
+        foreach ($definition->getOverriddenGetters() as $k => $v) {
+            $def->setOverriddenGetter($k, $v);
+        }
+
         // merge autowiring types
-        foreach ($definition->getAutowiringTypes() as $autowiringType) {
+        foreach ($definition->getAutowiringTypes(false) as $autowiringType) {
             $def->addAutowiringType($autowiringType);
         }
 

@@ -25,10 +25,15 @@ use Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceExce
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
+use Symfony\Component\Config\Resource\ClassExistenceResource;
+use Symfony\Component\Config\Resource\DirectoryResource;
+use Symfony\Component\Config\Resource\FileExistenceResource;
 use Symfony\Component\Config\Resource\FileResource;
+use Symfony\Component\Config\Resource\ReflectionClassResource;
 use Symfony\Component\Config\Resource\ResourceInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\InstantiatorInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\RealServiceInstantiator;
+use Symfony\Component\DependencyInjection\LazyProxy\GetterProxyInterface;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\ExpressionLanguage\ExpressionFunctionProviderInterface;
 
@@ -201,7 +206,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     public function getResources()
     {
-        return array_unique($this->resources);
+        return array_values($this->resources);
     }
 
     /**
@@ -217,7 +222,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return $this;
         }
 
-        $this->resources[] = $resource;
+        $this->resources[(string) $resource] = $resource;
 
         return $this;
     }
@@ -243,14 +248,39 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     /**
      * Adds the object class hierarchy as resources.
      *
-     * @param object $object An object instance
+     * @param object|string $object An object instance or class name
      *
      * @return $this
      */
     public function addObjectResource($object)
     {
         if ($this->trackResources) {
-            $this->addClassResource(new \ReflectionClass($object));
+            if (is_object($object)) {
+                $object = get_class($object);
+            }
+            if (!isset($this->classReflectors[$object])) {
+                $this->classReflectors[$object] = new \ReflectionClass($object);
+            }
+            $class = $this->classReflectors[$object];
+
+            foreach ($class->getInterfaceNames() as $name) {
+                if (null === $interface = &$this->classReflectors[$name]) {
+                    $interface = new \ReflectionClass($name);
+                }
+                $file = $interface->getFileName();
+                if (false !== $file && file_exists($file)) {
+                    $this->addResource(new FileResource($file));
+                }
+            }
+            do {
+                $file = $class->getFileName();
+                if (false !== $file && file_exists($file)) {
+                    $this->addResource(new FileResource($file));
+                }
+                foreach ($class->getTraitNames() as $name) {
+                    $this->addObjectResource($name);
+                }
+            } while ($class = $class->getParentClass());
         }
 
         return $this;
@@ -262,20 +292,93 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @param \ReflectionClass $class
      *
      * @return $this
+     *
+     * @deprecated since version 3.3, to be removed in 4.0. Use addObjectResource() or getReflectionClass() instead.
      */
     public function addClassResource(\ReflectionClass $class)
     {
-        if (!$this->trackResources) {
-            return $this;
+        @trigger_error('The '.__METHOD__.'() method is deprecated since version 3.3 and will be removed in 4.0. Use the addObjectResource() or the getReflectionClass() method instead.', E_USER_DEPRECATED);
+
+        return $this->addObjectResource($class->name);
+    }
+
+    /**
+     * Retrieves the requested reflection class and registers it for resource tracking.
+     *
+     * @param string $class
+     * @param bool   $koWithThrowingAutoloader Whether autoload should be protected against bad parents or not
+     *
+     * @return \ReflectionClass|null
+     *
+     * @final
+     */
+    public function getReflectionClass($class, $koWithThrowingAutoloader = false)
+    {
+        if (!$class = $this->getParameterBag()->resolveValue($class)) {
+            return;
+        }
+        $resource = null;
+
+        try {
+            if (isset($this->classReflectors[$class])) {
+                $classReflector = $this->classReflectors[$class];
+            } elseif ($koWithThrowingAutoloader) {
+                $resource = new ClassExistenceResource($class, ClassExistenceResource::EXISTS_KO_WITH_THROWING_AUTOLOADER);
+
+                $classReflector = $resource->isFresh(0) ? false : new \ReflectionClass($class);
+            } else {
+                $classReflector = new \ReflectionClass($class);
+            }
+        } catch (\ReflectionException $e) {
+            $classReflector = false;
         }
 
-        do {
-            if (is_file($class->getFileName())) {
-                $this->addResource(new FileResource($class->getFileName()));
+        if ($this->trackResources) {
+            if (!$classReflector) {
+                $this->addResource($resource ?: new ClassExistenceResource($class, ClassExistenceResource::EXISTS_KO));
+            } elseif (!$classReflector->isInternal()) {
+                $this->addResource(new ReflectionClassResource($classReflector));
             }
-        } while ($class = $class->getParentClass());
+            $this->classReflectors[$class] = $classReflector;
+        }
 
-        return $this;
+        return $classReflector ?: null;
+    }
+
+    /**
+     * Checks whether the requested file or directory exists and registers the result for resource tracking.
+     *
+     * @param string      $path          The file or directory path for which to check the existence
+     * @param bool|string $trackContents Whether to track contents of the given resource. If a string is passed,
+     *                                   it will be used as pattern for tracking contents of the requested directory
+     *
+     * @return bool
+     *
+     * @final
+     */
+    public function fileExists($path, $trackContents = true)
+    {
+        $exists = file_exists($path);
+
+        if (!$this->trackResources) {
+            return $exists;
+        }
+
+        if (!$exists) {
+            $this->addResource(new FileExistenceResource($path));
+
+            return $exists;
+        }
+
+        if ($trackContents) {
+            if (is_file($path)) {
+                $this->addResource(new FileResource($path));
+            } else {
+                $this->addResource(new DirectoryResource($path, is_string($trackContents) ? $trackContents : null));
+            }
+        }
+
+        return $exists;
     }
 
     /**
@@ -571,8 +674,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if (!$definition->isPublic()) {
                 $this->privates[$id] = true;
             }
-            if ($this->trackResources && $definition->isLazy() && ($class = $definition->getClass()) && class_exists($class)) {
-                $this->addClassResource(new \ReflectionClass($class));
+            if ($this->trackResources && $definition->isLazy()) {
+                $this->getReflectionClass($definition->getClass());
             }
         }
 
@@ -890,6 +993,9 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         $arguments = $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($definition->getArguments())));
 
         if (null !== $factory = $definition->getFactory()) {
+            if ($definition->getOverriddenGetters()) {
+                throw new RuntimeException(sprintf('Cannot create service "%s": factories and overridden getters are incompatible with each other.', $id));
+            }
             if (is_array($factory)) {
                 $factory = array($this->resolveServices($parameterBag->resolveValue($factory[0])), $factory[1]);
             } elseif (!is_string($factory)) {
@@ -908,10 +1014,30 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         } else {
             $r = new \ReflectionClass($parameterBag->resolveValue($definition->getClass()));
 
-            $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs($arguments);
-
             if (!$definition->isDeprecated() && 0 < strpos($r->getDocComment(), "\n * @deprecated ")) {
                 @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" class. It should either be deprecated or its implementation upgraded.', $id, $r->name), E_USER_DEPRECATED);
+            }
+            if ($definition->getOverriddenGetters()) {
+                static $salt;
+                if (null === $salt) {
+                    $salt = str_replace('.', '', uniqid('', true));
+                }
+                $service = sprintf('%s implements \\%s { private $container%4$s; private $values%4$s; %s }', $r->name, GetterProxyInterface::class, $this->generateOverriddenGetters($id, $definition, $r, $salt), $salt);
+                if (!class_exists($proxyClass = 'SymfonyProxy_'.md5($service), false)) {
+                    eval(sprintf('class %s extends %s', $proxyClass, $service));
+                }
+                $r = new \ReflectionClass($proxyClass);
+                $constructor = $r->getConstructor();
+                if ($constructor && !defined('HHVM_VERSION') && $constructor->getDeclaringClass()->isInternal()) {
+                    $constructor = null;
+                }
+                $service = $constructor ? $r->newInstanceWithoutConstructor() : $r->newInstanceArgs($arguments);
+                call_user_func(\Closure::bind(function ($c, $v, $s) { $this->{'container'.$s} = $c; $this->{'values'.$s} = $v; }, $service, $service), $this, $definition->getOverriddenGetters(), $salt);
+                if ($constructor) {
+                    $constructor->invokeArgs($service, $arguments);
+                }
+            } else {
+                $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs($arguments);
             }
         }
 
@@ -976,6 +1102,19 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
                     yield $k => $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
                 }
+            }, function () use ($value) {
+                $count = 0;
+                foreach ($value->getValues() as $v) {
+                    foreach (self::getServiceConditionals($v) as $s) {
+                        if (!$this->has($s)) {
+                            continue 2;
+                        }
+                    }
+
+                    ++$count;
+                }
+
+                return $count;
             });
         } elseif ($value instanceof ClosureProxyArgument) {
             $parameterBag = $this->getParameterBag();
@@ -983,7 +1122,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if ('service_container' === $id = (string) $reference) {
                 $class = parent::class;
             } elseif (!$this->hasDefinition($id) && ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $reference->getInvalidBehavior()) {
-                return null;
+                return;
             } else {
                 $class = $parameterBag->resolveValue($this->findDefinition($id)->getClass());
             }
@@ -1155,6 +1294,102 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         return $this->envCounters;
     }
 
+    private function generateOverriddenGetters($id, Definition $definition, \ReflectionClass $class, $salt)
+    {
+        if ($class->isFinal()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": class "%s" cannot be marked as final.', $id, $class->name));
+        }
+        $getters = '';
+        foreach ($definition->getOverriddenGetters() as $name => $returnValue) {
+            $r = self::getGetterReflector($class, $name, $id, $type);
+            $visibility = $r->isProtected() ? 'protected' : 'public';
+            $name = var_export($name, true);
+            $getters .= <<<EOF
+
+{$visibility} function {$r->name}(){$type} {
+    \$c = \$this->container{$salt};
+    \$b = \$c->getParameterBag();
+    \$v = \$this->values{$salt}[{$name}];
+
+    foreach (\$c->getServiceConditionals(\$v) as \$s) {
+        if (!\$c->has(\$s)) {
+            return parent::{$r->name}();
+        }
+    }
+
+    return \$c->resolveServices(\$b->unescapeValue(\$b->resolveValue(\$v)));
+}
+EOF;
+        }
+
+        return $getters;
+    }
+
+    /**
+     * @internal
+     */
+    public static function getGetterReflector(\ReflectionClass $class, $name, $id, &$type)
+    {
+        if (!$class->hasMethod($name)) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" does not exist.', $id, $class->name, $name));
+        }
+        $r = $class->getMethod($name);
+        if ($r->isPrivate()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" must be public or protected.', $id, $class->name, $r->name));
+        }
+        if ($r->isStatic()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot be static.', $id, $class->name, $r->name));
+        }
+        if ($r->isFinal()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot be marked as final.', $id, $class->name, $r->name));
+        }
+        if ($r->returnsReference()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot return by reference.', $id, $class->name, $r->name));
+        }
+        if (0 < $r->getNumberOfParameters()) {
+            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot have any arguments.', $id, $class->name, $r->name));
+        }
+        if ($type = method_exists($r, 'getReturnType') ? $r->getReturnType() : null) {
+            $type = ': '.($type->allowsNull() ? '?' : '').self::generateTypeHint($type, $r);
+        }
+
+        return $r;
+    }
+
+    /**
+     * @internal
+     */
+    public static function generateTypeHint($type, \ReflectionFunctionAbstract $r)
+    {
+        if (is_string($type)) {
+            $name = $type;
+
+            if ('callable' === $name || 'array' === $name) {
+                return $name;
+            }
+        } else {
+            $name = $type instanceof \ReflectionNamedType ? $type->getName() : $type->__toString();
+
+            if ($type->isBuiltin()) {
+                return $name;
+            }
+        }
+        $lcName = strtolower($name);
+
+        if ('self' !== $lcName && 'parent' !== $lcName) {
+            return '\\'.$name;
+        }
+        if (!$r instanceof \ReflectionMethod) {
+            return;
+        }
+        if ('self' === $lcName) {
+            return '\\'.$r->getDeclaringClass()->name;
+        }
+        if ($parent = $r->getDeclaringClass()->getParentClass()) {
+            return '\\'.$parent->name;
+        }
+    }
+
     /**
      * @internal
      */
@@ -1169,6 +1404,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         return $normalizedIds;
+    }
+
+    /**
+     * @final
+     */
+    public function log(CompilerPassInterface $pass, $message)
+    {
+        $this->getCompiler()->log($pass, $message);
     }
 
     /**

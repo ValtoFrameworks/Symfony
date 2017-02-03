@@ -15,6 +15,7 @@ use Symfony\Component\DependencyInjection\Compiler\AutowirePass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\includes\FooVariadic;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\GetterOverriding;
 
 /**
  * @author Kévin Dunglas <dunglas@gmail.com>
@@ -191,7 +192,7 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
         $container = new ContainerBuilder();
 
         $container->register('a1', __NAMESPACE__.'\Foo');
-        $container->register('a2', __NAMESPACE__.'\Foo')->addAutowiringType(__NAMESPACE__.'\Foo');
+        $container->register(Foo::class, Foo::class);
         $aDefinition = $container->register('a', __NAMESPACE__.'\NotGuessableArgument');
         $aDefinition->setAutowired(true);
 
@@ -199,7 +200,7 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
         $pass->process($container);
 
         $this->assertCount(1, $container->getDefinition('a')->getArguments());
-        $this->assertEquals('a2', (string) $container->getDefinition('a')->getArgument(0));
+        $this->assertEquals(Foo::class, (string) $container->getDefinition('a')->getArgument(0));
     }
 
     public function testWithTypeSet()
@@ -207,7 +208,8 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
         $container = new ContainerBuilder();
 
         $container->register('c1', __NAMESPACE__.'\CollisionA');
-        $container->register('c2', __NAMESPACE__.'\CollisionB')->addAutowiringType(__NAMESPACE__.'\CollisionInterface');
+        $container->register('c2', __NAMESPACE__.'\CollisionB');
+        $container->setAlias(CollisionInterface::class, 'c2');
         $aDefinition = $container->register('a', __NAMESPACE__.'\CannotBeAutowired');
         $aDefinition->setAutowired(true);
 
@@ -215,7 +217,7 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
         $pass->process($container);
 
         $this->assertCount(1, $container->getDefinition('a')->getArguments());
-        $this->assertEquals('c2', (string) $container->getDefinition('a')->getArgument(0));
+        $this->assertEquals(CollisionInterface::class, (string) $container->getDefinition('a')->getArgument(0));
     }
 
     public function testCreateDefinition()
@@ -516,7 +518,33 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * @requires PHP 7.1
+     */
+    public function testGetterOverriding()
+    {
+        $container = new ContainerBuilder();
+        $container->register('b', B::class);
+
+        $container
+            ->register('getter_overriding', GetterOverriding::class)
+            ->setOverriddenGetter('getExplicitlyDefined', new Reference('b'))
+            ->setAutowiredMethods(array('get*'))
+        ;
+
+        $pass = new AutowirePass();
+        $pass->process($container);
+
+        $overridenGetters = $container->getDefinition('getter_overriding')->getOverriddenGetters();
+        $this->assertEquals(array(
+            'getexplicitlydefined' => new Reference('b'),
+            'getfoo' => new Reference('autowired.Symfony\Component\DependencyInjection\Tests\Compiler\Foo'),
+            'getbar' => new Reference('autowired.Symfony\Component\DependencyInjection\Tests\Compiler\Bar'),
+        ), $overridenGetters);
+    }
+
+    /**
      * @dataProvider getCreateResourceTests
+     * @group legacy
      */
     public function testCreateResourceForClass($className, $isEqual)
     {
@@ -603,11 +631,22 @@ class AutowirePassTest extends \PHPUnit_Framework_TestCase
         $definition = $container->register('bar', SetterInjection::class);
         $definition->setAutowired(true);
         $definition->addMethodCall('setDependencies', array(new Reference('foo')));
+    }
+
+    public function testEmptyStringIsKept()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('a', __NAMESPACE__.'\A');
+        $container->register('lille', __NAMESPACE__.'\Lille');
+        $container->register('foo', __NAMESPACE__.'\MultipleArgumentsOptionalScalar')
+            ->setAutowired(true)
+            ->setArguments(array('', ''));
 
         $pass = new AutowirePass();
         $pass->process($container);
 
-        $this->assertEquals(array(array('setDependencies', array(new Reference('foo'), new Reference('a')))), $container->getDefinition('bar')->getMethodCalls());
+        $this->assertEquals(array(new Reference('a'), '', new Reference('lille')), $container->getDefinition('foo')->getArguments());
     }
 }
 
@@ -840,6 +879,11 @@ class SetterInjection
     public function notASetter(A $a)
     {
         // should be called only when explicitly specified
+    }
+
+    protected function setProtectedMethod(A $a)
+    {
+        // should not be called
     }
 }
 

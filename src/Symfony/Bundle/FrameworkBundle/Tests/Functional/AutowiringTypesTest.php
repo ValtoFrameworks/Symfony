@@ -13,6 +13,7 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Functional;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\Common\Annotations\CachedReader;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Templating\EngineInterface as ComponentEngineInterface;
 use Symfony\Component\HttpKernel\Debug\TraceableEventDispatcher;
 use Symfony\Component\EventDispatcher\ContainerAwareEventDispatcher;
@@ -61,6 +62,15 @@ class AutowiringTypesTest extends WebTestCase
 
         $autowiredServices = $container->get('test.autowiring_types.autowired_services');
         $this->assertInstanceOf(TraceableEventDispatcher::class, $autowiredServices->getDispatcher(), 'The debug.event_dispatcher service should be injected if the debug is enabled');
+    }
+
+    public function testCacheAutowiring()
+    {
+        static::bootKernel();
+        $container = static::$kernel->getContainer();
+
+        $autowiredServices = $container->get('test.autowiring_types.autowired_services');
+        $this->assertInstanceOf(FilesystemAdapter::class, $autowiredServices->getCachePool());
     }
 
     protected static function createKernel(array $options = array())

@@ -4,6 +4,12 @@ CHANGELOG
 3.3.0
 -----
 
+ * added `ContainerBuilder::getReflectionClass()` for retrieving and tracking reflection class info
+ * deprecated `ContainerBuilder::getClassResource()`, use `ContainerBuilder::getReflectionClass()` or `ContainerBuilder::addObjectResource()` instead
+ * added `ContainerBuilder::fileExists()` for checking and tracking file or directory existence
+ * deprecated autowiring-types, use aliases instead
+ * [EXPERIMENTAL] added support for getter autowiring
+ * [EXPERIMENTAL] added support for getter-injection
  * added support for omitting the factory class name in a service definition if the definition class is set
  * deprecated case insensitivity of service identifiers
  * added "iterator" argument type for lazy iteration over a set of values and services

@@ -15,6 +15,7 @@ require_once __DIR__.'/Fixtures/includes/classes.php';
 require_once __DIR__.'/Fixtures/includes/ProjectExtension.php';
 
 use Symfony\Component\Config\Resource\ResourceInterface;
+use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
@@ -422,6 +423,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $lazyContext = $builder->get('lazy_context');
         $this->assertInstanceOf(RewindableGenerator::class, $lazyContext->lazyValues);
+        $this->assertCount(1, $lazyContext->lazyValues);
 
         $i = 0;
         foreach ($lazyContext->lazyValues as $k => $v) {
@@ -621,6 +623,9 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         $this->assertSame(realpath(__DIR__.'/Fixtures/includes/classes.php'), realpath($resource->getResource()));
     }
 
+    /**
+     * @group legacy
+     */
     public function testAddClassResource()
     {
         $container = new ContainerBuilder();
@@ -644,6 +649,32 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         $this->assertSame(realpath(__DIR__.'/Fixtures/includes/classes.php'), realpath($resource->getResource()));
     }
 
+    public function testGetReflectionClass()
+    {
+        $container = new ContainerBuilder();
+
+        $container->setResourceTracking(false);
+        $r1 = $container->getReflectionClass('BarClass');
+
+        $this->assertEmpty($container->getResources(), 'No resources get registered without resource tracking');
+
+        $container->setResourceTracking(true);
+        $r2 = $container->getReflectionClass('BarClass');
+        $r3 = $container->getReflectionClass('BarClass');
+
+        $this->assertNull($container->getReflectionClass('BarMissingClass'));
+
+        $this->assertEquals($r1, $r2);
+        $this->assertSame($r2, $r3);
+
+        $resources = $container->getResources();
+
+        $this->assertCount(2, $resources, '2 resources were registered');
+
+        $this->assertSame('reflection.BarClass', (string) $resources[0]);
+        $this->assertSame('BarMissingClass', (string) end($resources));
+    }
+
     public function testCompilesClassDefinitionsOfLazyServices()
     {
         $container = new ContainerBuilder();
@@ -655,11 +686,10 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $container->compile();
 
-        $classesPath = realpath(__DIR__.'/Fixtures/includes/classes.php');
         $matchingResources = array_filter(
             $container->getResources(),
-            function (ResourceInterface $resource) use ($classesPath) {
-                return $resource instanceof FileResource && $classesPath === realpath($resource->getResource());
+            function (ResourceInterface $resource) {
+                return 'reflection.BarClass' === (string) $resource;
             }
         );
 
@@ -680,6 +710,25 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(array($a, $b), $resources, '->getResources() returns an array of resources read for the current configuration');
         $this->assertSame($container, $container->setResources(array()));
         $this->assertEquals(array(), $container->getResources());
+    }
+
+    public function testFileExists()
+    {
+        $container = new ContainerBuilder();
+        $a = new FileResource(__DIR__.'/Fixtures/xml/services1.xml');
+        $b = new FileResource(__DIR__.'/Fixtures/xml/services2.xml');
+        $c = new DirectoryResource($dir = dirname($b));
+
+        $this->assertTrue($container->fileExists((string) $a) && $container->fileExists((string) $b) && $container->fileExists($dir));
+
+        $resources = array();
+        foreach ($container->getResources() as $resource) {
+            if (false === strpos($resource, '.php')) {
+                $resources[] = $resource;
+            }
+        }
+
+        $this->assertEquals(array($a, $b, $c), $resources, '->getResources() returns an array of resources read for the current configuration');
     }
 
     public function testExtension()
@@ -797,6 +846,59 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(array($second, $first), $configs);
     }
 
+    public function testOverriddenGetter()
+    {
+        $builder = new ContainerBuilder();
+        $builder
+            ->register('foo', 'ReflectionClass')
+            ->addArgument('stdClass')
+            ->setOverriddenGetter('getName', 'bar');
+
+        $foo = $builder->get('foo');
+
+        $this->assertInstanceOf('ReflectionClass', $foo);
+        $this->assertSame('bar', $foo->getName());
+    }
+
+    public function testOverriddenGetterOnInvalid()
+    {
+        $builder = new ContainerBuilder();
+        $builder
+            ->register('foo', 'ReflectionClass')
+            ->addArgument('stdClass')
+            ->setOverriddenGetter('getName', new Reference('bar', ContainerInterface::IGNORE_ON_INVALID_REFERENCE));
+
+        $foo = $builder->get('foo');
+
+        $this->assertInstanceOf('ReflectionClass', $foo);
+        $this->assertSame('stdClass', $foo->getName());
+    }
+
+    /**
+     * @dataProvider provideBadOverridenGetters
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     */
+    public function testBadOverridenGetters($expectedMessage, $getter, $id = 'foo')
+    {
+        $container = include __DIR__.'/Fixtures/containers/container30.php';
+        $container->getDefinition($id)->setOverriddenGetter($getter, 123);
+
+        $this->setExpectedException(RuntimeException::class, $expectedMessage);
+        $container->get($id);
+    }
+
+    public function provideBadOverridenGetters()
+    {
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getnotfound" does not exist.', 'getNotFound');
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getPrivate" must be public or protected.', 'getPrivate');
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getStatic" cannot be static.', 'getStatic');
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getFinal" cannot be marked as final.', 'getFinal');
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getRef" cannot return by reference.', 'getRef');
+        yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getParam" cannot have any arguments.', 'getParam');
+        yield array('Unable to configure getter injection for service "bar": class "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Bar" cannot be marked as final.', 'getParam', 'bar');
+        yield array('Cannot create service "baz": factories and overridden getters are incompatible with each other.', 'getParam', 'baz');
+    }
+
     public function testAbstractAlias()
     {
         $container = new ContainerBuilder();
@@ -826,16 +928,13 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $container->compile();
 
-        $class = new \BazClass();
-        $reflectionClass = new \ReflectionClass($class);
-
         $r = new \ReflectionProperty($container, 'resources');
         $r->setAccessible(true);
         $resources = $r->getValue($container);
 
         $classInList = false;
         foreach ($resources as $resource) {
-            if ($resource->getResource() === $reflectionClass->getFileName()) {
+            if ('reflection.BazClass' === (string) $resource) {
                 $classInList = true;
                 break;
             }
@@ -932,14 +1031,24 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
     {
         $container = new ContainerBuilder();
 
-        $unknown = $container->register('unknown_class');
-        $class = $container->register(\stdClass::class);
+        $unknown = $container->register('Acme\UnknownClass');
         $autoloadClass = $container->register(CaseSensitiveClass::class);
         $container->compile();
 
-        $this->assertSame('unknown_class', $unknown->getClass());
-        $this->assertEquals(\stdClass::class, $class->getClass());
+        $this->assertSame('Acme\UnknownClass', $unknown->getClass());
         $this->assertEquals(CaseSensitiveClass::class, $autoloadClass->getClass());
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     * @expectedExceptionMessage The definition for "DateTime" has no class.
+     */
+    public function testNoClassFromGlobalNamespaceClassId()
+    {
+        $container = new ContainerBuilder();
+
+        $definition = $container->register(\DateTime::class);
+        $container->compile();
     }
 
     /**

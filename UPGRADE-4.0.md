@@ -24,6 +24,23 @@ Debug
 DependencyInjection
 -------------------
 
+ * Autowiring-types have been removed, use aliases instead.
+
+   Before:
+
+   ```xml
+   <service id="annotations.reader" class="Doctrine\Common\Annotations\AnnotationReader" public="false">
+       <autowiring-type>Doctrine\Common\Annotations\Reader</autowiring-type>
+   </service>
+   ```
+
+   After:
+
+   ```xml
+   <service id="annotations.reader" class="Doctrine\Common\Annotations\AnnotationReader" public="false" />
+   <service id="Doctrine\Common\Annotations\Reader" alias="annotations.reader" public="false" />
+   ```
+
  * Service identifiers are now case sensitive.
 
  * The `Reference` and `Alias` classes do not make service identifiers lowercase anymore.
@@ -164,6 +181,8 @@ SecurityBundle
 
  * The `FirewallContext::getContext()` method has been removed, use the `getListeners()` method instead.
 
+ * The `FirewallMap::$map` and `$container` properties have been removed.
+
 HttpFoundation
 ---------------
 
@@ -205,6 +224,15 @@ HttpKernel
 
  * The `Psr6CacheClearer::addPool()` method has been removed. Pass an array of pools indexed
    by name to the constructor instead.
+
+Process
+-------
+
+ * Environment variables are always inherited in sub-processes.
+
+ * Configuring `proc_open()` options has been removed.
+
+ * Configuring Windows and sigchild compatibility is not possible anymore - they are always enabled.
 
 Security
 --------

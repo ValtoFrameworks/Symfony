@@ -14,6 +14,23 @@ Debug
 DependencyInjection
 -------------------
 
+ * Autowiring-types have been deprecated, use aliases instead.
+
+   Before:
+
+   ```xml
+   <service id="annotations.reader" class="Doctrine\Common\Annotations\AnnotationReader" public="false">
+       <autowiring-type>Doctrine\Common\Annotations\Reader</autowiring-type>
+   </service>
+   ```
+
+   After:
+
+   ```xml
+   <service id="annotations.reader" class="Doctrine\Common\Annotations\AnnotationReader" public="false" />
+   <service id="Doctrine\Common\Annotations\Reader" alias="annotations.reader" public="false" />
+   ```
+
  * The `Reference` and `Alias` classes do not make service identifiers lowercase anymore.
 
  * Case insensitivity of service identifiers is deprecated and will be removed in 4.0.
@@ -46,6 +63,15 @@ HttpKernel
  * The `Psr6CacheClearer::addPool()` method has been deprecated. Pass an array of pools indexed
    by name to the constructor instead.
 
+Process
+-------
+
+ * Not inheriting environment variables is deprecated.
+
+ * Configuring `proc_open()` options is deprecated.
+
+ * Configuring Windows and sigchild compatibility is deprecated - they will be always enabled in 4.0.
+
 Security
 --------
 
@@ -57,6 +83,8 @@ SecurityBundle
 
  * The `FirewallContext::getContext()` method has been deprecated and will be removed in 4.0.
    Use the `getListeners()` method instead.
+
+ * The `FirewallMap::$map` and `$container` properties have been deprecated and will be removed in 4.0.
 
 TwigBridge
 ----------

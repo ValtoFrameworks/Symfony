@@ -29,6 +29,7 @@ class Definition
     private $deprecationTemplate = 'The "%service_id%" service is deprecated. You should stop using it, as it will soon be removed.';
     private $properties = array();
     private $calls = array();
+    private $getters = array();
     private $configurator;
     private $tags = array();
     private $public = true;
@@ -198,6 +199,10 @@ class Definition
      */
     public function replaceArgument($index, $argument)
     {
+        if (0 === count($this->arguments)) {
+            throw new OutOfBoundsException('Cannot replace arguments if none have been configured yet.');
+        }
+
         if ($index < 0 || $index > count($this->arguments) - 1) {
             throw new OutOfBoundsException(sprintf('The index "%d" is not in the range [0, %d].', $index, count($this->arguments) - 1));
         }
@@ -317,6 +322,37 @@ class Definition
     public function getMethodCalls()
     {
         return $this->calls;
+    }
+
+    /**
+     * @experimental in version 3.3
+     */
+    public function setOverriddenGetter($name, $returnValue)
+    {
+        if (!$name) {
+            throw new InvalidArgumentException(sprintf('Getter name cannot be empty.'));
+        }
+        $this->getters[strtolower($name)] = $returnValue;
+
+        return $this;
+    }
+
+    /**
+     * @experimental in version 3.3
+     */
+    public function setOverriddenGetters(array $getters)
+    {
+        $this->getters = array_change_key_case($getters, CASE_LOWER);
+
+        return $this;
+    }
+
+    /**
+     * @experimental in version 3.3
+     */
+    public function getOverriddenGetters()
+    {
+        return $this->getters;
     }
 
     /**
@@ -643,9 +679,13 @@ class Definition
      * @param string[] $types
      *
      * @return $this
+     *
+     * @deprecated since version 3.3, to be removed in 4.0.
      */
     public function setAutowiringTypes(array $types)
     {
+        @trigger_error('Autowiring-types are deprecated since Symfony 3.3 and will be removed in 4.0. Use aliases instead.', E_USER_DEPRECATED);
+
         $this->autowiringTypes = array();
 
         foreach ($types as $type) {
@@ -714,9 +754,15 @@ class Definition
      * Gets autowiring types that will default to this definition.
      *
      * @return string[]
+     *
+     * @deprecated since version 3.3, to be removed in 4.0.
      */
-    public function getAutowiringTypes()
+    public function getAutowiringTypes(/*$triggerDeprecation = true*/)
     {
+        if (1 > func_num_args() || func_get_arg(0)) {
+            @trigger_error('Autowiring-types are deprecated since Symfony 3.3 and will be removed in 4.0. Use aliases instead.', E_USER_DEPRECATED);
+        }
+
         return array_keys($this->autowiringTypes);
     }
 
@@ -726,9 +772,13 @@ class Definition
      * @param string $type
      *
      * @return $this
+     *
+     * @deprecated since version 3.3, to be removed in 4.0.
      */
     public function addAutowiringType($type)
     {
+        @trigger_error(sprintf('Autowiring-types are deprecated since Symfony 3.3 and will be removed in 4.0. Use aliases instead for "%s".', $type), E_USER_DEPRECATED);
+
         $this->autowiringTypes[$type] = true;
 
         return $this;
@@ -740,9 +790,13 @@ class Definition
      * @param string $type
      *
      * @return $this
+     *
+     * @deprecated since version 3.3, to be removed in 4.0.
      */
     public function removeAutowiringType($type)
     {
+        @trigger_error(sprintf('Autowiring-types are deprecated since Symfony 3.3 and will be removed in 4.0. Use aliases instead for "%s".', $type), E_USER_DEPRECATED);
+
         unset($this->autowiringTypes[$type]);
 
         return $this;
@@ -754,9 +808,13 @@ class Definition
      * @param string $type
      *
      * @return bool
+     *
+     * @deprecated since version 3.3, to be removed in 4.0.
      */
     public function hasAutowiringType($type)
     {
+        @trigger_error(sprintf('Autowiring-types are deprecated since Symfony 3.3 and will be removed in 4.0. Use aliases instead for "%s".', $type), E_USER_DEPRECATED);
+
         return isset($this->autowiringTypes[$type]);
     }
 }

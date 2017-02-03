@@ -167,6 +167,10 @@ class XmlDumper extends Dumper
             $this->convertParameters($parameters, 'property', $service, 'name');
         }
 
+        if ($parameters = $definition->getOverriddenGetters()) {
+            $this->convertParameters($parameters, 'getter', $service, 'name');
+        }
+
         $this->addMethodCalls($definition->getMethodCalls(), $service);
 
         if ($callable = $definition->getFactory()) {
@@ -197,7 +201,7 @@ class XmlDumper extends Dumper
             $service->setAttribute('autowire', 'true');
         }
 
-        foreach ($definition->getAutowiringTypes() as $autowiringTypeValue) {
+        foreach ($definition->getAutowiringTypes(false) as $autowiringTypeValue) {
             $autowiringType = $this->document->createElement('autowiring-type');
             $autowiringType->appendChild($this->document->createTextNode($autowiringTypeValue));
 

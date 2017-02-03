@@ -14,6 +14,8 @@ namespace Symfony\Bundle\FrameworkBundle\Console\Descriptor;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Alias;
+use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -290,22 +292,12 @@ class TextDescriptor extends Descriptor
         $tableRows[] = array('Public', $definition->isPublic() ? 'yes' : 'no');
         $tableRows[] = array('Synthetic', $definition->isSynthetic() ? 'yes' : 'no');
         $tableRows[] = array('Lazy', $definition->isLazy() ? 'yes' : 'no');
-        if (method_exists($definition, 'isShared')) {
-            $tableRows[] = array('Shared', $definition->isShared() ? 'yes' : 'no');
-        }
+        $tableRows[] = array('Shared', $definition->isShared() ? 'yes' : 'no');
         $tableRows[] = array('Abstract', $definition->isAbstract() ? 'yes' : 'no');
+        $tableRows[] = array('Autowired', $definition->isAutowired() ? 'yes' : 'no');
 
-        if (method_exists($definition, 'isAutowired')) {
-            $tableRows[] = array('Autowired', $definition->isAutowired() ? 'yes' : 'no');
-
-            $autowiringTypes = $definition->getAutowiringTypes();
-            if (count($autowiringTypes)) {
-                $autowiringTypesInformation = implode(', ', $autowiringTypes);
-            } else {
-                $autowiringTypesInformation = '-';
-            }
-
-            $tableRows[] = array('Autowiring Types', $autowiringTypesInformation);
+        if ($autowiringTypes = $definition->getAutowiringTypes(false)) {
+            $tableRows[] = array('Autowiring Types', implode(', ', $autowiringTypes));
         }
 
         if ($definition->getFile()) {
@@ -335,8 +327,13 @@ class TextDescriptor extends Descriptor
                     $argumentsInformation[] = sprintf('Service(%s)', (string) $argument);
                 } elseif ($argument instanceof Definition) {
                     $argumentsInformation[] = 'Inlined Service';
+                } elseif ($argument instanceof IteratorArgument) {
+                    $argumentsInformation[] = 'Iterator';
+                } elseif ($argument instanceof ClosureProxyArgument) {
+                    list($reference, $method) = $argument->getValues();
+                    $argumentsInformation[] = sprintf('ClosureProxy(Service(%s)::%s())', $reference, $method);
                 } else {
-                    $argumentsInformation[] = $argument;
+                    $argumentsInformation[] = is_array($argument) ? 'Array' : $argument;
                 }
             }
 
