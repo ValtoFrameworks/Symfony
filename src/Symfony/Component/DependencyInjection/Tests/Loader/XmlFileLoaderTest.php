@@ -12,6 +12,7 @@
 namespace Symfony\Component\DependencyInjection\Tests\Loader;
 
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
@@ -20,7 +21,11 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
 use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Resource\DirectoryResource;
+use Symfony\Component\Config\Resource\FileResource;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy;
 use Symfony\Component\ExpressionLanguage\Expression;
 
 class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
@@ -270,6 +275,16 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $lazyDefinition = $container->getDefinition('lazy_context');
 
         $this->assertEquals(array(new IteratorArgument(array('foo', new Reference('foo.baz'), array('%foo%' => 'foo is %foo%', 'foobar' => '%foo%'), true, new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
+    }
+
+    public function testParsesServiceLocatorArgument()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services_locator_argument.xml');
+
+        $this->assertEquals(array(new ServiceLocatorArgument(array('foo_baz' => new Reference('foo.baz'), 'container' => new Reference('service_container')))), $container->getDefinition('lazy_context')->getArguments(), '->load() parses service-locator arguments');
+        $this->assertEquals(array(new ServiceLocatorArgument(array('foo_baz' => new Reference('foo.baz'), 'invalid' => new Reference('invalid', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)))), $container->getDefinition('lazy_context_ignore_invalid_ref')->getArguments(), '->load() parses service-locator arguments');
     }
 
     public function testParsesTags()
@@ -573,10 +588,10 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $loader->load('services23.xml');
 
         $this->assertTrue($container->getDefinition('bar')->isAutowired());
-        $this->assertEquals(array('__construct'), $container->getDefinition('bar')->getAutowiredMethods());
+        $this->assertEquals(array('__construct'), $container->getDefinition('bar')->getAutowiredCalls());
 
         $loader->load('services27.xml');
-        $this->assertEquals(array('set*', 'bar'), $container->getDefinition('autowire_array')->getAutowiredMethods());
+        $this->assertEquals(array('set*', 'bar'), $container->getDefinition('autowire_array')->getAutowiredCalls());
     }
 
     public function testGetter()
@@ -606,6 +621,26 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $container->compile();
 
         $this->assertEquals(CaseSensitiveClass::class, $container->getDefinition(CaseSensitiveClass::class)->getClass());
+    }
+
+    public function testPrototype()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services_prototype.xml');
+
+        $ids = array_keys($container->getDefinitions());
+        sort($ids);
+        $this->assertSame(array(Prototype\Foo::class, Prototype\Sub\Bar::class), $ids);
+
+        $resources = $container->getResources();
+
+        $fixturesDir = dirname(__DIR__).DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR;
+        $this->assertTrue(false !== array_search(new FileResource($fixturesDir.'xml'.DIRECTORY_SEPARATOR.'services_prototype.xml'), $resources));
+        $this->assertTrue(false !== array_search(new DirectoryResource($fixturesDir.'Prototype', '/^$/'), $resources));
+        $resources = array_map('strval', $resources);
+        $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Foo', $resources);
+        $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Sub\Bar', $resources);
     }
 
     /**
@@ -659,15 +694,29 @@ class XmlFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($container->getDefinition('no_defaults_child')->isAutowired());
     }
 
-    public function testDefaultsWithAutowiredMethods()
+    public function testDefaultsWithAutowiredCalls()
     {
         $container = new ContainerBuilder();
         $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
         $loader->load('services30.xml');
 
-        $this->assertSame(array('__construct'), $container->getDefinition('with_defaults')->getAutowiredMethods());
-        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults')->getAutowiredMethods());
-        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults_child')->getAutowiredMethods());
-        $this->assertSame(array(), $container->getDefinition('with_defaults_child')->getAutowiredMethods());
+        $this->assertSame(array('__construct'), $container->getDefinition('with_defaults')->getAutowiredCalls());
+        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults')->getAutowiredCalls());
+        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults_child')->getAutowiredCalls());
+        $this->assertSame(array(), $container->getDefinition('with_defaults_child')->getAutowiredCalls());
+    }
+
+    public function testNamedArguments()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services_named_args.xml');
+
+        $this->assertEquals(array(null, '$apiKey' => 'ABCD'), $container->getDefinition(NamedArgumentsDummy::class)->getArguments());
+
+        $container->compile();
+
+        $this->assertEquals(array(null, 'ABCD'), $container->getDefinition(NamedArgumentsDummy::class)->getArguments());
+        $this->assertEquals(array(array('setApiKey', array('123'))), $container->getDefinition(NamedArgumentsDummy::class)->getMethodCalls());
     }
 }

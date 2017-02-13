@@ -162,11 +162,11 @@ class ChildDefinition extends Definition
     /**
      * {@inheritdoc}
      */
-    public function setAutowiredMethods(array $autowiredMethods)
+    public function setAutowiredCalls(array $autowiredCalls)
     {
-        $this->changes['autowired_methods'] = true;
+        $this->changes['autowired_calls'] = true;
 
-        return parent::setAutowiredMethods($autowiredMethods);
+        return parent::setAutowiredCalls($autowiredCalls);
     }
 
     /**
@@ -213,11 +213,13 @@ class ChildDefinition extends Definition
      */
     public function replaceArgument($index, $value)
     {
-        if (!is_int($index)) {
+        if (is_int($index)) {
+            $this->arguments['index_'.$index] = $value;
+        } elseif (0 === strpos($index, '$')) {
+            $this->arguments[$index] = $value;
+        } else {
             throw new InvalidArgumentException('$index must be an integer.');
         }
-
-        $this->arguments['index_'.$index] = $value;
 
         return $this;
     }

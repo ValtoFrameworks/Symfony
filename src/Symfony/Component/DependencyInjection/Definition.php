@@ -37,7 +37,7 @@ class Definition
     private $abstract = false;
     private $lazy = false;
     private $decoratedService;
-    private $autowiredMethods = array();
+    private $autowiredCalls = array();
     private $autowiringTypes = array();
 
     protected $arguments;
@@ -190,8 +190,8 @@ class Definition
     /**
      * Sets a specific argument.
      *
-     * @param int   $index
-     * @param mixed $argument
+     * @param int|string $index
+     * @param mixed      $argument
      *
      * @return $this
      *
@@ -203,8 +203,12 @@ class Definition
             throw new OutOfBoundsException('Cannot replace arguments if none have been configured yet.');
         }
 
-        if ($index < 0 || $index > count($this->arguments) - 1) {
+        if (is_int($index) && ($index < 0 || $index > count($this->arguments) - 1)) {
             throw new OutOfBoundsException(sprintf('The index "%d" is not in the range [0, %d].', $index, count($this->arguments) - 1));
+        }
+
+        if (!array_key_exists($index, $this->arguments)) {
+            throw new OutOfBoundsException(sprintf('The argument "%s" doesn\'t exist.', $index));
         }
 
         $this->arguments[$index] = $argument;
@@ -225,7 +229,7 @@ class Definition
     /**
      * Gets an argument to pass to the service constructor/factory method.
      *
-     * @param int $index
+     * @param int|string $index
      *
      * @return mixed The argument value
      *
@@ -233,8 +237,8 @@ class Definition
      */
     public function getArgument($index)
     {
-        if ($index < 0 || $index > count($this->arguments) - 1) {
-            throw new OutOfBoundsException(sprintf('The index "%d" is not in the range [0, %d].', $index, count($this->arguments) - 1));
+        if (!array_key_exists($index, $this->arguments)) {
+            throw new OutOfBoundsException(sprintf('The argument "%s" doesn\'t exist.', $index));
         }
 
         return $this->arguments[$index];
@@ -325,6 +329,8 @@ class Definition
     }
 
     /**
+     * @return $this
+     *
      * @experimental in version 3.3
      */
     public function setOverriddenGetter($name, $returnValue)
@@ -338,6 +344,8 @@ class Definition
     }
 
     /**
+     * @return $this
+     *
      * @experimental in version 3.3
      */
     public function setOverriddenGetters(array $getters)
@@ -702,7 +710,7 @@ class Definition
      */
     public function isAutowired()
     {
-        return !empty($this->autowiredMethods);
+        return !empty($this->autowiredCalls);
     }
 
     /**
@@ -710,17 +718,17 @@ class Definition
      *
      * @return string[]
      */
-    public function getAutowiredMethods()
+    public function getAutowiredCalls()
     {
-        return $this->autowiredMethods;
+        return $this->autowiredCalls;
     }
 
     /**
      * Sets autowired.
      *
      * Allowed values:
-     *   - true: constructor autowiring, same as $this->setAutowiredMethods(array('__construct'))
-     *   - false: no autowiring, same as $this->setAutowiredMethods(array())
+     *   - true: constructor autowiring, same as $this->setAutowiredCalls(array('__construct'))
+     *   - false: no autowiring, same as $this->setAutowiredCalls(array())
      *
      * @param bool $autowired
      *
@@ -728,7 +736,7 @@ class Definition
      */
     public function setAutowired($autowired)
     {
-        $this->autowiredMethods = $autowired ? array('__construct') : array();
+        $this->autowiredCalls = $autowired ? array('__construct') : array();
 
         return $this;
     }
@@ -739,13 +747,13 @@ class Definition
      * Example of allowed value:
      *   - array('__construct', 'set*', 'initialize'): autowire whitelisted methods only
      *
-     * @param string[] $autowiredMethods
+     * @param string[] $autowiredCalls
      *
-     * @return Definition The current instance
+     * @return $this
      */
-    public function setAutowiredMethods(array $autowiredMethods)
+    public function setAutowiredCalls(array $autowiredCalls)
     {
-        $this->autowiredMethods = $autowiredMethods;
+        $this->autowiredCalls = $autowiredCalls;
 
         return $this;
     }

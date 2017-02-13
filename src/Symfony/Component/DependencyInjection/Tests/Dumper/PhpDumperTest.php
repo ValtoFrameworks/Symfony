@@ -17,11 +17,13 @@ use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\Variable;
 use Symfony\Component\ExpressionLanguage\Expression;
 
@@ -241,13 +243,13 @@ class PhpDumperTest extends \PHPUnit_Framework_TestCase
     public function testAliases()
     {
         $container = include self::$fixturesPath.'/containers/container9.php';
+        $container->setParameter('foo_bar', 'foo_bar');
         $container->compile();
         $dumper = new PhpDumper($container);
         eval('?>'.$dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Aliases')));
 
         $container = new \Symfony_DI_PhpDumper_Test_Aliases();
-        $container->set('foo', $foo = new \stdClass());
-        $this->assertSame($foo, $container->get('foo'));
+        $foo = $container->get('foo');
         $this->assertSame($foo, $container->get('alias_for_foo'));
         $this->assertSame($foo, $container->get('alias_for_alias'));
     }
@@ -264,6 +266,10 @@ class PhpDumperTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($container->has('foo'));
     }
 
+    /**
+     * @group legacy
+     * @expectedDeprecation Setting the "bar" pre-defined service is deprecated since Symfony 3.3 and won't be supported anymore in Symfony 4.0.
+     */
     public function testOverrideServiceWhenUsingADumpedContainer()
     {
         require_once self::$fixturesPath.'/php/services9.php';
@@ -276,6 +282,10 @@ class PhpDumperTest extends \PHPUnit_Framework_TestCase
         $this->assertSame($bar, $container->get('bar'), '->set() overrides an already defined service');
     }
 
+    /**
+     * @group legacy
+     * @expectedDeprecation Setting the "bar" pre-defined service is deprecated since Symfony 3.3 and won't be supported anymore in Symfony 4.0.
+     */
     public function testOverrideServiceWhenUsingADumpedContainerAndServiceIsUsedFromAnotherOne()
     {
         require_once self::$fixturesPath.'/php/services9.php';
@@ -389,7 +399,7 @@ class PhpDumperTest extends \PHPUnit_Framework_TestCase
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getFinal" cannot be marked as final.', 'getFinal');
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getRef" cannot return by reference.', 'getRef');
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getParam" cannot have any arguments.', 'getParam');
-        yield array('Unable to configure getter injection for service "bar": class "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Bar" cannot be marked as final.', 'getParam', 'bar');
+        yield array('Unable to configure service "bar": class "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Bar" cannot be marked as final.', 'getParam', 'bar');
         yield array('Cannot dump definition for service "baz": factories and overridden getters are incompatible with each other.', 'getParam', 'baz');
     }
 
@@ -493,6 +503,35 @@ class PhpDumperTest extends \PHPUnit_Framework_TestCase
 
         $dumper->setProxyDumper(new DummyProxyDumper());
         $dumper->dump();
+    }
+
+    public function testServiceLocatorArgumentProvideServiceLocator()
+    {
+        require_once self::$fixturesPath.'/includes/classes.php';
+
+        $container = new ContainerBuilder();
+        $container->register('lazy_referenced', 'stdClass');
+        $container
+            ->register('lazy_context', 'LazyContext')
+            ->setArguments(array(new ServiceLocatorArgument(array('lazy1' => new Reference('lazy_referenced'), 'lazy2' => new Reference('lazy_referenced'), 'container' => new Reference('service_container')))))
+        ;
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dump = $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Locator_Argument_Provide_Service_Locator'));
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_locator_argument.php', $dump);
+
+        require_once self::$fixturesPath.'/php/services_locator_argument.php';
+
+        $container = new \Symfony_DI_PhpDumper_Test_Locator_Argument_Provide_Service_Locator();
+        $lazyContext = $container->get('lazy_context');
+
+        $this->assertInstanceOf(ServiceLocator::class, $lazyContext->lazyValues);
+        $this->assertSame($container, $lazyContext->lazyValues->get('container'));
+        $this->assertInstanceOf('stdClass', $lazy1 = $lazyContext->lazyValues->get('lazy1'));
+        $this->assertInstanceOf('stdClass', $lazy2 = $lazyContext->lazyValues->get('lazy2'));
+        $this->assertSame($lazy1, $lazy2);
+        $this->assertFalse($lazyContext->lazyValues->has('lazy_referenced'), '->has() returns false for the original service id, only the key can be used');
     }
 
     public function testLazyArgumentProvideGenerator()

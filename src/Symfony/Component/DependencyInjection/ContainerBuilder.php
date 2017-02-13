@@ -14,6 +14,7 @@ namespace Symfony\Component\DependencyInjection;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Compiler\Compiler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -25,7 +26,9 @@ use Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceExce
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\Config\Resource\ClassExistenceResource;
+use Symfony\Component\Config\Resource\ComposerResource;
 use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\Config\Resource\FileExistenceResource;
 use Symfony\Component\Config\Resource\FileResource;
@@ -33,7 +36,8 @@ use Symfony\Component\Config\Resource\ReflectionClassResource;
 use Symfony\Component\Config\Resource\ResourceInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\InstantiatorInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\RealServiceInstantiator;
-use Symfony\Component\DependencyInjection\LazyProxy\GetterProxyInterface;
+use Symfony\Component\DependencyInjection\LazyProxy\InheritanceProxyHelper;
+use Symfony\Component\DependencyInjection\LazyProxy\InheritanceProxyInterface;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\ExpressionLanguage\ExpressionFunctionProviderInterface;
 
@@ -107,6 +111,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @var int[] a map of env vars to their resolution counter
      */
     private $envCounters = array();
+
+    /**
+     * @var string[] the list of vendor directories
+     */
+    private $vendors;
 
     /**
      * Sets the track resources flag.
@@ -269,13 +278,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 }
                 $file = $interface->getFileName();
                 if (false !== $file && file_exists($file)) {
-                    $this->addResource(new FileResource($file));
+                    $this->fileExists($file);
                 }
             }
             do {
                 $file = $class->getFileName();
                 if (false !== $file && file_exists($file)) {
-                    $this->addResource(new FileResource($file));
+                    $this->fileExists($file);
                 }
                 foreach ($class->getTraitNames() as $name) {
                     $this->addObjectResource($name);
@@ -337,7 +346,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if (!$classReflector) {
                 $this->addResource($resource ?: new ClassExistenceResource($class, ClassExistenceResource::EXISTS_KO));
             } elseif (!$classReflector->isInternal()) {
-                $this->addResource(new ReflectionClassResource($classReflector));
+                $path = $classReflector->getFileName();
+
+                if (!$this->inVendors($path)) {
+                    $this->addResource(new ReflectionClassResource($classReflector, $this->vendors));
+                }
             }
             $this->classReflectors[$class] = $classReflector;
         }
@@ -360,7 +373,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         $exists = file_exists($path);
 
-        if (!$this->trackResources) {
+        if (!$this->trackResources || $this->inVendors($path)) {
             return $exists;
         }
 
@@ -370,12 +383,10 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return $exists;
         }
 
-        if ($trackContents) {
-            if (is_file($path)) {
-                $this->addResource(new FileResource($path));
-            } else {
-                $this->addResource(new DirectoryResource($path, is_string($trackContents) ? $trackContents : null));
-            }
+        if ($trackContents && is_dir($path)) {
+            $this->addResource(new DirectoryResource($path, is_string($trackContents) ? $trackContents : null));
+        } elseif ($trackContents || is_dir($path)) {
+            $this->addResource(new FileResource($path));
         }
 
         return $exists;
@@ -657,15 +668,38 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *  * Parameter values are resolved;
      *  * The parameter bag is frozen;
      *  * Extension loading is disabled.
+     *
+     * @param bool $resolveEnvPlaceholders Whether %env()% parameters should be resolved using the current
+     *                                     env vars or be replaced by uniquely identifiable placeholders.
+     *                                     Set to "true" when you want to use the current ContainerBuilder
+     *                                     directly, keep to "false" when the container is dumped instead.
      */
-    public function compile()
+    public function compile(/*$resolveEnvPlaceholders = false*/)
     {
+        if (1 <= func_num_args()) {
+            $resolveEnvPlaceholders = func_get_arg(0);
+        } else {
+            if (__CLASS__ !== static::class) {
+                $r = new \ReflectionMethod($this, __FUNCTION__);
+                if (__CLASS__ !== $r->getDeclaringClass()->getName() && (1 > $r->getNumberOfParameters() || 'resolveEnvPlaceholders' !== $r->getParameters()[0]->name)) {
+                    @trigger_error(sprintf('The %s::compile() method expects a first "$resolveEnvPlaceholders" argument since version 3.3. It will be made mandatory in 4.0.', static::class), E_USER_DEPRECATED);
+                }
+            }
+            $resolveEnvPlaceholders = false;
+        }
         $compiler = $this->getCompiler();
 
         if ($this->trackResources) {
             foreach ($compiler->getPassConfig()->getPasses() as $pass) {
                 $this->addObjectResource($pass);
             }
+        }
+        $bag = $this->getParameterBag();
+
+        if ($resolveEnvPlaceholders && $bag instanceof EnvPlaceholderParameterBag) {
+            $this->parameterBag = new ParameterBag($this->resolveEnvPlaceholders($bag->all(), true));
+            $this->envPlaceholders = $bag->getEnvPlaceholders();
+            $this->parameterBag = $bag = new ParameterBag($this->resolveEnvPlaceholders($this->parameterBag->all()));
         }
 
         $compiler->compile($this);
@@ -680,7 +714,6 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         $this->extensionConfigs = array();
-        $bag = $this->getParameterBag();
 
         parent::compile();
 
@@ -1022,7 +1055,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 if (null === $salt) {
                     $salt = str_replace('.', '', uniqid('', true));
                 }
-                $service = sprintf('%s implements \\%s { private $container%4$s; private $values%4$s; %s }', $r->name, GetterProxyInterface::class, $this->generateOverriddenGetters($id, $definition, $r, $salt), $salt);
+                $service = sprintf('%s implements \\%s { private $container%4$s; private $getters%4$s; %s }', $r->name, InheritanceProxyInterface::class, $this->generateOverriddenMethods($id, $definition, $r, $salt), $salt);
                 if (!class_exists($proxyClass = 'SymfonyProxy_'.md5($service), false)) {
                     eval(sprintf('class %s extends %s', $proxyClass, $service));
                 }
@@ -1032,7 +1065,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                     $constructor = null;
                 }
                 $service = $constructor ? $r->newInstanceWithoutConstructor() : $r->newInstanceArgs($arguments);
-                call_user_func(\Closure::bind(function ($c, $v, $s) { $this->{'container'.$s} = $c; $this->{'values'.$s} = $v; }, $service, $service), $this, $definition->getOverriddenGetters(), $salt);
+                call_user_func(\Closure::bind(function ($c, $g, $s) { $this->{'container'.$s} = $c; $this->{'getters'.$s} = $g; }, $service, $service), $this, $definition->getOverriddenGetters(), $salt);
                 if ($constructor) {
                     $constructor->invokeArgs($service, $arguments);
                 }
@@ -1090,6 +1123,15 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             foreach ($value as $k => $v) {
                 $value[$k] = $this->resolveServices($v);
             }
+        } elseif ($value instanceof ServiceLocatorArgument) {
+            $parameterBag = $this->getParameterBag();
+            $services = array();
+            foreach ($value->getValues() as $k => $v) {
+                $services[$k] = function () use ($v, $parameterBag) {
+                    return $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
+                };
+            }
+            $value = new ServiceLocator($services);
         } elseif ($value instanceof IteratorArgument) {
             $parameterBag = $this->getParameterBag();
             $value = new RewindableGenerator(function () use ($value, $parameterBag) {
@@ -1294,22 +1336,29 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         return $this->envCounters;
     }
 
-    private function generateOverriddenGetters($id, Definition $definition, \ReflectionClass $class, $salt)
+    private function generateOverriddenMethods($id, Definition $definition, \ReflectionClass $class, $salt)
     {
         if ($class->isFinal()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": class "%s" cannot be marked as final.', $id, $class->name));
+            throw new RuntimeException(sprintf('Unable to configure service "%s": class "%s" cannot be marked as final.', $id, $class->name));
         }
+
+        return $this->generateOverriddenGetters($id, $definition, $class, $salt);
+    }
+
+    private function generateOverriddenGetters($id, Definition $definition, \ReflectionClass $class, $salt)
+    {
         $getters = '';
+
         foreach ($definition->getOverriddenGetters() as $name => $returnValue) {
-            $r = self::getGetterReflector($class, $name, $id, $type);
+            $r = InheritanceProxyHelper::getGetterReflector($class, $name, $id);
+            $signature = InheritanceProxyHelper::getSignature($r);
             $visibility = $r->isProtected() ? 'protected' : 'public';
-            $name = var_export($name, true);
             $getters .= <<<EOF
 
-{$visibility} function {$r->name}(){$type} {
+{$visibility} function {$signature} {
     \$c = \$this->container{$salt};
     \$b = \$c->getParameterBag();
-    \$v = \$this->values{$salt}[{$name}];
+    \$v = \$this->getters{$salt}['{$name}'];
 
     foreach (\$c->getServiceConditionals(\$v) as \$s) {
         if (!\$c->has(\$s)) {
@@ -1323,71 +1372,6 @@ EOF;
         }
 
         return $getters;
-    }
-
-    /**
-     * @internal
-     */
-    public static function getGetterReflector(\ReflectionClass $class, $name, $id, &$type)
-    {
-        if (!$class->hasMethod($name)) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" does not exist.', $id, $class->name, $name));
-        }
-        $r = $class->getMethod($name);
-        if ($r->isPrivate()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" must be public or protected.', $id, $class->name, $r->name));
-        }
-        if ($r->isStatic()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot be static.', $id, $class->name, $r->name));
-        }
-        if ($r->isFinal()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot be marked as final.', $id, $class->name, $r->name));
-        }
-        if ($r->returnsReference()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot return by reference.', $id, $class->name, $r->name));
-        }
-        if (0 < $r->getNumberOfParameters()) {
-            throw new RuntimeException(sprintf('Unable to configure getter injection for service "%s": method "%s::%s" cannot have any arguments.', $id, $class->name, $r->name));
-        }
-        if ($type = method_exists($r, 'getReturnType') ? $r->getReturnType() : null) {
-            $type = ': '.($type->allowsNull() ? '?' : '').self::generateTypeHint($type, $r);
-        }
-
-        return $r;
-    }
-
-    /**
-     * @internal
-     */
-    public static function generateTypeHint($type, \ReflectionFunctionAbstract $r)
-    {
-        if (is_string($type)) {
-            $name = $type;
-
-            if ('callable' === $name || 'array' === $name) {
-                return $name;
-            }
-        } else {
-            $name = $type instanceof \ReflectionNamedType ? $type->getName() : $type->__toString();
-
-            if ($type->isBuiltin()) {
-                return $name;
-            }
-        }
-        $lcName = strtolower($name);
-
-        if ('self' !== $lcName && 'parent' !== $lcName) {
-            return '\\'.$name;
-        }
-        if (!$r instanceof \ReflectionMethod) {
-            return;
-        }
-        if ('self' === $lcName) {
-            return '\\'.$r->getDeclaringClass()->name;
-        }
-        if ($parent = $r->getDeclaringClass()->getParentClass()) {
-            return '\\'.$parent->name;
-        }
     }
 
     /**
@@ -1487,5 +1471,23 @@ EOF;
         }
 
         return $this->expressionLanguage;
+    }
+
+    private function inVendors($path)
+    {
+        if (null === $this->vendors) {
+            $resource = new ComposerResource();
+            $this->vendors = $resource->getVendors();
+            $this->addResource($resource);
+        }
+        $path = realpath($path) ?: $path;
+
+        foreach ($this->vendors as $vendor) {
+            if (0 === strpos($path, $vendor) && false !== strpbrk(substr($path, strlen($vendor), 1), '/'.DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -101,7 +101,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         $def->setFile($parentDef->getFile());
         $def->setPublic($parentDef->isPublic());
         $def->setLazy($parentDef->isLazy());
-        $def->setAutowiredMethods($parentDef->getAutowiredMethods());
+        $def->setAutowiredCalls($parentDef->getAutowiredCalls());
 
         // overwrite with values specified in the decorator
         $changes = $definition->getChanges();
@@ -126,8 +126,8 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         if (isset($changes['deprecated'])) {
             $def->setDeprecated($definition->isDeprecated(), $definition->getDeprecationMessage('%service_id%'));
         }
-        if (isset($changes['autowired_methods'])) {
-            $def->setAutowiredMethods($definition->getAutowiredMethods());
+        if (isset($changes['autowired_calls'])) {
+            $def->setAutowiredCalls($definition->getAutowiredCalls());
         }
         if (isset($changes['decorated_service'])) {
             $decoratedService = $definition->getDecoratedService();
@@ -145,11 +145,12 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
                 continue;
             }
 
-            if (0 !== strpos($k, 'index_')) {
+            if (0 === strpos($k, 'index_')) {
+                $index = (int) substr($k, strlen('index_'));
+            } elseif (0 !== strpos($k, '$')) {
                 throw new RuntimeException(sprintf('Invalid argument key "%s" found.', $k));
             }
 
-            $index = (int) substr($k, strlen('index_'));
             $def->replaceArgument($index, $v);
         }
 

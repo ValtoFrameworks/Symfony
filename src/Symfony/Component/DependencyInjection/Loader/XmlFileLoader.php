@@ -11,12 +11,12 @@
 
 namespace Symfony\Component\DependencyInjection\Loader;
 
-use Symfony\Component\Config\Resource\FileResource;
 use Symfony\Component\Config\Util\XmlUtils;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Reference;
@@ -42,7 +42,7 @@ class XmlFileLoader extends FileLoader
 
         $xml = $this->parseFileToDOM($path);
 
-        $this->container->addResource(new FileResource($path));
+        $this->container->fileExists($path);
 
         // anonymous services
         $this->processAnonymousServices($xml, $path);
@@ -121,14 +121,19 @@ class XmlFileLoader extends FileLoader
         $xpath = new \DOMXPath($xml);
         $xpath->registerNamespace('container', self::NS);
 
-        if (false === $services = $xpath->query('//container:services/container:service')) {
+        if (false === $services = $xpath->query('//container:services/container:service|//container:services/container:prototype')) {
             return;
         }
+        $this->setCurrentDir(dirname($file));
 
         $defaults = $this->getServiceDefaults($xml, $file);
         foreach ($services as $service) {
             if (null !== $definition = $this->parseDefinition($service, $file, $defaults)) {
-                $this->container->setDefinition((string) $service->getAttribute('id'), $definition);
+                if ('prototype' === $service->tagName) {
+                    $this->registerClasses($definition, (string) $service->getAttribute('namespace'), (string) $service->getAttribute('resource'));
+                } else {
+                    $this->container->setDefinition((string) $service->getAttribute('id'), $definition);
+                }
             }
         }
     }
@@ -242,7 +247,7 @@ class XmlFileLoader extends FileLoader
             $definition->setDeprecated(true, $deprecated[0]->nodeValue ?: null);
         }
 
-        $definition->setArguments($this->getArgumentsAsPhp($service, 'argument'));
+        $definition->setArguments($this->getArgumentsAsPhp($service, 'argument', false, (bool) $parent));
         $definition->setProperties($this->getArgumentsAsPhp($service, 'property'));
         $definition->setOverriddenGetters($this->getArgumentsAsPhp($service, 'getter'));
 
@@ -325,19 +330,19 @@ class XmlFileLoader extends FileLoader
             $definition->addAutowiringType($type->textContent);
         }
 
-        $autowireTags = array();
-        foreach ($this->getChildren($service, 'autowire') as $type) {
-            $autowireTags[] = $type->textContent;
+        $autowiredCalls = array();
+        foreach ($this->getChildren($service, 'autowire') as $tag) {
+            $autowiredCalls[] = $tag->textContent;
         }
 
-        if ($autowireTags) {
-            if ($service->hasAttribute('autowire')) {
-                throw new InvalidArgumentException(sprintf('The "autowire" attribute cannot be used together with "<autowire>" tags for service "%s" in %s.', (string) $service->getAttribute('id'), $file));
-            }
+        if ($autowiredCalls && $service->hasAttribute('autowire')) {
+            throw new InvalidArgumentException(sprintf('The "autowire" attribute cannot be used together with "<autowire>" tags for service "%s" in %s.', $service->getAttribute('id'), $file));
+        }
 
-            $definition->setAutowiredMethods($autowireTags);
+        if ($autowiredCalls) {
+            $definition->setAutowiredCalls($autowiredCalls);
         } elseif (!$service->hasAttribute('autowire') && !empty($defaults['autowire'])) {
-            $definition->setAutowiredMethods($defaults['autowire']);
+            $definition->setAutowiredCalls($defaults['autowire']);
         }
 
         if ($value = $service->getAttribute('decorates')) {
@@ -439,7 +444,7 @@ class XmlFileLoader extends FileLoader
      *
      * @return mixed
      */
-    private function getArgumentsAsPhp(\DOMElement $node, $name, $lowercase = true)
+    private function getArgumentsAsPhp(\DOMElement $node, $name, $lowercase = true, $isChildDefinition = false)
     {
         $arguments = array();
         foreach ($this->getChildren($node, $name) as $arg) {
@@ -450,7 +455,7 @@ class XmlFileLoader extends FileLoader
             // this is used by ChildDefinition to overwrite a specific
             // argument of the parent definition
             if ($arg->hasAttribute('index')) {
-                $key = 'index_'.$arg->getAttribute('index');
+                $key = ($isChildDefinition ? 'index_' : '').$arg->getAttribute('index');
             } elseif (!$arg->hasAttribute('key')) {
                 // Append an empty argument, then fetch its key to overwrite it later
                 $arguments[] = null;
@@ -492,6 +497,15 @@ class XmlFileLoader extends FileLoader
                     break;
                 case 'iterator':
                     $arguments[$key] = new IteratorArgument($this->getArgumentsAsPhp($arg, $name, false));
+                    break;
+                case 'service-locator':
+                    $values = $this->getArgumentsAsPhp($arg, $name, false);
+                    foreach ($values as $v) {
+                        if (!$v instanceof Reference) {
+                            throw new InvalidArgumentException('"service-locator" argument values must be services.');
+                        }
+                    }
+                    $arguments[$key] = new ServiceLocatorArgument($values);
                     break;
                 case 'string':
                     $arguments[$key] = $arg->nodeValue;

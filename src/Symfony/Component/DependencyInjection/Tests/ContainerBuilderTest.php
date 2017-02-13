@@ -14,12 +14,14 @@ namespace Symfony\Component\DependencyInjection\Tests;
 require_once __DIR__.'/Fixtures/includes/classes.php';
 require_once __DIR__.'/Fixtures/includes/ProjectExtension.php';
 
+use Symfony\Component\Config\Resource\ComposerResource;
 use Symfony\Component\Config\Resource\ResourceInterface;
 use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -32,6 +34,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\Config\Resource\FileResource;
+use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\ExpressionLanguage\Expression;
@@ -436,6 +439,24 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(1, $i);
     }
 
+    public function testCreateServiceWithServiceLocatorArgument()
+    {
+        $builder = new ContainerBuilder();
+        $builder->register('bar', 'stdClass');
+        $builder
+            ->register('lazy_context', 'LazyContext')
+            ->setArguments(array(new ServiceLocatorArgument(array('bar' => new Reference('bar'), 'invalid' => new Reference('invalid', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)))))
+        ;
+
+        $lazyContext = $builder->get('lazy_context');
+        $locator = $lazyContext->lazyValues;
+
+        $this->assertInstanceOf(ServiceLocator::class, $locator);
+        $this->assertInstanceOf('stdClass', $locator->get('bar'));
+        $this->assertNull($locator->get('invalid'));
+        $this->assertSame($locator->get('bar'), $locator('bar'), '->get() should be used when invoking ServiceLocator');
+    }
+
     /**
      * @expectedException \RuntimeException
      */
@@ -550,6 +571,33 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         unset($_ENV['DUMMY_ENV_VAR']);
     }
 
+    public function testCompileWithResolveEnv()
+    {
+        $_ENV['DUMMY_ENV_VAR'] = 'du%%y';
+
+        $container = new ContainerBuilder();
+        $container->setParameter('env(FOO)', 'Foo');
+        $container->setParameter('bar', '%% %env(DUMMY_ENV_VAR)%');
+        $container->setParameter('foo', '%env(FOO)%');
+        $container->compile(true);
+
+        $this->assertSame('% du%%y', $container->getParameter('bar'));
+        $this->assertSame('Foo', $container->getParameter('foo'));
+
+        unset($_ENV['DUMMY_ENV_VAR']);
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\EnvNotFoundException
+     * @expectedExceptionMessage Environment variable not found: "FOO".
+     */
+    public function testCompileWithResolveMissingEnv()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('foo', '%env(FOO)%');
+        $container->compile(true);
+    }
+
     /**
      * @expectedException \LogicException
      */
@@ -614,7 +662,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $resources = $container->getResources();
 
-        $this->assertCount(1, $resources, '1 resource was registered');
+        $this->assertCount(2, $resources, '2 resources were registered');
 
         /* @var $resource \Symfony\Component\Config\Resource\FileResource */
         $resource = end($resources);
@@ -640,7 +688,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $resources = $container->getResources();
 
-        $this->assertCount(1, $resources, '1 resource was registered');
+        $this->assertCount(2, $resources, '2 resources were registered');
 
         /* @var $resource \Symfony\Component\Config\Resource\FileResource */
         $resource = end($resources);
@@ -669,9 +717,9 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
 
         $resources = $container->getResources();
 
-        $this->assertCount(2, $resources, '2 resources were registered');
+        $this->assertCount(3, $resources, '3 resources were registered');
 
-        $this->assertSame('reflection.BarClass', (string) $resources[0]);
+        $this->assertSame('reflection.BarClass', (string) $resources[1]);
         $this->assertSame('BarMissingClass', (string) end($resources));
     }
 
@@ -715,6 +763,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
     public function testFileExists()
     {
         $container = new ContainerBuilder();
+        $A = new ComposerResource();
         $a = new FileResource(__DIR__.'/Fixtures/xml/services1.xml');
         $b = new FileResource(__DIR__.'/Fixtures/xml/services2.xml');
         $c = new DirectoryResource($dir = dirname($b));
@@ -728,7 +777,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
             }
         }
 
-        $this->assertEquals(array($a, $b, $c), $resources, '->getResources() returns an array of resources read for the current configuration');
+        $this->assertEquals(array($A, $a, $b, $c), $resources, '->getResources() returns an array of resources read for the current configuration');
     }
 
     public function testExtension()
@@ -895,7 +944,7 @@ class ContainerBuilderTest extends \PHPUnit_Framework_TestCase
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getFinal" cannot be marked as final.', 'getFinal');
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getRef" cannot return by reference.', 'getRef');
         yield array('Unable to configure getter injection for service "foo": method "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Foo::getParam" cannot have any arguments.', 'getParam');
-        yield array('Unable to configure getter injection for service "bar": class "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Bar" cannot be marked as final.', 'getParam', 'bar');
+        yield array('Unable to configure service "bar": class "Symfony\Component\DependencyInjection\Tests\Fixtures\Container30\Bar" cannot be marked as final.', 'getParam', 'bar');
         yield array('Cannot create service "baz": factories and overridden getters are incompatible with each other.', 'getParam', 'baz');
     }
 

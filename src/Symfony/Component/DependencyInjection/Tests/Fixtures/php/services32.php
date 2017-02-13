@@ -6,6 +6,7 @@ use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
+use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
 
 /**
@@ -67,7 +68,7 @@ class ProjectServiceContainer extends Container
             return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withVariadic($a, ...$c);
         }, 1 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container32\Foo::withNullable */ function (?int $a) {
             return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withNullable($a);
-        }, 2 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container32\Foo::withReturnType */ function () {
+        }, 2 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container32\Foo::withReturnType */ function (): \Bar {
             return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withReturnType();
         });
 
