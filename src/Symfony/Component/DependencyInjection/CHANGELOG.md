@@ -4,6 +4,7 @@ CHANGELOG
 3.3.0
 -----
 
+ * [EXPERIMENTAL] added "instanceof" section for local interface-defined configs
  * [EXPERIMENTAL] added "service-locator" argument for lazy loading a set of identified values and services
  * [EXPERIMENTAL] added prototype services for PSR4-based discovery and registration
  * added `ContainerBuilder::getReflectionClass()` for retrieving and tracking reflection class info
@@ -23,6 +24,7 @@ CHANGELOG
  * using the `PhpDumper` with an uncompiled `ContainerBuilder` is deprecated and
    will not be supported anymore in 4.0
  * deprecated the `DefinitionDecorator` class in favor of `ChildDefinition`
+ * allow config files to be loaded using a glob pattern
 
 3.2.0
 -----

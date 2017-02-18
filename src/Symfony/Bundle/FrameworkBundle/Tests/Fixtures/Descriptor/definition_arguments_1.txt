@@ -9,14 +9,15 @@
   Lazy             yes                                        
   Shared           yes                                        
   Abstract         yes                                        
-  Autowired        no                                         
+  Autowire         no                                         
   Factory Class    Full\Qualified\FactoryClass                
   Factory Method   get                                        
   Arguments        Service(definition2)                       
                    %parameter%                                
                    Inlined Service                            
-                   Array                                      
-                   Iterator                                   
+                   Array (3 element(s))                       
+                   Iterator (2 element(s))                    
                    ClosureProxy(Service(definition1)::get())  
+                   ServiceLocator (2 service(s))              
  ---------------- ------------------------------------------- 
 

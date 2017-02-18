@@ -64,11 +64,48 @@
                         "id": "definition1"
                     },
                     "get"
-                ]
+                ],
+                {
+                    "def1": {
+                        "type": "service",
+                        "id": "definition_1"
+                    },
+                    "def2": {
+                        "type": "service",
+                        "id": "definition_2"
+                    }
+                }
             ],
             "file": null,
             "factory_class": "Full\\Qualified\\FactoryClass",
             "factory_method": "get",
+            "tags": []
+        },
+        "definition_autowired": {
+            "class": "AutowiredService",
+            "public": true,
+            "synthetic": false,
+            "lazy": false,
+            "shared": true,
+            "abstract": false,
+            "autowire": true,
+            "arguments": [],
+            "file": null,
+            "tags": []
+        },
+        "definition_autowired_with_methods": {
+            "class": "AutowiredService",
+            "public": true,
+            "synthetic": false,
+            "lazy": false,
+            "shared": true,
+            "abstract": false,
+            "autowire": [
+                "set*",
+                "addFoo"
+            ],
+            "arguments": [],
+            "file": null,
             "tags": []
         }
     },

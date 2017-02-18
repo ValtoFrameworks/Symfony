@@ -11,10 +11,11 @@
 
 namespace Symfony\Component\Yaml\Tests;
 
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Inline;
 use Symfony\Component\Yaml\Yaml;
 
-class InlineTest extends \PHPUnit_Framework_TestCase
+class InlineTest extends TestCase
 {
     /**
      * @dataProvider getTestsForParse
@@ -685,5 +686,14 @@ class InlineTest extends \PHPUnit_Framework_TestCase
         $arrayFromYaml = Inline::parse($yamlString);
 
         $this->assertEquals($longStringWithQuotes, $arrayFromYaml['longStringWithQuotes']);
+    }
+
+    /**
+     * @group legacy
+     * @expectedDeprecation Omitting the key of a mapping is deprecated and will throw a ParseException in 4.0.
+     */
+    public function testOmittedMappingKeyIsParsedAsColon()
+    {
+        $this->assertSame(array(':' => 'foo'), Inline::parse('{: foo}'));
     }
 }

@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Console\Descriptor;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -373,6 +374,18 @@ class XmlDescriptor extends Descriptor
         $serviceXML->setAttribute('autowired', $definition->isAutowired() ? 'true' : 'false');
         $serviceXML->setAttribute('file', $definition->getFile());
 
+        $autowiredCalls = array_filter($definition->getAutowiredCalls(), function ($method) {
+            return $method !== '__construct';
+        });
+        if ($autowiredCalls) {
+            $serviceXML->appendChild($autowiredMethodsXML = $dom->createElement('autowired-calls'));
+            foreach ($autowiredCalls as $autowiredMethod) {
+                $autowiredMethodXML = $dom->createElement('autowired-call');
+                $autowiredMethodXML->appendChild(new \DOMText($autowiredMethod));
+                $autowiredMethodsXML->appendChild($autowiredMethodXML);
+            }
+        }
+
         $calls = $definition->getMethodCalls();
         if (count($calls) > 0) {
             $serviceXML->appendChild($callsXML = $dom->createElement('calls'));
@@ -431,6 +444,12 @@ class XmlDescriptor extends Descriptor
                 $argumentXML->appendChild($dom->importNode($this->getContainerDefinitionDocument($argument, null, false, true)->childNodes->item(0), true));
             } elseif ($argument instanceof IteratorArgument) {
                 $argumentXML->setAttribute('type', 'iterator');
+
+                foreach ($this->getArgumentNodes($argument->getValues(), $dom) as $childArgumentXML) {
+                    $argumentXML->appendChild($childArgumentXML);
+                }
+            } elseif ($argument instanceof ServiceLocatorArgument) {
+                $argumentXML->setAttribute('type', 'service-locator');
 
                 foreach ($this->getArgumentNodes($argument->getValues(), $dom) as $childArgumentXML) {
                     $argumentXML->appendChild($childArgumentXML);
