@@ -789,7 +789,7 @@ class ContainerBuilderTest extends TestCase
         $container->registerExtension($extension = new \ProjectExtension());
         $this->assertTrue($container->getExtension('project') === $extension, '->registerExtension() registers an extension');
 
-        $this->setExpectedException('LogicException');
+        $this->{method_exists($this, $_ = 'expectException') ? $_ : 'setExpectedException'}('LogicException');
         $container->getExtension('no_registered');
     }
 
@@ -933,7 +933,13 @@ class ContainerBuilderTest extends TestCase
         $container = include __DIR__.'/Fixtures/containers/container30.php';
         $container->getDefinition($id)->setOverriddenGetter($getter, 123);
 
-        $this->setExpectedException(RuntimeException::class, $expectedMessage);
+        if (method_exists($this, 'expectException')) {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage($expectedMessage);
+        } else {
+            $this->setExpectedException(RuntimeException::class, $expectedMessage);
+        }
+
         $container->get($id);
     }
 

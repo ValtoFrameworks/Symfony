@@ -11,10 +11,20 @@
 
 namespace Symfony\Bridge\PhpUnit\TextUI;
 
+use PHPUnit\TextUI\Command as BaseCommand;
+
+if (class_exists('PHPUnit_TextUI_Command')) {
+    class_alias('Symfony\Bridge\PhpUnit\Legacy\Command', 'Symfony\Bridge\PhpUnit\TextUI\Command');
+
+    return;
+}
+
 /**
  * {@inheritdoc}
+ *
+ * @internal
  */
-class Command extends \PHPUnit_TextUI_Command
+class Command extends BaseCommand
 {
     /**
      * {@inheritdoc}

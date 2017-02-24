@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\VarDumper\Tests;
 
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\CliDumper;
 use Symfony\Component\VarDumper\Test\VarDumperTestTrait;
@@ -18,7 +19,7 @@ use Symfony\Component\VarDumper\Test\VarDumperTestTrait;
 /**
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class CliDumperTest extends \PHPUnit_Framework_TestCase
+class CliDumperTest extends TestCase
 {
     use VarDumperTestTrait;
 
@@ -105,6 +106,67 @@ EOTXT
             ,
             $out
         );
+    }
+
+    /**
+     * @dataProvider provideDumpWithCommaFlagTests
+     */
+    public function testDumpWithCommaFlag($expected, $flags)
+    {
+        $dumper = new CliDumper(null, null, $flags);
+        $dumper->setColors(false);
+        $cloner = new VarCloner();
+
+        $var = array(
+            'array' => array('a', 'b'),
+            'string' => 'hello',
+            'multiline string' => "this\nis\na\multiline\nstring",
+        );
+
+        $dump = $dumper->dump($cloner->cloneVar($var), true);
+
+        $this->assertSame($expected, $dump);
+    }
+
+    public function provideDumpWithCommaFlagTests()
+    {
+        $expected = <<<'EOTXT'
+array:3 [
+  "array" => array:2 [
+    0 => "a",
+    1 => "b"
+  ],
+  "string" => "hello",
+  "multiline string" => """
+    this\n
+    is\n
+    a\multiline\n
+    string
+    """
+]
+
+EOTXT;
+
+        yield array($expected, CliDumper::DUMP_COMMA_SEPARATOR);
+
+        $expected = <<<'EOTXT'
+array:3 [
+  "array" => array:2 [
+    0 => "a",
+    1 => "b",
+  ],
+  "string" => "hello",
+  "multiline string" => """
+    this\n
+    is\n
+    a\multiline\n
+    string
+    """,
+]
+
+EOTXT;
+
+        yield array($expected, CliDumper::DUMP_TRAILING_COMMA);
     }
 
     /**
