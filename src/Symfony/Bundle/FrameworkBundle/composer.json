@@ -27,7 +27,7 @@
         "symfony/polyfill-mbstring": "~1.0",
         "symfony/filesystem": "~2.8|~3.0",
         "symfony/finder": "~2.8|~3.0",
-        "symfony/routing": "~3.1.10|^3.2.3",
+        "symfony/routing": "~3.3",
         "symfony/security-core": "~2.8|~3.0",
         "symfony/security-csrf": "~2.8|~3.0",
         "symfony/stopwatch": "~2.8|~3.0",
@@ -49,7 +49,7 @@
         "symfony/serializer": "~3.3",
         "symfony/translation": "~2.8|~3.0",
         "symfony/templating": "~2.8|~3.0",
-        "symfony/validator": "~3.2",
+        "symfony/validator": "~3.3",
         "symfony/yaml": "~3.2",
         "symfony/property-info": "~3.3",
         "doctrine/annotations": "~1.0",
@@ -65,7 +65,8 @@
         "symfony/console": "<3.3",
         "symfony/serializer": "<3.3",
         "symfony/form": "<3.3",
-        "symfony/property-info": "<3.3"
+        "symfony/property-info": "<3.3",
+        "symfony/validator": "<3.3"
     },
     "suggest": {
         "ext-apcu": "For best performance of the system caches",

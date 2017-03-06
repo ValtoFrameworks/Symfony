@@ -517,6 +517,22 @@ class SimpleFormTest extends AbstractFormTest
         $this->assertSame('default', $form->getData());
     }
 
+    public function testPreSetDataChangesDataIfDataIsLocked()
+    {
+        $config = new FormConfigBuilder('name', null, $this->dispatcher);
+        $config
+            ->setData('default')
+            ->setDataLocked(true)
+            ->addEventListener(FormEvents::PRE_SET_DATA, function (FormEvent $event) {
+                $event->setData('foobar');
+            });
+        $form = new Form($config);
+
+        $this->assertSame('foobar', $form->getData());
+        $this->assertSame('foobar', $form->getNormData());
+        $this->assertSame('foobar', $form->getViewData());
+    }
+
     public function testSubmitConvertsEmptyToNullIfNoTransformer()
     {
         $form = $this->getBuilder()->getForm();

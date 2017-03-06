@@ -15,6 +15,21 @@ CHANGELOG
  * Added configurable paths for validation files
  * Deprecated `SerializerPass`, use `Symfony\Component\Serializer\DependencyInjection\SerializerPass` instead
  * Deprecated `FormPass`, use `Symfony\Component\Form\DependencyInjection\FormPass` instead
+ * Deprecated `SessionListener`
+ * Deprecated `TestSessionListener`
+ * Deprecated `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ConfigCachePass`.
+   Use `Symfony\Component\Console\DependencyInjection\ConfigCachePass` instead.
+ * Deprecated `PropertyInfoPass`, use `Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass` instead
+ * Deprecated extending `ConstraintValidatorFactory`
+ * Added `Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait` (requires PHP 7). Unlike the `Symfony\Bundle\FrameworkBundle\Controller\Controller`
+   class, this trait does not have access to the dependency injection container. Its dependencies are explicitly and lazily
+   injected using getter injection.
+   `render()`, `renderView()` and `stream()` methods can only use Twig (using the Templating component is not supported).
+   The `json()` method requires the Serializer component (use `Symfony\Component\HttpFoundation\JsonResponse` directly if
+   you do not want to use the Serializer).
+ * Deprecated `ControllerArgumentValueResolverPass`. Use
+   `Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass` instead
+ * Deprecated `RoutingResolverPass`, use `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` instead
 
 3.2.0
 -----
@@ -26,7 +41,7 @@ CHANGELOG
  * Removed `symfony/asset` from the list of required dependencies in `composer.json`
  * The `Resources/public/images/*` files have been removed.
  * The `Resources/public/css/*.css` files have been removed (they are now inlined in TwigBundle).
- * Added possibility to prioritize form type extensions with `'priority'` attribute on tags `form.type_extension` 
+ * Added possibility to prioritize form type extensions with `'priority'` attribute on tags `form.type_extension`
 
 3.1.0
 -----

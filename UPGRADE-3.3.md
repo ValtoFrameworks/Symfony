@@ -6,6 +6,62 @@ ClassLoader
 
  * The component is deprecated and will be removed in 4.0. Use Composer instead.
 
+Console
+-------
+
+* `Input::getOption()` no longer returns the default value for options
+  with value optional explicitly passed empty.
+
+  For:
+
+  ```php
+  protected function configure()
+  {
+      $this
+          // ...
+          ->setName('command')
+          ->addOption('foo', null, InputOption::VALUE_OPTIONAL, '', 'default')
+       ;
+  }
+
+  protected function execute(InputInterface $input, OutputInterface $output)
+  {
+      var_dump($input->getOption('foo'));
+  }
+  ```
+
+  Before:
+
+  ```
+  $ php console.php command
+  "default"
+
+  $ php console.php command --foo
+  "default"
+
+  $ php console.php command --foo ""
+  "default"
+
+  $ php console.php command --foo=
+  "default"
+  ```
+
+  After:
+
+  ```
+  $ php console.php command
+  "default"
+
+  $ php console.php command --foo
+  NULL
+
+  $ php console.php command --foo ""
+  ""
+
+  $ php console.php command --foo=
+  ""
+  ```
+
 Debug
 -----
 
@@ -71,11 +127,59 @@ FrameworkBundle
    deprecated and will be removed in 4.0. Use the `Symfony\Component\Form\DependencyInjection\FormPass`
    class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\EventListener\SessionListener` class has been
+   deprecated and will be removed in 4.0. Use the `Symfony\Component\HttpKernel\EventListener\SessionListener`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\EventListener\TestSessionListener` class has been
+   deprecated and will be removed in 4.0. Use the `Symfony\Component\HttpKernel\EventListener\TestSessionListener`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ConfigCachePass` class has been
+   deprecated and will be removed in 4.0. Use `Symfony\Component\Config\DependencyInjection\ConfigCachePass`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\PropertyInfoPass` class has been
+   deprecated and will be removed in 4.0. Use the `Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass`
+   class instead.
+
+ * The `ConstraintValidatorFactory::$validators` and `$container` properties
+   have been deprecated and will be removed in 4.0.
+
+ * Extending `ConstraintValidatorFactory` is deprecated and won't be supported in 4.0.
+ 
+ * Class parameters related to routing have been deprecated and will be removed in 4.0.
+     * router.options.generator_class
+     * router.options.generator_base_class
+     * router.options.generator_dumper_class
+     * router.options.matcher_class
+     * router.options.matcher_base_class
+     * router.options.matcher_dumper_class
+     * router.options.matcher.cache_class
+     * router.options.generator.cache_class
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ControllerArgumentValueResolverPass` class
+   has been deprecated and will be removed in 4.0. Use the `Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\RoutingResolverPass` 
+   class has been deprecated and will be removed in 4.0. Use the 
+   `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` class instead.
+
 HttpKernel
 -----------
 
- * The `Psr6CacheClearer::addPool()` method has been deprecated. Pass an array of pools indexed
-   by name to the constructor instead.
+ * The `Psr6CacheClearer::addPool()` method has been deprecated. Pass an array
+   of pools indexed by name to the constructor instead.
+
+ * The `LazyLoadingFragmentHandler::addRendererService()` method has been
+   deprecated and will be removed in 4.0.
+
+ * The `X-Status-Code` header method of setting a custom status code in the
+   response when handling exceptions has been removed. There is now a new
+   `GetResponseForExceptionEvent::allowCustomResponseCode()` method instead,
+   which will tell the Kernel to use the response code set on the event's
+   response object.
 
 Process
 -------
@@ -126,6 +230,12 @@ TwigBridge
 
  * The `TwigRendererEngine::setEnvironment()` method has been deprecated and will be removed
    in 4.0. Pass the Twig Environment as second argument of the constructor instead.
+
+TwigBundle
+----------
+
+* The `ContainerAwareRuntimeLoader` class has been deprecated and will be removed in 4.0.
+  Use the Twig `Twig_ContainerRuntimeLoader` class instead.
 
 Workflow
 --------

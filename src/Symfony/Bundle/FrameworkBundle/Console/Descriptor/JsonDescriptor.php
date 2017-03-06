@@ -13,6 +13,7 @@ namespace Symfony\Bundle\FrameworkBundle\Console\Descriptor;
 
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -220,12 +221,8 @@ class JsonDescriptor extends Descriptor
             'lazy' => $definition->isLazy(),
             'shared' => $definition->isShared(),
             'abstract' => $definition->isAbstract(),
+            'autowire' => $definition->isAutowired(),
         );
-
-        $autowiredCalls = array_values(array_filter($definition->getAutowiredCalls(), function ($method) {
-            return $method !== '__construct';
-        }));
-        $data['autowire'] = $definition->isAutowired() ? ($autowiredCalls ?: true) : false;
 
         foreach ($definition->getAutowiringTypes(false) as $autowiringType) {
             $data['autowiring_types'][] = $autowiringType;
@@ -392,6 +389,10 @@ class JsonDescriptor extends Descriptor
             return $data;
         }
 
+        if ($value instanceof ServiceClosureArgument) {
+            $value = $value->getValues()[0];
+        }
+
         if ($value instanceof Reference) {
             return array(
                 'type' => 'service',
@@ -399,12 +400,12 @@ class JsonDescriptor extends Descriptor
             );
         }
 
-        if ($value instanceof Definition) {
-            return $this->getContainerDefinitionData($value, $omitTags, $showArguments);
-        }
-
         if ($value instanceof ArgumentInterface) {
             return $this->describeValue($value->getValues(), $omitTags, $showArguments);
+        }
+
+        if ($value instanceof Definition) {
+            return $this->getContainerDefinitionData($value, $omitTags, $showArguments);
         }
 
         return $value;

@@ -151,7 +151,7 @@ class Process implements \IteratorAggregate
             throw new RuntimeException('The Process class relies on proc_open, which is not available on your PHP installation.');
         }
 
-        $this->setCommandline($commandline);
+        $this->setCommandLine($commandline);
         $this->cwd = $cwd;
 
         // on Windows, if the cwd changed via chdir(), proc_open defaults to the dir where PHP was started
@@ -169,7 +169,6 @@ class Process implements \IteratorAggregate
         $this->setTimeout($timeout);
         $this->useFileHandles = '\\' === DIRECTORY_SEPARATOR;
         $this->pty = false;
-        $this->enhanceWindowsCompatibility = true;
         $this->enhanceSigchildCompatibility = '\\' !== DIRECTORY_SEPARATOR && $this->isSigchildEnabled();
         if (null !== $options) {
             @trigger_error(sprintf('The $options parameter of the %s constructor is deprecated since version 3.3 and will be removed in 4.0.', __CLASS__), E_USER_DEPRECATED);
@@ -309,7 +308,7 @@ class Process implements \IteratorAggregate
             }
             $env = null;
         } elseif (null !== $env) {
-            @trigger_error(sprintf('Not inheriting environment variables is deprecated since Symfony 3.3 and will always happen in 4.0. Set "Process::inheritEnvironmentVariables()" to true instead.', __METHOD__), E_USER_DEPRECATED);
+            @trigger_error('Not inheriting environment variables is deprecated since Symfony 3.3 and will always happen in 4.0. Set "Process::inheritEnvironmentVariables()" to true instead.', E_USER_DEPRECATED);
         }
         if ('\\' === DIRECTORY_SEPARATOR && $this->enhanceWindowsCompatibility) {
             $this->options['bypass_shell'] = true;
@@ -1137,6 +1136,11 @@ class Process implements \IteratorAggregate
      */
     public function setEnv(array $env)
     {
+        // Process can not handle env values that are arrays
+        $env = array_filter($env, function ($value) {
+            return !is_array($value);
+        });
+
         $this->env = $env;
 
         return $this;
@@ -1286,7 +1290,7 @@ class Process implements \IteratorAggregate
     public function inheritEnvironmentVariables($inheritEnv = true)
     {
         if (!$inheritEnv) {
-            @trigger_error(sprintf('Not inheriting environment variables is deprecated since Symfony 3.3 and will always happen in 4.0. Set "Process::inheritEnvironmentVariables()" to true instead.', __METHOD__), E_USER_DEPRECATED);
+            @trigger_error('Not inheriting environment variables is deprecated since Symfony 3.3 and will always happen in 4.0. Set "Process::inheritEnvironmentVariables()" to true instead.', E_USER_DEPRECATED);
         }
 
         $this->inheritEnv = (bool) $inheritEnv;

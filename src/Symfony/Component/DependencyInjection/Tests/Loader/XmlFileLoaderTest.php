@@ -185,7 +185,7 @@ class XmlFileLoaderTest extends TestCase
         $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
         $loader->load('services5.xml');
         $services = $container->getDefinitions();
-        $this->assertCount(6, $services, '->load() attributes unique ids to anonymous services');
+        $this->assertCount(7, $services, '->load() attributes unique ids to anonymous services');
 
         // anonymous service as an argument
         $args = $services['foo']->getArguments();
@@ -245,12 +245,12 @@ class XmlFileLoaderTest extends TestCase
         $this->assertEquals('%path%/foo.php', $services['file']->getFile(), '->load() parses the file tag');
         $this->assertEquals(array('foo', new Reference('foo'), array(true, false)), $services['arguments']->getArguments(), '->load() parses the argument tags');
         $this->assertEquals('sc_configure', $services['configurator1']->getConfigurator(), '->load() parses the configurator tag');
-        $this->assertEquals(array(new Reference('baz', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, false), 'configure'), $services['configurator2']->getConfigurator(), '->load() parses the configurator tag');
+        $this->assertEquals(array(new Reference('baz'), 'configure'), $services['configurator2']->getConfigurator(), '->load() parses the configurator tag');
         $this->assertEquals(array('BazClass', 'configureStatic'), $services['configurator3']->getConfigurator(), '->load() parses the configurator tag');
         $this->assertEquals(array(array('setBar', array()), array('setBar', array(new Expression('service("foo").foo() ~ (container.hasParameter("foo") ? parameter("foo") : "default")')))), $services['method_call1']->getMethodCalls(), '->load() parses the method_call tag');
         $this->assertEquals(array(array('setBar', array('foo', new Reference('foo'), array(true, false)))), $services['method_call2']->getMethodCalls(), '->load() parses the method_call tag');
         $this->assertEquals('factory', $services['new_factory1']->getFactory(), '->load() parses the factory tag');
-        $this->assertEquals(array(new Reference('baz', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, false), 'getClass'), $services['new_factory2']->getFactory(), '->load() parses the factory tag');
+        $this->assertEquals(array(new Reference('baz'), 'getClass'), $services['new_factory2']->getFactory(), '->load() parses the factory tag');
         $this->assertEquals(array('BazClass', 'getInstance'), $services['new_factory3']->getFactory(), '->load() parses the factory tag');
         $this->assertSame(array(null, 'getInstance'), $services['new_factory4']->getFactory(), '->load() accepts factory tag without class');
 
@@ -485,11 +485,11 @@ class XmlFileLoaderTest extends TestCase
         $loader1 = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml/extension1'));
         $loader1->load('services.xml');
         $services = $container->getDefinitions();
-        $this->assertCount(2, $services, '->load() attributes unique ids to anonymous services');
+        $this->assertCount(3, $services, '->load() attributes unique ids to anonymous services');
         $loader2 = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml/extension2'));
         $loader2->load('services.xml');
         $services = $container->getDefinitions();
-        $this->assertCount(4, $services, '->load() attributes unique ids to anonymous services');
+        $this->assertCount(5, $services, '->load() attributes unique ids to anonymous services');
 
         $services = $container->getDefinitions();
         $args1 = $services['extension1.foo']->getArguments();
@@ -589,10 +589,6 @@ class XmlFileLoaderTest extends TestCase
         $loader->load('services23.xml');
 
         $this->assertTrue($container->getDefinition('bar')->isAutowired());
-        $this->assertEquals(array('__construct'), $container->getDefinition('bar')->getAutowiredCalls());
-
-        $loader->load('services27.xml');
-        $this->assertEquals(array('set*', 'bar'), $container->getDefinition('autowire_array')->getAutowiredCalls());
     }
 
     public function testGetter()
@@ -602,16 +598,6 @@ class XmlFileLoaderTest extends TestCase
         $loader->load('services31.xml');
 
         $this->assertEquals(array('getbar' => array('bar' => new Reference('bar'))), $container->getDefinition('foo')->getOverriddenGetters());
-    }
-
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     */
-    public function testAutowireAttributeAndTag()
-    {
-        $container = new ContainerBuilder();
-        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
-        $loader->load('services28.xml');
     }
 
     public function testClassFromId()
@@ -632,7 +618,7 @@ class XmlFileLoaderTest extends TestCase
 
         $ids = array_keys($container->getDefinitions());
         sort($ids);
-        $this->assertSame(array(Prototype\Foo::class, Prototype\Sub\Bar::class), $ids);
+        $this->assertSame(array(Prototype\Foo::class, Prototype\Sub\Bar::class, 'service_container'), $ids);
 
         $resources = $container->getResources();
 
@@ -695,18 +681,6 @@ class XmlFileLoaderTest extends TestCase
         $this->assertFalse($container->getDefinition('no_defaults_child')->isAutowired());
     }
 
-    public function testDefaultsWithAutowiredCalls()
-    {
-        $container = new ContainerBuilder();
-        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
-        $loader->load('services30.xml');
-
-        $this->assertSame(array('__construct'), $container->getDefinition('with_defaults')->getAutowiredCalls());
-        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults')->getAutowiredCalls());
-        $this->assertSame(array('setFoo'), $container->getDefinition('no_defaults_child')->getAutowiredCalls());
-        $this->assertSame(array(), $container->getDefinition('with_defaults_child')->getAutowiredCalls());
-    }
-
     public function testNamedArguments()
     {
         $container = new ContainerBuilder();
@@ -729,7 +703,7 @@ class XmlFileLoaderTest extends TestCase
         $container->compile();
 
         $definition = $container->getDefinition(Bar::class);
-        $this->assertSame(array('__construct', 'set*'), $definition->getAutowiredCalls());
+        $this->assertTrue($definition->isAutowired());
         $this->assertTrue($definition->isLazy());
         $this->assertSame(array('foo' => array(array()), 'bar' => array(array())), $definition->getTags());
     }

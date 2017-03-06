@@ -12,6 +12,52 @@ Console
  * Setting unknown style options is not supported anymore and throws an
    exception.
 
+ * The `QuestionHelper::setInputStream()` method is removed. Use
+   `StreamableInputInterface::setStream()` or `CommandTester::setInputs()`
+   instead.
+
+   Before:
+
+   ```php
+   $input = new ArrayInput();
+
+   $questionHelper->setInputStream($stream);
+   $questionHelper->ask($input, $output, $question);
+   ```
+
+   After:
+
+   ```php
+   $input = new ArrayInput();
+   $input->setStream($stream);
+
+   $questionHelper->ask($input, $output, $question);
+   ```
+
+   Before:
+
+   ```php
+   $commandTester = new CommandTester($command);
+
+   $stream = fopen('php://memory', 'r+', false);
+   fputs($stream, "AppBundle\nYes");
+   rewind($stream);
+
+   $command->getHelper('question')->setInputStream($stream);
+
+   $commandTester->execute();
+   ```
+
+   After:
+
+   ```php
+   $commandTester = new CommandTester($command);
+
+   $commandTester->setInputs(array('AppBundle', 'Yes'));
+
+   $commandTester->execute();
+   ```
+
 Debug
 -----
 
@@ -188,6 +234,43 @@ FrameworkBundle
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\FormPass` class has been
    removed. Use the `Symfony\Component\Form\DependencyInjection\FormPass` class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\EventListener\SessionListener` class has been removed.
+   Use the `Symfony\Component\HttpKernel\EventListener\SessionListener` class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\EventListener\TestSessionListener` class has been
+   removed. Use the `Symfony\Component\HttpKernel\EventListener\TestSessionListener`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ConfigCachePass` class has been removed.
+   Use `Symfony\Component\Config\DependencyInjection\ConfigCachePass` class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\PropertyInfoPass` class has been
+   removed. Use the `Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass`
+   class instead.
+
+ * The `ConstraintValidatorFactory::$validators` and `$container` properties
+   have been removed.
+
+ * Extending `ConstraintValidatorFactory` is not supported anymore.
+
+ * Class parameters related to routing have been removed
+    * router.options.generator_class
+    * router.options.generator_base_class
+    * router.options.generator_dumper_class
+    * router.options.matcher_class
+    * router.options.matcher_base_class
+    * router.options.matcher_dumper_class
+    * router.options.matcher.cache_class
+    * router.options.generator.cache_class
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ControllerArgumentValueResolverPass` class
+   has been removed. Use the `Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\RoutingResolverPass`
+   class has been removed. Use the 
+   `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` class instead.
+
 HttpFoundation
 ---------------
 
@@ -229,6 +312,14 @@ HttpKernel
 
  * The `Psr6CacheClearer::addPool()` method has been removed. Pass an array of pools indexed
    by name to the constructor instead.
+
+ * The `LazyLoadingFragmentHandler::addRendererService()` method has been removed.
+
+ * The `X-Status-Code` header method of setting a custom status code in the
+   response when handling exceptions has been removed. There is now a new
+   `GetResponseForExceptionEvent::allowCustomResponseCode()` method instead,
+   which will tell the Kernel to use the response code set on the event's
+   response object.
 
 Ldap
 ----
@@ -284,6 +375,12 @@ Translation
 -----------
 
  * Removed the backup feature from the file dumper classes.
+
+TwigBundle
+----------
+
+* The `ContainerAwareRuntimeLoader` class has been removed. Use the
+  Twig `Twig_ContainerRuntimeLoader` class instead.
 
 TwigBridge
 ----------

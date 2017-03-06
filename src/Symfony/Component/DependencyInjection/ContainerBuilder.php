@@ -11,9 +11,11 @@
 
 namespace Symfony\Component\DependencyInjection;
 
+use Psr\Container\ContainerInterface as PsrContainerInterface;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Compiler\Compiler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
@@ -38,6 +40,7 @@ use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\InstantiatorInt
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\RealServiceInstantiator;
 use Symfony\Component\DependencyInjection\LazyProxy\InheritanceProxyHelper;
 use Symfony\Component\DependencyInjection\LazyProxy\InheritanceProxyInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\ExpressionLanguage\ExpressionFunctionProviderInterface;
 
@@ -116,6 +119,21 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @var string[] the list of vendor directories
      */
     private $vendors;
+
+    public function __construct(ParameterBagInterface $parameterBag = null)
+    {
+        parent::__construct($parameterBag);
+
+        $this->setDefinition('service_container', (new Definition(ContainerInterface::class))->setSynthetic(true));
+        $this->setAlias(PsrContainerInterface::class, new Alias('service_container', false));
+        $this->setAlias(ContainerInterface::class, new Alias('service_container', false));
+        $this->setAlias(Container::class, new Alias('service_container', false));
+    }
+
+    /**
+     * @var \ReflectionClass[] a list of class reflectors
+     */
+    private $classReflectors;
 
     /**
      * Sets the track resources flag.
@@ -433,7 +451,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if (__CLASS__ !== get_class($this)) {
                 $r = new \ReflectionMethod($this, __FUNCTION__);
                 if (__CLASS__ !== $r->getDeclaringClass()->getName()) {
-                    @trigger_error(sprintf('Method %s() will have a third `$priority = 0` argument in version 4.0. Not defining it is deprecated since 3.2.', get_class($this), __FUNCTION__), E_USER_DEPRECATED);
+                    @trigger_error(sprintf('Method %s() will have a third `$priority = 0` argument in version 4.0. Not defining it is deprecated since 3.2.', __METHOD__), E_USER_DEPRECATED);
                 }
             }
 
@@ -1123,10 +1141,18 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             foreach ($value as $k => $v) {
                 $value[$k] = $this->resolveServices($v);
             }
+        } elseif ($value instanceof ServiceClosureArgument) {
+            $reference = $value->getValues()[0];
+            $value = function () use ($reference) {
+                return $this->resolveServices($reference);
+            };
         } elseif ($value instanceof ServiceLocatorArgument) {
             $parameterBag = $this->getParameterBag();
             $services = array();
             foreach ($value->getValues() as $k => $v) {
+                if ($v && $v->getInvalidBehavior() === ContainerInterface::IGNORE_ON_INVALID_REFERENCE && !$this->has((string) $v)) {
+                    continue;
+                }
                 $services[$k] = function () use ($v, $parameterBag) {
                     return $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
                 };

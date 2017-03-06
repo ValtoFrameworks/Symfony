@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Console\Descriptor;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -374,18 +375,6 @@ class XmlDescriptor extends Descriptor
         $serviceXML->setAttribute('autowired', $definition->isAutowired() ? 'true' : 'false');
         $serviceXML->setAttribute('file', $definition->getFile());
 
-        $autowiredCalls = array_filter($definition->getAutowiredCalls(), function ($method) {
-            return $method !== '__construct';
-        });
-        if ($autowiredCalls) {
-            $serviceXML->appendChild($autowiredMethodsXML = $dom->createElement('autowired-calls'));
-            foreach ($autowiredCalls as $autowiredMethod) {
-                $autowiredMethodXML = $dom->createElement('autowired-call');
-                $autowiredMethodXML->appendChild(new \DOMText($autowiredMethod));
-                $autowiredMethodsXML->appendChild($autowiredMethodXML);
-            }
-        }
-
         $calls = $definition->getMethodCalls();
         if (count($calls) > 0) {
             $serviceXML->appendChild($callsXML = $dom->createElement('calls'));
@@ -437,11 +426,13 @@ class XmlDescriptor extends Descriptor
                 $argumentXML->setAttribute('key', $argumentKey);
             }
 
+            if ($argument instanceof ServiceClosureArgument) {
+                $argument = $argument->getValues()[0];
+            }
+
             if ($argument instanceof Reference) {
                 $argumentXML->setAttribute('type', 'service');
                 $argumentXML->setAttribute('id', (string) $argument);
-            } elseif ($argument instanceof Definition) {
-                $argumentXML->appendChild($dom->importNode($this->getContainerDefinitionDocument($argument, null, false, true)->childNodes->item(0), true));
             } elseif ($argument instanceof IteratorArgument) {
                 $argumentXML->setAttribute('type', 'iterator');
 
@@ -459,6 +450,8 @@ class XmlDescriptor extends Descriptor
                 $argumentXML->setAttribute('type', 'closure-proxy');
                 $argumentXML->setAttribute('id', (string) $reference);
                 $argumentXML->setAttribute('method', $method);
+            } elseif ($argument instanceof Definition) {
+                $argumentXML->appendChild($dom->importNode($this->getContainerDefinitionDocument($argument, null, false, true)->childNodes->item(0), true));
             } elseif (is_array($argument)) {
                 $argumentXML->setAttribute('type', 'collection');
 

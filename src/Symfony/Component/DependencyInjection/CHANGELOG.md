@@ -4,8 +4,9 @@ CHANGELOG
 3.3.0
 -----
 
+ * [EXPERIMENTAL] added "TypedReference" and "ServiceClosureArgument" for creating service-locator services
  * [EXPERIMENTAL] added "instanceof" section for local interface-defined configs
- * [EXPERIMENTAL] added "service-locator" argument for lazy loading a set of identified values and services
+ * added "service-locator" argument for lazy loading a set of identified values and services
  * [EXPERIMENTAL] added prototype services for PSR4-based discovery and registration
  * added `ContainerBuilder::getReflectionClass()` for retrieving and tracking reflection class info
  * deprecated `ContainerBuilder::getClassResource()`, use `ContainerBuilder::getReflectionClass()` or `ContainerBuilder::addObjectResource()` instead

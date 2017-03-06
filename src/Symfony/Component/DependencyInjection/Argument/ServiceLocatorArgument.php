@@ -18,8 +18,6 @@ use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
  * Represents a service locator able to lazy load a given range of services.
  *
  * @author Robin Chalas <robin.chalas@gmail.com>
- *
- * @experimental in version 3.3
  */
 class ServiceLocatorArgument implements ArgumentInterface
 {
@@ -41,7 +39,7 @@ class ServiceLocatorArgument implements ArgumentInterface
     public function setValues(array $values)
     {
         foreach ($values as $v) {
-            if (!$v instanceof Reference) {
+            if (!$v instanceof Reference && null !== $v) {
                 throw new InvalidArgumentException('Values of a ServiceLocatorArgument must be Reference objects.');
             }
         }
