@@ -502,6 +502,11 @@ class PhpDumper extends Dumper
     private function addServiceOverriddenMethods($id, Definition $definition)
     {
         $class = $this->container->getReflectionClass($definition->getClass());
+
+        if (!$class) {
+            throw new RuntimeException(sprintf('Unable to configure service "%s": class "%s" not found.', $id, $definition->getClass()));
+        }
+
         if ($class->isFinal()) {
             throw new RuntimeException(sprintf('Unable to configure service "%s": class "%s" cannot be marked as final.', $id, $class->name));
         }
@@ -1651,7 +1656,9 @@ EOF;
             }
             $signature = preg_replace('/^(&?)[^(]*/', '$1', InheritanceProxyHelper::getSignature($r, $call));
 
-            return sprintf("/** @closure-proxy %s::%s */ function %s {\n            return %s->%s;\n        }", $class, $method, $signature, $this->dumpValue($reference), $call);
+            $return = 'void' !== InheritanceProxyHelper::getTypeHint($r);
+
+            return sprintf("/** @closure-proxy %s::%s */ function %s {\n            %s%s->%s;\n        }", $class, $method, $signature, $return ? 'return ' : '', $this->dumpValue($reference), $call);
         } elseif ($value instanceof Variable) {
             return '$'.$value;
         } elseif ($value instanceof Reference) {
@@ -1685,25 +1692,21 @@ EOF;
         return $this->export($value);
     }
 
-    private function dumpServiceClosure(Reference $reference, $interpolate, $oneLine)
+    private function dumpServiceClosure(Reference $reference = null, $interpolate, $oneLine)
     {
-        $type = '';
-        if (PHP_VERSION_ID >= 70000 && $reference instanceof TypedReference) {
-            $type = $reference->getType();
-            if (ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE === $reference->getInvalidBehavior()) {
-                $type = ': \\'.$type;
-            } elseif (PHP_VERSION_ID >= 70100) {
-                $type = ': ?\\'.$type;
-            } else {
-                $type = '';
-            }
+        $code = $this->dumpValue($reference, $interpolate);
+
+        if ($reference instanceof TypedReference) {
+            $code = sprintf('$f = function (\\%s $v%s) { return $v; }; return $f(%s);', $reference->getType(), ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $reference->getInvalidBehavior() ? ' = null' : '', $code);
+        } else {
+            $code = sprintf('return %s;', $code);
         }
 
         if ($oneLine) {
-            return sprintf('function ()%s { return %s; }', $type, $this->dumpValue($reference, $interpolate));
+            return sprintf('function () { %s }', $code);
         }
 
-        return sprintf("function ()%s {\n            return %s;\n        }", $type, $this->dumpValue($reference, $interpolate));
+        return sprintf("function () {\n            %s\n        }", $code);
     }
 
     /**

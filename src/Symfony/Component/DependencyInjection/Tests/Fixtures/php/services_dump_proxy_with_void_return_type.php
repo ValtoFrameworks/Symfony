@@ -34,12 +34,8 @@ class ProjectServiceContainer extends Container
             'symfony\\component\\dependencyinjection\\containerinterface' => 'Symfony\\Component\\DependencyInjection\\ContainerInterface',
         );
         $this->methodMap = array(
-            'bar_service' => 'getBarServiceService',
-            'baz_service' => 'getBazServiceService',
-            'foo_service' => 'getFooServiceService',
-        );
-        $this->privates = array(
-            'baz_service' => true,
+            'bar' => 'getBarService',
+            'foo' => 'getFooService',
         );
 
         $this->aliases = array();
@@ -62,49 +58,34 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'bar_service' service.
+     * Gets the 'bar' service.
      *
      * This service is shared.
      * This method always returns the same instance of the service.
      *
      * @return \stdClass A stdClass instance
      */
-    protected function getBarServiceService()
+    protected function getBarService()
     {
-        return $this->services['bar_service'] = new \stdClass(${($_ = isset($this->services['baz_service']) ? $this->services['baz_service'] : $this->getBazServiceService()) && false ?: '_'});
+        $this->services['bar'] = $instance = new \stdClass();
+
+        $instance->foo = array(0 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo::withVoid */ function (): void {
+            ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withVoid();
+        });
+
+        return $instance;
     }
 
     /**
-     * Gets the 'foo_service' service.
+     * Gets the 'foo' service.
      *
      * This service is shared.
      * This method always returns the same instance of the service.
      *
-     * @return \Symfony\Component\DependencyInjection\ServiceLocator A Symfony\Component\DependencyInjection\ServiceLocator instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo A Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo instance
      */
-    protected function getFooServiceService()
+    protected function getFooService()
     {
-        return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\ServiceLocator(array('bar' => function () {
-            return ${($_ = isset($this->services['bar_service']) ? $this->services['bar_service'] : $this->get('bar_service')) && false ?: '_'};
-        }, 'baz' => function () {
-            return ${($_ = isset($this->services['baz_service']) ? $this->services['baz_service'] : $this->getBazServiceService()) && false ?: '_'};
-        }));
-    }
-
-    /**
-     * Gets the 'baz_service' service.
-     *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * This service is private.
-     * If you want to be able to request this service from the container directly,
-     * make it public, otherwise you might end up with broken code.
-     *
-     * @return \stdClass A stdClass instance
-     */
-    protected function getBazServiceService()
-    {
-        return $this->services['baz_service'] = new \stdClass();
+        return $this->services['foo'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo();
     }
 }

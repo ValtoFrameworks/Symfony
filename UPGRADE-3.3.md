@@ -1,6 +1,12 @@
 UPGRADE FROM 3.2 to 3.3
 =======================
 
+BrowserKit
+----------
+
+ * The request method is dropped from POST to GET when the response
+   status code is 301.
+
 ClassLoader
 -----------
 
@@ -245,6 +251,37 @@ Workflow
 
 Yaml
 ----
+
+ * Deprecated support for implicitly parsing non-string mapping keys as strings. Mapping keys that are no strings will
+   lead to a `ParseException` in Symfony 4.0. Use the `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as
+   strings.
+
+   Before:
+
+   ```php
+   $yaml = <<<YAML
+   null: null key
+   true: boolean true
+   1: integer key
+   2.0: float key
+   YAML;
+
+   Yaml::parse($yaml);
+   ```
+
+   After:
+
+   ```php
+
+   $yaml = <<<YAML
+   null: null key
+   true: boolean true
+   1: integer key
+   2.0: float key
+   YAML;
+
+   Yaml::parse($yaml, Yaml::PARSE_KEYS_AS_STRINGS);
+   ```
 
  * Omitting the key of a mapping is deprecated and will throw a `ParseException` in Symfony 4.0.
 

@@ -408,6 +408,23 @@ class PhpDumperTest extends TestCase
         yield array('Cannot dump definition for service "baz": factories and overridden getters are incompatible with each other.', 'getParam', 'baz');
     }
 
+    /**
+     * @expectedException \RuntimeException
+     * @expectedExceptionMessage Unable to configure service "Acme\FooNonExistent": class "Acme\FooNonExistent" not found.
+     */
+    public function testDumpOverriddenGetterOnNonExistentClassTriggersException()
+    {
+        $container = new ContainerBuilder();
+
+        $definition = $container->register('Acme\\FooNonExistent');
+        $definition->setOverriddenGetter('getFoo', array('foo'));
+
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Overriden_Getters_On_Non_Existent_Definition'));
+    }
+
     public function testEnvParameter()
     {
         $container = new ContainerBuilder();
@@ -600,6 +617,21 @@ class PhpDumperTest extends TestCase
     /**
      * @requires PHP 7.1
      */
+    public function testClosureProxyWithVoidReturnType()
+    {
+        $container = include self::$fixturesPath.'/containers/container_dump_proxy_with_void_return_type.php';
+
+        $container->compile();
+        $dumper = new PhpDumper($container);
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_dump_proxy_with_void_return_type.php', $dumper->dump());
+        $res = $container->getResources();
+        $this->assertSame('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo', (string) array_pop($res));
+    }
+
+    /**
+     * @requires PHP 7.1
+     */
     public function testClosureProxyPhp71()
     {
         $container = include self::$fixturesPath.'/containers/container32.php';
@@ -640,15 +672,16 @@ class PhpDumperTest extends TestCase
             ->addArgument(array(
                 'bar' => new ServiceClosureArgument(new Reference('bar_service')),
                 'baz' => new ServiceClosureArgument(new TypedReference('baz_service', 'stdClass')),
+                'nil' => $nil = new ServiceClosureArgument(new Reference('nil')),
             ))
         ;
+        $nil->setValues(array(null));
         $container->register('bar_service', 'stdClass')->setArguments(array(new Reference('baz_service')));
         $container->register('baz_service', 'stdClass')->setPublic(false);
         $container->compile();
 
         $dumper = new PhpDumper($container);
 
-        $suffix = PHP_VERSION_ID >= 70100 ? '71' : (PHP_VERSION_ID >= 70000 ? '70' : '55');
-        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_locator_php'.$suffix.'.php', $dumper->dump());
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_locator.php', $dumper->dump());
     }
 }

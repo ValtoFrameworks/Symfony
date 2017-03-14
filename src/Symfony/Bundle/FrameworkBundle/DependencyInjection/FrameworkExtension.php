@@ -14,7 +14,9 @@ namespace Symfony\Bundle\FrameworkBundle\DependencyInjection;
 use Doctrine\Common\Annotations\Reader;
 use Symfony\Bridge\Monolog\Processor\DebugProcessor;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Config\Loader\LoaderInterface;
+use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -34,7 +36,6 @@ use Symfony\Component\Serializer\Normalizer\DataUriNormalizer;
 use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\JsonSerializableNormalizer;
 use Symfony\Component\Workflow;
-use Symfony\Component\Workflow\SupportStrategy\ClassInstanceSupportStrategy;
 use Symfony\Component\Console\Application;
 
 /**
@@ -480,12 +481,47 @@ class FrameworkExtension extends Extension
             // Add workflow to Registry
             if ($workflow['supports']) {
                 foreach ($workflow['supports'] as $supportedClassName) {
-                    $strategyDefinition = new Definition(ClassInstanceSupportStrategy::class, array($supportedClassName));
+                    $strategyDefinition = new Definition(Workflow\SupportStrategy\ClassInstanceSupportStrategy::class, array($supportedClassName));
                     $strategyDefinition->setPublic(false);
                     $registryDefinition->addMethodCall('add', array(new Reference($workflowId), $strategyDefinition));
                 }
             } elseif (isset($workflow['support_strategy'])) {
                 $registryDefinition->addMethodCall('add', array(new Reference($workflowId), new Reference($workflow['support_strategy'])));
+            }
+
+            // Enable the AuditTrail
+            if ($workflow['audit_trail']['enabled']) {
+                $listener = new Definition(Workflow\EventListener\AuditTrailListener::class);
+                $listener->addTag('monolog.logger', array('channel' => 'workflow'));
+                $listener->addTag('kernel.event_listener', array('event' => sprintf('workflow.%s.leave', $name), 'method' => 'onLeave'));
+                $listener->addTag('kernel.event_listener', array('event' => sprintf('workflow.%s.transition', $name), 'method' => 'onTransition'));
+                $listener->addTag('kernel.event_listener', array('event' => sprintf('workflow.%s.enter', $name), 'method' => 'onEnter'));
+                $listener->addArgument(new Reference('logger'));
+                $container->setDefinition(sprintf('%s.listener.audit_trail', $workflowId), $listener);
+            }
+
+            // Add Guard Listener
+            $guard = new Definition(Workflow\EventListener\GuardListener::class);
+            $configuration = array();
+            foreach ($workflow['transitions'] as $transitionName => $config) {
+                if (!isset($config['guard'])) {
+                    continue;
+                }
+                $eventName = sprintf('workflow.%s.guard.%s', $name, $transitionName);
+                $guard->addTag('kernel.event_listener', array('event' => $eventName, 'method' => 'onTransition'));
+                $configuration[$eventName] = $config['guard'];
+            }
+            if ($configuration) {
+                $guard->setArguments(array(
+                    $configuration,
+                    new Reference('workflow.security.expression_language'),
+                    new Reference('security.token_storage'),
+                    new Reference('security.authorization_checker'),
+                    new Reference('security.authentication.trust_resolver'),
+                    new Reference('security.role_hierarchy'),
+                ));
+
+                $container->setDefinition(sprintf('%s.listener.guard', $workflowId), $guard);
             }
         }
     }
@@ -938,7 +974,7 @@ class FrameworkExtension extends Extension
 
         $files = array('xml' => array(), 'yml' => array());
         $this->getValidatorMappingFiles($container, $files);
-        $this->getValidatorMappingFilesFromConfig($config, $files);
+        $this->getValidatorMappingFilesFromConfig($container, $config, $files);
 
         if (!empty($files['xml'])) {
             $validatorBuilder->addMethodCall('addXmlMappings', array($files['xml']));
@@ -997,7 +1033,7 @@ class FrameworkExtension extends Extension
                 $files['xml'][] = $file;
             }
 
-            if ($container->fileExists($dir = $dirname.'/Resources/config/validation')) {
+            if ($container->fileExists($dir = $dirname.'/Resources/config/validation', '/^$/')) {
                 $this->getValidatorMappingFilesFromDir($dir, $files);
             }
         }
@@ -1011,12 +1047,13 @@ class FrameworkExtension extends Extension
         }
     }
 
-    private function getValidatorMappingFilesFromConfig(array $config, array &$files)
+    private function getValidatorMappingFilesFromConfig(ContainerBuilder $container, array $config, array &$files)
     {
         foreach ($config['mapping']['paths'] as $path) {
             if (is_dir($path)) {
                 $this->getValidatorMappingFilesFromDir($path, $files);
-            } elseif (is_file($path)) {
+                $container->addResource(new DirectoryResource($path, '/^$/'));
+            } elseif ($container->fileExists($path, false)) {
                 if (preg_match('/\.(xml|ya?ml)$/', $path, $matches)) {
                     $extension = $matches[1];
                     $files['yaml' === $extension ? 'yml' : $extension][] = $path;
@@ -1301,10 +1338,16 @@ class FrameworkExtension extends Extension
         if (method_exists(PropertyAccessor::class, 'createCache')) {
             $propertyAccessDefinition = $container->register('cache.property_access', AdapterInterface::class);
             $propertyAccessDefinition->setPublic(false);
-            $propertyAccessDefinition->setFactory(array(PropertyAccessor::class, 'createCache'));
-            $propertyAccessDefinition->setArguments(array(null, null, $version, new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)));
-            $propertyAccessDefinition->addTag('cache.pool', array('clearer' => 'cache.default_clearer'));
-            $propertyAccessDefinition->addTag('monolog.logger', array('channel' => 'cache'));
+
+            if (!$container->getParameter('kernel.debug')) {
+                $propertyAccessDefinition->setFactory(array(PropertyAccessor::class, 'createCache'));
+                $propertyAccessDefinition->setArguments(array(null, null, $version, new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)));
+                $propertyAccessDefinition->addTag('cache.pool', array('clearer' => 'cache.default_clearer'));
+                $propertyAccessDefinition->addTag('monolog.logger', array('channel' => 'cache'));
+            } else {
+                $propertyAccessDefinition->setClass(ArrayAdapter::class);
+                $propertyAccessDefinition->setArguments(array(0, false));
+            }
         }
 
         if (PHP_VERSION_ID < 70000) {
