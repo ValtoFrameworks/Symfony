@@ -18,6 +18,7 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Form\Form;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Translation\Translator;
 use Symfony\Component\Validator\Validation;
@@ -54,6 +55,14 @@ class Configuration implements ConfigurationInterface
                 ->ifTrue(function ($v) { return !isset($v['assets']) && isset($v['templating']); })
                 ->then(function ($v) {
                     $v['assets'] = array();
+
+                    return $v;
+                })
+            ->end()
+            ->beforeNormalization()
+                ->ifTrue(function ($v) { return isset($v['trusted_proxies']); })
+                ->then(function ($v) {
+                    @trigger_error('The "framework.trusted_proxies" configuration key is deprecated since version 3.3 and will be removed in 4.0. Use the Request::setTrustedProxies() method in your front controller instead.', E_USER_DEPRECATED);
 
                     return $v;
                 })
@@ -686,6 +695,16 @@ class Configuration implements ConfigurationInterface
                         ->booleanNode('enable_annotations')->{!class_exists(FullStack::class) && class_exists(Annotation::class) ? 'defaultTrue' : 'defaultFalse'}()->end()
                         ->scalarNode('cache')->end()
                         ->scalarNode('name_converter')->end()
+                        ->scalarNode('circular_reference_handler')->end()
+                        ->arrayNode('mapping')
+                            ->addDefaultsIfNotSet()
+                            ->fixXmlConfig('path')
+                            ->children()
+                                ->arrayNode('paths')
+                                    ->prototype('scalar')->end()
+                                ->end()
+                            ->end()
+                        ->end()
                     ->end()
                 ->end()
             ->end()

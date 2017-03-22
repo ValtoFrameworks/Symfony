@@ -15,7 +15,6 @@ use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
 use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
-use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Variable;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -84,7 +83,7 @@ class PhpDumper extends Dumper
      */
     public function __construct(ContainerBuilder $container)
     {
-        if (!$container->isFrozen()) {
+        if (!$container->isCompiled()) {
             @trigger_error('Dumping an uncompiled ContainerBuilder is deprecated since version 3.3 and will not be supported anymore in 4.0. Compile the container beforehand.', E_USER_DEPRECATED);
         }
 
@@ -163,10 +162,10 @@ class PhpDumper extends Dumper
 
         $code = $this->startClass($options['class'], $options['base_class'], $options['namespace']);
 
-        if ($this->container->isFrozen()) {
+        if ($this->container->isCompiled()) {
             $code .= $this->addFrozenConstructor();
             $code .= $this->addFrozenCompile();
-            $code .= $this->addIsFrozenMethod();
+            $code .= $this->addFrozenIsCompiled();
         } else {
             $code .= $this->addConstructor();
         }
@@ -735,7 +734,7 @@ EOF;
         }
 
         if ($definition->isAutowired()) {
-            $doc = <<<EOF
+            $doc .= <<<EOF
 
      *
      * This service is autowired.
@@ -894,7 +893,7 @@ EOF;
      */
     private function startClass($class, $baseClass, $namespace)
     {
-        $bagClass = $this->container->isFrozen() ? 'use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;' : 'use Symfony\Component\DependencyInjection\ParameterBag\\ParameterBag;';
+        $bagClass = $this->container->isCompiled() ? 'use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;' : 'use Symfony\Component\DependencyInjection\ParameterBag\\ParameterBag;';
         $namespaceLine = $namespace ? "namespace $namespace;\n" : '';
 
         return <<<EOF
@@ -907,7 +906,6 @@ use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 $bagClass
-use Symfony\Component\DependencyInjection\ServiceLocator;
 
 /*{$this->docStar}
  * $class.
@@ -960,7 +958,7 @@ EOF;
     }
 
     /**
-     * Adds the constructor for a frozen container.
+     * Adds the constructor for a compiled container.
      *
      * @return string
      */
@@ -996,7 +994,7 @@ EOF;
     }
 
     /**
-     * Adds the constructor for a frozen container.
+     * Adds the compile method for a compiled container.
      *
      * @return string
      */
@@ -1009,26 +1007,36 @@ EOF;
      */
     public function compile()
     {
-        throw new LogicException('You cannot compile a dumped frozen container.');
+        throw new LogicException('You cannot compile a dumped container that was already compiled.');
     }
 
 EOF;
     }
 
     /**
-     * Adds the isFrozen method for a frozen container.
+     * Adds the isCompiled method for a compiled container.
      *
      * @return string
      */
-    private function addIsFrozenMethod()
+    private function addFrozenIsCompiled()
     {
         return <<<EOF
 
     /*{$this->docStar}
      * {@inheritdoc}
      */
+    public function isCompiled()
+    {
+        return true;
+    }
+
+    /*{$this->docStar}
+     * {@inheritdoc}
+     */
     public function isFrozen()
     {
+        @trigger_error(sprintf('The %s() method is deprecated since version 3.3 and will be removed in 4.0. Use the isCompiled() method instead.', __METHOD__), E_USER_DEPRECATED);
+
         return true;
     }
 
@@ -1114,7 +1122,7 @@ EOF;
     private function addAliases()
     {
         if (!$aliases = $this->container->getAliases()) {
-            return $this->container->isFrozen() ? "\n        \$this->aliases = array();\n" : '';
+            return $this->container->isCompiled() ? "\n        \$this->aliases = array();\n" : '';
         }
 
         $code = "        \$this->aliases = array(\n";
@@ -1160,7 +1168,7 @@ EOF;
         $parameters = sprintf("array(\n%s\n%s)", implode("\n", $php), str_repeat(' ', 8));
 
         $code = '';
-        if ($this->container->isFrozen()) {
+        if ($this->container->isCompiled()) {
             $code .= <<<'EOF'
 
     /**
@@ -1548,15 +1556,16 @@ EOF;
 
             return sprintf('array(%s)', implode(', ', $code));
         } elseif ($value instanceof ServiceClosureArgument) {
-            return $this->dumpServiceClosure($value->getValues()[0], $interpolate, false);
-        } elseif ($value instanceof ServiceLocatorArgument) {
-            $code = "\n";
-            foreach ($value->getValues() as $k => $v) {
-                $code .= sprintf("            %s => %s,\n", $this->dumpValue($k, $interpolate), $this->dumpServiceClosure($v, $interpolate, true));
-            }
-            $code .= '        ';
+            $value = $value->getValues()[0];
+            $code = $this->dumpValue($value, $interpolate);
 
-            return sprintf('new ServiceLocator(array(%s))', $code);
+            if ($value instanceof TypedReference) {
+                $code = sprintf('$f = function (\\%s $v%s) { return $v; }; return $f(%s);', $value->getType(), ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $value->getInvalidBehavior() ? ' = null' : '', $code);
+            } else {
+                $code = sprintf('return %s;', $code);
+            }
+
+            return sprintf("function () {\n            %s\n        }", $code);
         } elseif ($value instanceof IteratorArgument) {
             $countCode = array();
             $countCode[] = 'function () {';
@@ -1692,23 +1701,6 @@ EOF;
         return $this->export($value);
     }
 
-    private function dumpServiceClosure(Reference $reference = null, $interpolate, $oneLine)
-    {
-        $code = $this->dumpValue($reference, $interpolate);
-
-        if ($reference instanceof TypedReference) {
-            $code = sprintf('$f = function (\\%s $v%s) { return $v; }; return $f(%s);', $reference->getType(), ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE !== $reference->getInvalidBehavior() ? ' = null' : '', $code);
-        } else {
-            $code = sprintf('return %s;', $code);
-        }
-
-        if ($oneLine) {
-            return sprintf('function () { %s }', $code);
-        }
-
-        return sprintf("function () {\n            %s\n        }", $code);
-    }
-
     /**
      * Dumps a string to a literal (aka PHP Code) class value.
      *
@@ -1739,7 +1731,7 @@ EOF;
      */
     private function dumpParameter($name)
     {
-        if ($this->container->isFrozen() && $this->container->hasParameter($name)) {
+        if ($this->container->isCompiled() && $this->container->hasParameter($name)) {
             return $this->dumpValue($this->container->getParameter($name), false);
         }
 

@@ -17,6 +17,7 @@
             </call>
             <configurator service="twig.configurator.environment" method="configure" />
         </service>
+        <service id="Twig_Environment" alias="twig" public="false" />
 
         <service id="twig.app_variable" class="Symfony\Bridge\Twig\AppVariable" public="false">
             <call method="setEnvironment"><argument>%kernel.environment%</argument></call>
@@ -27,7 +28,8 @@
 
         <service id="twig.cache_warmer" class="Symfony\Bundle\TwigBundle\CacheWarmer\TemplateCacheCacheWarmer" public="false">
             <tag name="kernel.cache_warmer" />
-            <argument type="service" id="service_container" />
+            <tag name="container.service_subscriber" id="twig" />
+            <argument type="service" id="container" />
             <argument type="service" id="templating.finder" on-invalid="ignore" />
             <argument type="collection" /> <!-- Twig paths -->
         </service>

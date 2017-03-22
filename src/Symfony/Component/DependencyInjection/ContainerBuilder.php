@@ -16,7 +16,6 @@ use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
-use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Compiler\Compiler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -127,7 +126,6 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         $this->setDefinition('service_container', (new Definition(ContainerInterface::class))->setSynthetic(true));
         $this->setAlias(PsrContainerInterface::class, new Alias('service_container', false));
         $this->setAlias(ContainerInterface::class, new Alias('service_container', false));
-        $this->setAlias(Container::class, new Alias('service_container', false));
     }
 
     /**
@@ -418,13 +416,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *
      * @return $this
      *
-     * @throws BadMethodCallException When this ContainerBuilder is frozen
-     * @throws \LogicException        if the container is frozen
+     * @throws BadMethodCallException When this ContainerBuilder is compiled
+     * @throws \LogicException        if the extension is not registered
      */
     public function loadFromExtension($extension, array $values = array())
     {
-        if ($this->isFrozen()) {
-            throw new BadMethodCallException('Cannot load from an extension on a frozen container.');
+        if ($this->isCompiled()) {
+            throw new BadMethodCallException('Cannot load from an extension on a compiled container.');
         }
 
         $namespace = $this->getExtension($extension)->getAlias();
@@ -495,15 +493,15 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @param string $id      The service identifier
      * @param object $service The service instance
      *
-     * @throws BadMethodCallException When this ContainerBuilder is frozen
+     * @throws BadMethodCallException When this ContainerBuilder is compiled
      */
     public function set($id, $service)
     {
         $id = $this->normalizeId($id);
 
-        if ($this->isFrozen() && (isset($this->definitions[$id]) && !$this->definitions[$id]->isSynthetic())) {
-            // setting a synthetic service on a frozen container is alright
-            throw new BadMethodCallException(sprintf('Setting service "%s" for an unknown or non-synthetic service definition on a frozen container is not allowed.', $id));
+        if ($this->isCompiled() && (isset($this->definitions[$id]) && !$this->definitions[$id]->isSynthetic())) {
+            // setting a synthetic service on a compiled container is alright
+            throw new BadMethodCallException(sprintf('Setting service "%s" for an unknown or non-synthetic service definition on a compiled container is not allowed.', $id));
         }
 
         unset($this->definitions[$id], $this->aliasDefinitions[$id]);
@@ -603,12 +601,12 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *
      * @param ContainerBuilder $container The ContainerBuilder instance to merge
      *
-     * @throws BadMethodCallException When this ContainerBuilder is frozen
+     * @throws BadMethodCallException When this ContainerBuilder is compiled
      */
     public function merge(ContainerBuilder $container)
     {
-        if ($this->isFrozen()) {
-            throw new BadMethodCallException('Cannot merge on a frozen container.');
+        if ($this->isCompiled()) {
+            throw new BadMethodCallException('Cannot merge on a compiled container.');
         }
 
         $this->addDefinitions($container->getDefinitions());
@@ -924,12 +922,12 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *
      * @return Definition the service definition
      *
-     * @throws BadMethodCallException When this ContainerBuilder is frozen
+     * @throws BadMethodCallException When this ContainerBuilder is compiled
      */
     public function setDefinition($id, Definition $definition)
     {
-        if ($this->isFrozen()) {
-            throw new BadMethodCallException('Adding definition to a frozen container is not allowed');
+        if ($this->isCompiled()) {
+            throw new BadMethodCallException('Adding definition to a compiled container is not allowed');
         }
 
         $id = $this->normalizeId($id);
@@ -1146,18 +1144,6 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             $value = function () use ($reference) {
                 return $this->resolveServices($reference);
             };
-        } elseif ($value instanceof ServiceLocatorArgument) {
-            $parameterBag = $this->getParameterBag();
-            $services = array();
-            foreach ($value->getValues() as $k => $v) {
-                if ($v && $v->getInvalidBehavior() === ContainerInterface::IGNORE_ON_INVALID_REFERENCE && !$this->has((string) $v)) {
-                    continue;
-                }
-                $services[$k] = function () use ($v, $parameterBag) {
-                    return $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
-                };
-            }
-            $value = new ServiceLocator($services);
         } elseif ($value instanceof IteratorArgument) {
             $parameterBag = $this->getParameterBag();
             $value = new RewindableGenerator(function () use ($value, $parameterBag) {

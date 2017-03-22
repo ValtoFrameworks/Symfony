@@ -14,8 +14,8 @@ namespace Symfony\Component\DependencyInjection\Tests\Compiler;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Compiler\AutowirePass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\Reference;
-use Symfony\Component\DependencyInjection\Tests\Fixtures\AbstractGetterOverriding;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\includes\FooVariadic;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\GetterOverriding;
 use Symfony\Component\DependencyInjection\TypedReference;
@@ -177,7 +177,7 @@ class AutowirePassTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage Unable to autowire argument of type "Symfony\Component\DependencyInjection\Tests\Compiler\CollisionInterface" for the service "a". No services were found matching this interface and it cannot be auto-registered.
+     * @expectedExceptionMessage Cannot autowire argument $collision of method Symfony\Component\DependencyInjection\Tests\Compiler\CannotBeAutowired::__construct() for service "a": No services were found matching the "Symfony\Component\DependencyInjection\Tests\Compiler\CollisionInterface" interface and it cannot be auto-registered.
      */
     public function testTypeNotGuessableNoServicesFound()
     {
@@ -295,7 +295,7 @@ class AutowirePassTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage Cannot autowire argument $r of method Symfony\Component\DependencyInjection\Tests\Compiler\BadTypeHintedArgument::__construct() for service "a": Class Symfony\Component\DependencyInjection\Tests\Compiler\NotARealClass does not exist.
+     * @expectedExceptionMessage Cannot autowire argument $r of method Symfony\Component\DependencyInjection\Tests\Compiler\BadTypeHintedArgument::__construct() for service "a": Class or interface "Symfony\Component\DependencyInjection\Tests\Compiler\NotARealClass" does not exist.
      */
     public function testClassNotFoundThrowsException()
     {
@@ -310,7 +310,7 @@ class AutowirePassTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage Cannot autowire argument $r of method Symfony\Component\DependencyInjection\Tests\Compiler\BadParentTypeHintedArgument::__construct() for service "a": Class Symfony\Component\DependencyInjection\Tests\Compiler\OptionalServiceClass does not exist.
+     * @expectedExceptionMessage Cannot autowire argument $r of method Symfony\Component\DependencyInjection\Tests\Compiler\BadParentTypeHintedArgument::__construct() for service "a": Class or interface "Symfony\Component\DependencyInjection\Tests\Compiler\OptionalServiceClass" does not exist.
      */
     public function testParentClassNotFoundThrowsException()
     {
@@ -536,27 +536,6 @@ class AutowirePassTest extends TestCase
     }
 
     /**
-     * @requires PHP 7.0
-     */
-    public function testAbstractGetterOverriding()
-    {
-        $container = new ContainerBuilder();
-
-        $container
-            ->register('getter_overriding', AbstractGetterOverriding::class)
-            ->setAutowired(true)
-        ;
-
-        $pass = new AutowirePass();
-        $pass->process($container);
-
-        $overridenGetters = $container->getDefinition('getter_overriding')->getOverriddenGetters();
-        $this->assertEquals(array(
-            'abstractgetfoo' => new Reference('autowired.Symfony\Component\DependencyInjection\Tests\Compiler\Foo'),
-        ), $overridenGetters);
-    }
-
-    /**
      * @requires PHP 7.1
      */
     public function testGetterOverriding()
@@ -707,6 +686,57 @@ class AutowirePassTest extends TestCase
             array('CannotBeAutowiredReverseOrder'),
         );
     }
+
+    /**
+     * @dataProvider provideNotWireableCalls
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     */
+    public function testNotWireableCalls($method, $expectedMsg)
+    {
+        $container = new ContainerBuilder();
+
+        $foo = $container->register('foo', NotWireable::class)->setAutowired(true);
+
+        if ($method) {
+            $foo->addMethodCall($method, array());
+        }
+
+        $pass = new AutowirePass();
+
+        if (method_exists($this, 'expectException')) {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage($expectedMsg);
+        } else {
+            $this->setExpectedException(RuntimeException::class, $expectedMsg);
+        }
+
+        $pass->process($container);
+    }
+
+    public function provideNotWireableCalls()
+    {
+        return array(
+            array('setNotAutowireable', 'Cannot autowire argument $n of method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setNotAutowireable() for service "foo": Class or interface "Symfony\Component\DependencyInjection\Tests\Compiler\NotARealClass" does not exist.'),
+            array('setBar', 'Cannot autowire service "foo": method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setBar() has only optional arguments, thus must be wired explicitly.'),
+            array('setOptionalNotAutowireable', 'Cannot autowire service "foo": method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setOptionalNotAutowireable() has only optional arguments, thus must be wired explicitly.'),
+            array('setOptionalNoTypeHint', 'Cannot autowire service "foo": method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setOptionalNoTypeHint() has only optional arguments, thus must be wired explicitly.'),
+            array('setOptionalArgNoAutowireable', 'Cannot autowire service "foo": method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setOptionalArgNoAutowireable() has only optional arguments, thus must be wired explicitly.'),
+            array(null, 'Cannot autowire service "foo": method Symfony\Component\DependencyInjection\Tests\Compiler\NotWireable::setProtectedMethod() must be public.'),
+        );
+    }
+
+    public function testAutoregisterRestoresStateOnFailure()
+    {
+        $container = new ContainerBuilder();
+
+        $container->register('e', E::class)
+            ->setAutowired(true);
+
+        $pass = new AutowirePass();
+        $pass->process($container);
+
+        $this->assertSame(array('service_container', 'e'), array_keys($container->getDefinitions()));
+    }
 }
 
 class Foo
@@ -765,6 +795,20 @@ class G
 class H
 {
     public function __construct(B $b, DInterface $d)
+    {
+    }
+}
+
+class D
+{
+    public function __construct(A $a, DInterface $d)
+    {
+    }
+}
+
+class E
+{
+    public function __construct(D $d = null)
     {
     }
 }
@@ -917,43 +961,6 @@ class SetterInjection extends SetterInjectionParent
         // should be called
     }
 
-    /**
-     * @required*/
-    public function setBar()
-    {
-        // should not be called
-    }
-
-    /**	@required <tab> prefix is on purpose */
-    public function setNotAutowireable(NotARealClass $n)
-    {
-        // should not be called
-    }
-
-    /** @required */
-    public function setArgCannotAutowire($foo)
-    {
-        // should not be called
-    }
-
-    /** @required */
-    public function setOptionalNotAutowireable(NotARealClass $n = null)
-    {
-        // should not be called
-    }
-
-    /** @required */
-    public function setOptionalNoTypeHint($foo = null)
-    {
-        // should not be called
-    }
-
-    /** @required */
-    public function setOptionalArgNoAutowireable($other = 'default_val')
-    {
-        // should not be called
-    }
-
     /** {@inheritdoc} */
     public function setWithCallsConfigured(A $a)
     {
@@ -965,12 +972,8 @@ class SetterInjection extends SetterInjectionParent
         // should be called only when explicitly specified
     }
 
-    /** @required */
-    protected function setProtectedMethod(A $a)
-    {
-        // should not be called
-    }
-
+    /**
+     * @required*/
     public function setChildMethodWithoutDocBlock(A $a)
     {
     }
@@ -989,7 +992,7 @@ class SetterInjectionParent
         // @required should be ignored when the child does not add @inheritdoc
     }
 
-    /** @required */
+    /**	@required <tab> prefix is on purpose */
     public function setWithCallsConfigured(A $a)
     {
     }
@@ -1010,5 +1013,33 @@ class SetterInjectionCollision
         // The CollisionInterface cannot be autowired - there are multiple
 
         // should throw an exception
+    }
+}
+
+class NotWireable
+{
+    public function setNotAutowireable(NotARealClass $n)
+    {
+    }
+
+    public function setBar()
+    {
+    }
+
+    public function setOptionalNotAutowireable(NotARealClass $n = null)
+    {
+    }
+
+    public function setOptionalNoTypeHint($foo = null)
+    {
+    }
+
+    public function setOptionalArgNoAutowireable($other = 'default_val')
+    {
+    }
+
+    /** @required */
+    protected function setProtectedMethod(A $a)
+    {
     }
 }

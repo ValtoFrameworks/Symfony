@@ -13,7 +13,6 @@ namespace Symfony\Component\DependencyInjection\Tests\Loader;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
-use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
@@ -41,40 +40,33 @@ class YamlFileLoaderTest extends TestCase
         require_once self::$fixturesPath.'/includes/ProjectExtension.php';
     }
 
-    public function testLoadFile()
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessageRegExp /The file ".+" does not exist./
+     */
+    public function testLoadUnExistFile()
     {
         $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/ini'));
         $r = new \ReflectionObject($loader);
         $m = $r->getMethod('loadFile');
         $m->setAccessible(true);
 
-        try {
-            $m->invoke($loader, 'foo.yml');
-            $this->fail('->load() throws an InvalidArgumentException if the loaded file does not exist');
-        } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->load() throws an InvalidArgumentException if the loaded file does not exist');
-            $this->assertEquals('The service file "foo.yml" is not valid.', $e->getMessage(), '->load() throws an InvalidArgumentException if the loaded file does not exist');
-        }
+        $m->invoke($loader, 'foo.yml');
+    }
 
-        try {
-            $m->invoke($loader, 'parameters.ini');
-            $this->fail('->load() throws an InvalidArgumentException if the loaded file is not a valid YAML file');
-        } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->load() throws an InvalidArgumentException if the loaded file is not a valid YAML file');
-            $this->assertEquals('The service file "parameters.ini" is not valid.', $e->getMessage(), '->load() throws an InvalidArgumentException if the loaded file is not a valid YAML file');
-        }
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessageRegExp /The file ".+" does not contain valid YAML./
+     */
+    public function testLoadInvalidYamlFile()
+    {
+        $path = self::$fixturesPath.'/ini';
+        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator($path));
+        $r = new \ReflectionObject($loader);
+        $m = $r->getMethod('loadFile');
+        $m->setAccessible(true);
 
-        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
-
-        foreach (array('nonvalid1', 'nonvalid2') as $fixture) {
-            try {
-                $m->invoke($loader, $fixture.'.yml');
-                $this->fail('->load() throws an InvalidArgumentException if the loaded file does not validate');
-            } catch (\Exception $e) {
-                $this->assertInstanceOf('\InvalidArgumentException', $e, '->load() throws an InvalidArgumentException if the loaded file does not validate');
-                $this->assertStringMatchesFormat('The service file "nonvalid%d.yml" is not valid.', $e->getMessage(), '->load() throws an InvalidArgumentException if the loaded file does not validate');
-            }
-        }
+        $m->invoke($loader, $path.'/parameters.ini');
     }
 
     /**
@@ -98,6 +90,8 @@ class YamlFileLoaderTest extends TestCase
             array('bad_service'),
             array('bad_calls'),
             array('bad_format'),
+            array('nonvalid1'),
+            array('nonvalid2'),
         );
     }
 
@@ -354,16 +348,6 @@ class YamlFileLoaderTest extends TestCase
         $lazyDefinition = $container->getDefinition('lazy_context');
 
         $this->assertEquals(array(new IteratorArgument(array('foo', new Reference('foo.baz'), array('%foo%' => 'foo is %foo%', 'foobar' => '%foo%'), true, new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
-    }
-
-    public function testParsesServiceLocatorArgument()
-    {
-        $container = new ContainerBuilder();
-        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
-        $loader->load('services_locator_argument.yml');
-
-        $this->assertEquals(array(new ServiceLocatorArgument(array('foo_baz' => new Reference('foo.baz'), 'container' => new Reference('service_container')))), $container->getDefinition('lazy_context')->getArguments(), '->load() parses service-locator arguments');
-        $this->assertEquals(array(new ServiceLocatorArgument(array('foo_baz' => new Reference('foo.baz'), 'invalid' => new Reference('invalid', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)))), $container->getDefinition('lazy_context_ignore_invalid_ref')->getArguments(), '->load() parses service-locator arguments');
     }
 
     public function testAutowire()

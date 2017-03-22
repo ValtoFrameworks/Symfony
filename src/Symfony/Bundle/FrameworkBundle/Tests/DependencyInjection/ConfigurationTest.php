@@ -43,6 +43,7 @@ class ConfigurationTest extends TestCase
     }
 
     /**
+     * @group legacy
      * @dataProvider getTestValidTrustedProxiesData
      */
     public function testValidTrustedProxies($trustedProxies, $processedProxies)
@@ -73,6 +74,7 @@ class ConfigurationTest extends TestCase
     }
 
     /**
+     * @group legacy
      * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
      */
     public function testInvalidTypeTrustedProxies()
@@ -88,6 +90,7 @@ class ConfigurationTest extends TestCase
     }
 
     /**
+     * @group legacy
      * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
      */
     public function testInvalidValueTrustedProxies()
@@ -226,6 +229,7 @@ class ConfigurationTest extends TestCase
             'serializer' => array(
                 'enabled' => !class_exists(FullStack::class),
                 'enable_annotations' => !class_exists(FullStack::class),
+                'mapping' => array('paths' => array()),
             ),
             'property_access' => array(
                 'magic_call' => false,

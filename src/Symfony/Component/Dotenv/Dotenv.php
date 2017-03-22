@@ -61,7 +61,7 @@ final class Dotenv
      *
      * Note that existing environment variables are never overridden.
      *
-     * @param array An array of env variables
+     * @param array $values An array of env variables
      */
     public function populate($values)
     {
@@ -121,6 +121,8 @@ final class Dotenv
             return $this->values;
         } finally {
             $this->values = array();
+            $this->data = null;
+            $this->path = null;
         }
     }
 
@@ -231,11 +233,6 @@ final class Dotenv
         }
 
         return $value;
-    }
-
-    private function skipWhitespace()
-    {
-        $this->cursor += strspn($this->data, " \t", $this->cursor);
     }
 
     private function skipEmptyLines()

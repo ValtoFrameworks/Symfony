@@ -4,6 +4,8 @@ CHANGELOG
 3.3.0
 -----
 
+ * Deprecated `cache:clear` with warmup (always call it with `--no-warmup`)
+ * Deprecated the "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter
  * Changed default configuration for
    assets/forms/validation/translation/serialization/csrf from `canBeEnabled()` to
    `canBeDisabled()` when Flex is used
@@ -30,6 +32,18 @@ CHANGELOG
  * Deprecated `ControllerArgumentValueResolverPass`. Use
    `Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass` instead
  * Deprecated `RoutingResolverPass`, use `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` instead
+ * [BC BREAK] The `server:run`, `server:start`, `server:stop` and 
+   `server:status` console commands have been moved to a dedicated bundle. 
+   Require `symfony/web-server-bundle` in your composer.json and register 
+   `Symfony\Bundle\WebServerBundle\WebServerBundle` in your AppKernel to use them.
+ * Added `$defaultLocale` as 3rd argument of `Translator::__construct()`
+   making `Translator` works with any PSR-11 container
+ * Added `framework.serializer.mapping` config option allowing to define custom 
+   serialization mapping files and directories
+ * Deprecated `AddValidatorInitializersPass`, use
+   `Symfony\Component\Validator\DependencyInjection\AddValidatorInitializersPass` instead
+ * Deprecated `AddConstraintValidatorsPass`, use
+   `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass` instead
 
 3.2.0
 -----

@@ -12,6 +12,7 @@
 namespace Symfony\Bundle\FrameworkBundle\Tests\DependencyInjection;
 
 use Doctrine\Common\Annotations\Annotation;
+use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\TranslatorPass;
 use Symfony\Bundle\FullStack;
 use Symfony\Bundle\FrameworkBundle\Tests\TestCase;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddAnnotationsCachedReaderPass;
@@ -26,10 +27,12 @@ use Symfony\Component\Cache\Adapter\ProxyAdapter;
 use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Loader\ClosureLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
+use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Serializer\Mapping\Factory\CacheClassMetadataFactory;
 use Symfony\Component\Serializer\Mapping\Loader\XmlFileLoader;
@@ -37,6 +40,7 @@ use Symfony\Component\Serializer\Mapping\Loader\YamlFileLoader;
 use Symfony\Component\Serializer\Normalizer\DataUriNormalizer;
 use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\JsonSerializableNormalizer;
+use Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass;
 
 abstract class FrameworkExtensionTest extends TestCase
 {
@@ -113,13 +117,6 @@ abstract class FrameworkExtensionTest extends TestCase
         $container = $this->createContainerFromFile('csrf');
 
         $this->assertTrue($container->hasDefinition('security.csrf.token_manager'));
-    }
-
-    public function testProxies()
-    {
-        $container = $this->createContainerFromFile('full');
-
-        $this->assertEquals(array('127.0.0.1', '10.0.0.1'), $container->getParameter('kernel.trusted_proxies'));
     }
 
     public function testHttpMethodOverride()
@@ -416,9 +413,9 @@ abstract class FrameworkExtensionTest extends TestCase
         $container = $this->createContainerFromFile('full');
         $this->assertTrue($container->hasDefinition('translator.default'), '->registerTranslatorConfiguration() loads translation.xml');
         $this->assertEquals('translator.default', (string) $container->getAlias('translator'), '->registerTranslatorConfiguration() redefines translator service from identity to real translator');
-        $options = $container->getDefinition('translator.default')->getArgument(3);
+        $options = $container->getDefinition('translator.default')->getArgument(4);
 
-        $files = array_map(function ($resource) { return realpath($resource); }, $options['resource_files']['en']);
+        $files = array_map('realpath', $options['resource_files']['en']);
         $ref = new \ReflectionClass('Symfony\Component\Validator\Validation');
         $this->assertContains(
             strtr(dirname($ref->getFileName()).'/Resources/translations/validators.en.xlf', '/', DIRECTORY_SEPARATOR),
@@ -453,6 +450,20 @@ abstract class FrameworkExtensionTest extends TestCase
 
         $calls = $container->getDefinition('translator.default')->getMethodCalls();
         $this->assertEquals(array('en', 'fr'), $calls[1][1][0]);
+    }
+
+    public function testTranslatorHelperIsRegisteredWhenTranslatorIsEnabled()
+    {
+        $container = $this->createContainerFromFile('templating_php_translator_enabled');
+
+        $this->assertTrue($container->has('templating.helper.translator'));
+    }
+
+    public function testTranslatorHelperIsNotRegisteredWhenTranslatorIsDisabled()
+    {
+        $container = $this->createContainerFromFile('templating_php_translator_disabled');
+
+        $this->assertFalse($container->has('templating.helper.translator'));
     }
 
     /**
@@ -784,6 +795,28 @@ abstract class FrameworkExtensionTest extends TestCase
         $this->assertEquals(new Reference('foo'), $cache);
     }
 
+    public function testSerializerMapping()
+    {
+        $container = $this->createContainerFromFile('serializer_mapping', array('kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'path' => __DIR__.'/Fixtures/TestBundle', 'parent' => null))));
+        $configDir = __DIR__.'/Fixtures/TestBundle/Resources/config';
+        $expectedLoaders = array(
+            new Definition(AnnotationLoader::class, array(new Reference('annotation_reader'))),
+            new Definition(XmlFileLoader::class, array($configDir.'/serialization.xml')),
+            new Definition(YamlFileLoader::class, array($configDir.'/serialization.yml')),
+            new Definition(XmlFileLoader::class, array($configDir.'/serializer_mapping/files/foo.xml')),
+            new Definition(YamlFileLoader::class, array($configDir.'/serializer_mapping/files/foo.yml')),
+            new Definition(YamlFileLoader::class, array($configDir.'/serializer_mapping/serialization.yml')),
+            new Definition(YamlFileLoader::class, array($configDir.'/serializer_mapping/serialization.yaml')),
+        );
+
+        foreach ($expectedLoaders as $definition) {
+            $definition->setPublic(false);
+        }
+
+        $loaders = $container->getDefinition('serializer.mapping.chain_loader')->getArgument(0);
+        $this->assertEquals(sort($expectedLoaders), sort($loaders));
+    }
+
     public function testAssetHelperWhenAssetsAreEnabled()
     {
         $container = $this->createContainerFromFile('full');
@@ -907,7 +940,7 @@ abstract class FrameworkExtensionTest extends TestCase
             $container->getCompilerPassConfig()->setOptimizationPasses(array());
             $container->getCompilerPassConfig()->setRemovingPasses(array());
         }
-        $container->getCompilerPassConfig()->setBeforeRemovingPasses(array(new AddAnnotationsCachedReaderPass()));
+        $container->getCompilerPassConfig()->setBeforeRemovingPasses(array(new AddAnnotationsCachedReaderPass(), new AddConstraintValidatorsPass(), new TranslatorPass()));
         $container->compile();
 
         return self::$containerCache[$cacheKey] = $container;

@@ -23,6 +23,8 @@ class UnusedTagsPass implements CompilerPassInterface
 {
     private $whitelist = array(
         'console.command',
+        'container.service_locator',
+        'container.service_subscriber',
         'config_cache.resource_checker',
         'data_collector',
         'form.type',

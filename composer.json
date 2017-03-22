@@ -54,6 +54,7 @@
         "symfony/inflector": "self.version",
         "symfony/intl": "self.version",
         "symfony/ldap": "self.version",
+        "symfony/lock": "self.version",
         "symfony/monolog-bridge": "self.version",
         "symfony/options-resolver": "self.version",
         "symfony/process": "self.version",
@@ -81,7 +82,7 @@
         "symfony/yaml": "self.version"
     },
     "require-dev": {
-        "cache/integration-tests": "^0.15.0",
+        "cache/integration-tests": "dev-master",
         "doctrine/cache": "~1.6",
         "doctrine/data-fixtures": "1.0.*",
         "doctrine/dbal": "~2.4",

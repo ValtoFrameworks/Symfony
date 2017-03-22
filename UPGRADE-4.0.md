@@ -124,7 +124,7 @@ EventDispatcher
    Use `EventDispatcher` with closure-proxy injection instead.
 
 ExpressionLanguage
-----------
+------------------
 
  * The ability to pass a `ParserCacheInterface` instance to the `ExpressionLanguage`
    class has been removed. You should use the `CacheItemPoolInterface` interface
@@ -186,6 +186,11 @@ Form
 
 FrameworkBundle
 ---------------
+
+ * The `cache:clear` command does not warmup the cache anymore. Warmup should
+   be done via the `cache:warmup` command.
+
+ * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been removed. Use the `Request::setTrustedProxies()` method in your front controller instead.
 
  * Support for absolute template paths has been removed.
 
@@ -268,11 +273,28 @@ FrameworkBundle
    class instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\RoutingResolverPass`
-   class has been removed. Use the 
+   class has been removed. Use the
    `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\Translation\Translator` constructor now takes the
+   default locale as mandatory 3rd argument.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddValidatorInitializersPass` class has been
+   removed. Use the `Symfony\Component\Validator\DependencyInjection\AddValidatorInitializersPass`
+   class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConstraintValidatorsPass` class has been
+   removed. Use the `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass`
+   class instead.
+
 HttpFoundation
----------------
+--------------
+
+ * The `Request::setTrustedProxies()` method takes a new `$trustedHeaderSet` argument.
+   Set it to `Request::HEADER_FORWARDED` if your reverse-proxy uses the RFC7239 `Forwarded` header,
+   or to `Request::HEADER_X_FORWARDED_ALL` if it is using `X-Forwarded-*` headers instead.
+
+ * The `Request::setTrustedHeaderName()` and `Request::getTrustedHeaderName()` methods have been removed.
 
  * Extending the following methods of `Response`
    is no longer possible (these methods are now `final`):
@@ -320,6 +342,12 @@ HttpKernel
    `GetResponseForExceptionEvent::allowCustomResponseCode()` method instead,
    which will tell the Kernel to use the response code set on the event's
    response object.
+
+ * The `Kernel::getEnvParameters()` method has been removed.
+
+ * The `SYMFONY__` environment variables are no longer processed automatically
+   by Symfony. Use the `%env()%` syntax to get the value of any environment
+   variable from configuration files instead.
 
 Ldap
 ----
@@ -463,8 +491,12 @@ Workflow
 Yaml
 ----
 
- * Removed support for implicitly parsing non-string mapping keys as strings. Mapping keys that are no strings will
-   result in a `ParseException`. Use the `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as strings.
+ * Starting an unquoted string with a question mark followed by a space
+   throws a `ParseException`.
+
+ * Removed support for implicitly parsing non-string mapping keys as strings.
+   Mapping keys that are no strings will result in a `ParseException`. Use the
+   `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as strings.
 
    Before:
 

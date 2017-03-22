@@ -15,6 +15,10 @@
             <argument type="service" id="session.flash_bag" />
         </service>
 
+        <service id="Symfony\Component\HttpFoundation\Session\SessionInterface" alias="session" public="false" />
+        <service id="Symfony\Component\HttpFoundation\Session\Storage\SessionStorageInterface" alias="session.storage" public="false" />
+        <service id="SessionHandlerInterface" alias="session.handler" public="false" />
+
         <service id="session.storage.metadata_bag" class="Symfony\Component\HttpFoundation\Session\Storage\MetadataBag" public="false">
             <argument>%session.metadata.storage_key%</argument>
             <argument>%session.metadata.update_threshold%</argument>
@@ -49,9 +53,8 @@
 
         <service id="session_listener" class="Symfony\Component\HttpKernel\EventListener\SessionListener">
             <tag name="kernel.event_subscriber" />
-            <argument type="service-locator">
-                <argument key="session" type="service" id="session" on-invalid="null" />
-            </argument>
+            <tag name="container.service_subscriber" id="session" />
+            <argument type="service" id="container" />
         </service>
 
         <service id="session.save_listener" class="Symfony\Component\HttpKernel\EventListener\SaveSessionListener">

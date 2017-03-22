@@ -25,6 +25,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 use Symfony\Component\Config\FileLocator;
@@ -96,6 +97,7 @@ class FrameworkExtension extends Extension
         $config = $this->processConfiguration($configuration, $configs);
 
         $this->annotationsConfigEnabled = $this->isConfigEnabled($container, $config['annotations']);
+        $this->translationConfigEnabled = $this->isConfigEnabled($container, $config['translator']);
 
         // A translator must always be registered (as support is included by
         // default in the Form and Validator component). If disabled, an identity
@@ -421,6 +423,10 @@ class FrameworkExtension extends Extension
             return;
         }
 
+        if (!class_exists(Workflow\Workflow::class)) {
+            throw new LogicException('Workflow support cannot be enabled as the Workflow component is not installed.');
+        }
+
         $loader->load('workflow.xml');
 
         $registryDefinition = $container->getDefinition('workflow.registry');
@@ -507,6 +513,11 @@ class FrameworkExtension extends Extension
                 if (!isset($config['guard'])) {
                     continue;
                 }
+
+                if (!class_exists(ExpressionLanguage::class)) {
+                    throw new LogicException('Cannot guard workflows as the ExpressionLanguage component is not installed.');
+                }
+
                 $eventName = sprintf('workflow.%s.guard.%s', $name, $transitionName);
                 $guard->addTag('kernel.event_listener', array('event' => $eventName, 'method' => 'onTransition'));
                 $configuration[$eventName] = $config['guard'];
@@ -776,6 +787,10 @@ class FrameworkExtension extends Extension
             } else {
                 $container->removeDefinition('templating.helper.assets');
             }
+
+            if (!$this->translationConfigEnabled) {
+                $container->removeDefinition('templating.helper.translator');
+            }
         }
     }
 
@@ -871,8 +886,6 @@ class FrameworkExtension extends Extension
 
         $loader->load('translation.xml');
 
-        $this->translationConfigEnabled = true;
-
         // Use the "real" translator instead of the identity default
         $container->setAlias('translator', 'translator.default');
         $translator = $container->findDefinition('translator.default');
@@ -941,11 +954,11 @@ class FrameworkExtension extends Extension
             }
 
             $options = array_merge(
-                $translator->getArgument(3),
+                $translator->getArgument(4),
                 array('resource_files' => $files)
             );
 
-            $translator->replaceArgument(3, $options);
+            $translator->replaceArgument(4, $options);
         }
     }
 
@@ -973,8 +986,7 @@ class FrameworkExtension extends Extension
         $container->setParameter('validator.translation_domain', $config['translation_domain']);
 
         $files = array('xml' => array(), 'yml' => array());
-        $this->getValidatorMappingFiles($container, $files);
-        $this->getValidatorMappingFilesFromConfig($container, $config, $files);
+        $this->registerValidatorMapping($container, $config, $files);
 
         if (!empty($files['xml'])) {
             $validatorBuilder->addMethodCall('addXmlMappings', array($files['xml']));
@@ -1015,51 +1027,54 @@ class FrameworkExtension extends Extension
         }
     }
 
-    private function getValidatorMappingFiles(ContainerBuilder $container, array &$files)
+    private function registerValidatorMapping(ContainerBuilder $container, array $config, array &$files)
     {
+        $fileRecorder = function ($extension, $path) use (&$files) {
+            $files['yaml' === $extension ? 'yml' : $extension][] = $path;
+        };
+
         if (interface_exists('Symfony\Component\Form\FormInterface')) {
             $reflClass = new \ReflectionClass('Symfony\Component\Form\FormInterface');
-            $files['xml'][] = dirname($reflClass->getFileName()).'/Resources/config/validation.xml';
+            $fileRecorder('xml', dirname($reflClass->getFileName()).'/Resources/config/validation.xml');
         }
 
         foreach ($container->getParameter('kernel.bundles_metadata') as $bundle) {
             $dirname = $bundle['path'];
 
             if ($container->fileExists($file = $dirname.'/Resources/config/validation.yml', false)) {
-                $files['yml'][] = $file;
+                $fileRecorder('yml', $file);
             }
 
             if ($container->fileExists($file = $dirname.'/Resources/config/validation.xml', false)) {
-                $files['xml'][] = $file;
+                $fileRecorder('xml', $file);
             }
 
             if ($container->fileExists($dir = $dirname.'/Resources/config/validation', '/^$/')) {
-                $this->getValidatorMappingFilesFromDir($dir, $files);
+                $this->registerMappingFilesFromDir($dir, $fileRecorder);
             }
         }
+
+        $this->registerMappingFilesFromConfig($container, $config, $fileRecorder);
     }
 
-    private function getValidatorMappingFilesFromDir($dir, array &$files)
+    private function registerMappingFilesFromDir($dir, callable $fileRecorder)
     {
         foreach (Finder::create()->followLinks()->files()->in($dir)->name('/\.(xml|ya?ml)$/') as $file) {
-            $extension = $file->getExtension();
-            $files['yaml' === $extension ? 'yml' : $extension][] = $file->getRealpath();
+            $fileRecorder($file->getExtension(), $file->getRealPath());
         }
     }
 
-    private function getValidatorMappingFilesFromConfig(ContainerBuilder $container, array $config, array &$files)
+    private function registerMappingFilesFromConfig(ContainerBuilder $container, array $config, callable $fileRecorder)
     {
         foreach ($config['mapping']['paths'] as $path) {
             if (is_dir($path)) {
-                $this->getValidatorMappingFilesFromDir($path, $files);
+                $this->registerMappingFilesFromDir($path, $fileRecorder);
                 $container->addResource(new DirectoryResource($path, '/^$/'));
             } elseif ($container->fileExists($path, false)) {
-                if (preg_match('/\.(xml|ya?ml)$/', $path, $matches)) {
-                    $extension = $matches[1];
-                    $files['yaml' === $extension ? 'yml' : $extension][] = $path;
-                } else {
+                if (!preg_match('/\.(xml|ya?ml)$/', $path, $matches)) {
                     throw new \RuntimeException(sprintf('Unsupported mapping type in "%s", supported types are XML & Yaml.', $path));
                 }
+                $fileRecorder($matches[1], $path);
             } else {
                 throw new \RuntimeException(sprintf('Could not open file or directory "%s".', $path));
             }
@@ -1217,38 +1232,29 @@ class FrameworkExtension extends Extension
             $serializerLoaders[] = $annotationLoader;
         }
 
+        $fileRecorder = function ($extension, $path) use (&$serializerLoaders) {
+            $definition = new Definition(in_array($extension, array('yaml', 'yml')) ? 'Symfony\Component\Serializer\Mapping\Loader\YamlFileLoader' : 'Symfony\Component\Serializer\Mapping\Loader\XmlFileLoader', array($path));
+            $definition->setPublic(false);
+            $serializerLoaders[] = $definition;
+        };
+
         foreach ($container->getParameter('kernel.bundles_metadata') as $bundle) {
             $dirname = $bundle['path'];
 
             if ($container->fileExists($file = $dirname.'/Resources/config/serialization.xml', false)) {
-                $definition = new Definition('Symfony\Component\Serializer\Mapping\Loader\XmlFileLoader', array($file));
-                $definition->setPublic(false);
-
-                $serializerLoaders[] = $definition;
+                $fileRecorder('xml', $file);
             }
 
             if ($container->fileExists($file = $dirname.'/Resources/config/serialization.yml', false)) {
-                $definition = new Definition('Symfony\Component\Serializer\Mapping\Loader\YamlFileLoader', array($file));
-                $definition->setPublic(false);
-
-                $serializerLoaders[] = $definition;
+                $fileRecorder('yml', $file);
             }
 
             if ($container->fileExists($dir = $dirname.'/Resources/config/serialization')) {
-                foreach (Finder::create()->followLinks()->files()->in($dir)->name('*.xml') as $file) {
-                    $definition = new Definition('Symfony\Component\Serializer\Mapping\Loader\XmlFileLoader', array($file->getPathname()));
-                    $definition->setPublic(false);
-
-                    $serializerLoaders[] = $definition;
-                }
-                foreach (Finder::create()->followLinks()->files()->in($dir)->name('*.yml') as $file) {
-                    $definition = new Definition('Symfony\Component\Serializer\Mapping\Loader\YamlFileLoader', array($file->getPathname()));
-                    $definition->setPublic(false);
-
-                    $serializerLoaders[] = $definition;
-                }
+                $this->registerMappingFilesFromDir($dir, $fileRecorder);
             }
         }
+
+        $this->registerMappingFilesFromConfig($container, $config, $fileRecorder);
 
         $chainLoader->replaceArgument(0, $serializerLoaders);
         $container->getDefinition('serializer.mapping.cache_warmer')->replaceArgument(0, $serializerLoaders);
@@ -1280,6 +1286,10 @@ class FrameworkExtension extends Extension
 
         if (isset($config['name_converter']) && $config['name_converter']) {
             $container->getDefinition('serializer.normalizer.object')->replaceArgument(1, new Reference($config['name_converter']));
+        }
+
+        if (isset($config['circular_reference_handler']) && $config['circular_reference_handler']) {
+            $container->getDefinition('serializer.normalizer.object')->addMethodCall('setCircularReferenceHandler', array(new Reference($config['circular_reference_handler'])));
         }
     }
 

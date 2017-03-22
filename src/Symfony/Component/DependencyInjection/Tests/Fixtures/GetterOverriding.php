@@ -36,12 +36,6 @@ class GetterOverriding
     }
 
     /** @required */
-    public function getNoTypeHint()
-    {
-        // should not be called
-    }
-
-    /** @required */
     public function getUnknown(): NotExist
     {
         // should not be called
@@ -51,12 +45,6 @@ class GetterOverriding
     public function getExplicitlyDefined(): B
     {
         // should be called but not autowired
-    }
-
-    /** @required */
-    public function getScalar(): string
-    {
-        // should not be called
     }
 
     final public function getFinal(): A

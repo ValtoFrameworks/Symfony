@@ -123,6 +123,12 @@ Finder
 FrameworkBundle
 ---------------
 
+ * The `cache:clear` command should always be called with the `--no-warmup` option.
+   Warmup should be done via the `cache:warmup` command.
+
+ * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been deprecated and will be removed in 4.0. Use the Request::setTrustedProxies() method in your front controller instead.
+
+
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been deprecated. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\SerializerPass` class has been
@@ -153,7 +159,7 @@ FrameworkBundle
    have been deprecated and will be removed in 4.0.
 
  * Extending `ConstraintValidatorFactory` is deprecated and won't be supported in 4.0.
- 
+
  * Class parameters related to routing have been deprecated and will be removed in 4.0.
      * router.options.generator_class
      * router.options.generator_base_class
@@ -168,9 +174,35 @@ FrameworkBundle
    has been deprecated and will be removed in 4.0. Use the `Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass`
    class instead.
 
- * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\RoutingResolverPass` 
-   class has been deprecated and will be removed in 4.0. Use the 
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\RoutingResolverPass`
+   class has been deprecated and will be removed in 4.0. Use the
    `Symfony\Component\Routing\DependencyInjection\RoutingResolverPass` class instead.
+
+ * The `server:run`, `server:start`, `server:stop` and
+   `server:status` console commands have been moved to a dedicated bundle.
+   Require `symfony/web-server-bundle` in your composer.json and register
+   `Symfony\Bundle\WebServerBundle\WebServerBundle` in your AppKernel to use them.
+
+ * The `Symfony\Bundle\FrameworkBundle\Translation\Translator` constructor now takes the
+   default locale as 3rd argument. Not passing it will trigger an error in 4.0.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddValidatorInitializersPass`
+   class has been deprecated and will be removed in 4.0.
+   Use the `Symfony\Component\Validator\DependencyInjection\AddValidatorInitializersPass` class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConstraintValidatorsPass`
+   class has been deprecated and will be removed in 4.0.
+   Use the `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass` class instead.
+
+HttpFoundation
+--------------
+
+ * The `Request::setTrustedProxies()` method takes a new `$trustedHeaderSet` argument - not setting it is deprecated.
+   Set it to `Request::HEADER_FORWARDED` if your reverse-proxy uses the RFC7239 `Forwarded` header,
+   or to `Request::HEADER_X_FORWARDED_ALL` if it is using `X-Forwarded-*` headers instead.
+
+ * The `Request::setTrustedHeaderName()` and `Request::getTrustedHeaderName()` methods are deprecated,
+   use the RFC7239 `Forwarded` header, or the `X-Forwarded-*` headers instead.
 
 HttpKernel
 -----------
@@ -186,6 +218,13 @@ HttpKernel
    `GetResponseForExceptionEvent::allowCustomResponseCode()` method instead,
    which will tell the Kernel to use the response code set on the event's
    response object.
+
+ * The `Kernel::getEnvParameters()` method has been deprecated and will be
+   removed in 4.0.
+
+ * The `SYMFONY__` environment variables have been deprecated and they will be
+   no longer processed automatically by Symfony in 4.0. Use the `%env()%` syntax
+   to get the value of any environment variable from configuration files instead.
 
 Process
 -------
@@ -252,8 +291,12 @@ Workflow
 Yaml
 ----
 
- * Deprecated support for implicitly parsing non-string mapping keys as strings. Mapping keys that are no strings will
-   lead to a `ParseException` in Symfony 4.0. Use the `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as
+ * Starting an unquoted string with a question mark followed by a space is
+   deprecated and will throw a `ParseException` in Symfony 4.0.
+
+ * Deprecated support for implicitly parsing non-string mapping keys as strings.
+   Mapping keys that are no strings will lead to a `ParseException` in Symfony
+   4.0. Use the `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as
    strings.
 
    Before:

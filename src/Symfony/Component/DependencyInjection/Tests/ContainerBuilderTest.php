@@ -24,10 +24,8 @@ use Symfony\Component\DependencyInjection\Argument\ClosureProxyArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
-use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
-use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
@@ -59,7 +57,6 @@ class ContainerBuilderTest extends TestCase
         $this->assertSame(ContainerInterface::class, $definition->getClass());
         $this->assertTrue($builder->hasAlias(PsrContainerInterface::class));
         $this->assertTrue($builder->hasAlias(ContainerInterface::class));
-        $this->assertTrue($builder->hasAlias(Container::class));
     }
 
     public function testDefinitions()
@@ -230,7 +227,6 @@ class ContainerBuilderTest extends TestCase
                 'bar',
                 'Psr\Container\ContainerInterface',
                 'Symfony\Component\DependencyInjection\ContainerInterface',
-                'Symfony\Component\DependencyInjection\Container',
             ),
             $builder->getServiceIds(),
             '->getServiceIds() returns all defined service ids'
@@ -282,7 +278,7 @@ class ContainerBuilderTest extends TestCase
 
         $builder->set('foobar', 'stdClass');
         $builder->set('moo', 'stdClass');
-        $this->assertCount(3, $builder->getAliases(), '->getAliases() does not return aliased services that have been overridden');
+        $this->assertCount(2, $builder->getAliases(), '->getAliases() does not return aliased services that have been overridden');
     }
 
     public function testSetAliases()
@@ -469,24 +465,6 @@ class ContainerBuilderTest extends TestCase
 
         // The second argument should have been ignored.
         $this->assertEquals(1, $i);
-    }
-
-    public function testCreateServiceWithServiceLocatorArgument()
-    {
-        $builder = new ContainerBuilder();
-        $builder->register('bar', 'stdClass');
-        $builder
-            ->register('lazy_context', 'LazyContext')
-            ->setArguments(array(new ServiceLocatorArgument(array('bar' => new Reference('bar'), 'invalid' => new Reference('invalid', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)))))
-        ;
-
-        $lazyContext = $builder->get('lazy_context');
-        $locator = $lazyContext->lazyValues;
-
-        $this->assertInstanceOf(ServiceLocator::class, $locator);
-        $this->assertInstanceOf('stdClass', $locator->get('bar'));
-        $this->assertFalse($locator->has('invalid'));
-        $this->assertSame($locator->get('bar'), $locator('bar'), '->get() should be used when invoking ServiceLocator');
     }
 
     /**
@@ -870,7 +848,7 @@ class ContainerBuilderTest extends TestCase
     /**
      * @expectedException \BadMethodCallException
      */
-    public function testThrowsExceptionWhenSetServiceOnAFrozenContainer()
+    public function testThrowsExceptionWhenSetServiceOnACompiledContainer()
     {
         $container = new ContainerBuilder();
         $container->setResourceTracking(false);
@@ -879,7 +857,7 @@ class ContainerBuilderTest extends TestCase
         $container->set('a', new \stdClass());
     }
 
-    public function testThrowsExceptionWhenAddServiceOnAFrozenContainer()
+    public function testThrowsExceptionWhenAddServiceOnACompiledContainer()
     {
         $container = new ContainerBuilder();
         $container->compile();
@@ -887,7 +865,7 @@ class ContainerBuilderTest extends TestCase
         $this->assertSame($foo, $container->get('a'));
     }
 
-    public function testNoExceptionWhenSetSyntheticServiceOnAFrozenContainer()
+    public function testNoExceptionWhenSetSyntheticServiceOnACompiledContainer()
     {
         $container = new ContainerBuilder();
         $def = new Definition('stdClass');
@@ -901,7 +879,7 @@ class ContainerBuilderTest extends TestCase
     /**
      * @expectedException \BadMethodCallException
      */
-    public function testThrowsExceptionWhenSetDefinitionOnAFrozenContainer()
+    public function testThrowsExceptionWhenSetDefinitionOnACompiledContainer()
     {
         $container = new ContainerBuilder();
         $container->setResourceTracking(false);
