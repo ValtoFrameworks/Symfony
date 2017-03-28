@@ -88,7 +88,6 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         $def->setClass($parentDef->getClass());
         $def->setArguments($parentDef->getArguments());
         $def->setMethodCalls($parentDef->getMethodCalls());
-        $def->setOverriddenGetters($parentDef->getOverriddenGetters());
         $def->setProperties($parentDef->getProperties());
         if ($parentDef->getAutowiringTypes(false)) {
             $def->setAutowiringTypes($parentDef->getAutowiringTypes(false));
@@ -101,7 +100,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         $def->setFile($parentDef->getFile());
         $def->setPublic($parentDef->isPublic());
         $def->setLazy($parentDef->isLazy());
-        $def->setAutowired($parentDef->isAutowired());
+        $def->setAutowired($parentDef->getAutowired());
 
         self::mergeDefinition($def, $definition);
 
@@ -147,7 +146,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
             $def->setDeprecated($definition->isDeprecated(), $definition->getDeprecationMessage('%service_id%'));
         }
         if (isset($changes['autowired'])) {
-            $def->setAutowired($definition->isAutowired());
+            $def->setAutowired($definition->getAutowired());
         }
         if (isset($changes['decorated_service'])) {
             $decoratedService = $definition->getDecoratedService();
@@ -182,11 +181,6 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         // append method calls
         if ($calls = $definition->getMethodCalls()) {
             $def->setMethodCalls(array_merge($def->getMethodCalls(), $calls));
-        }
-
-        // merge overridden getters
-        foreach ($definition->getOverriddenGetters() as $k => $v) {
-            $def->setOverriddenGetter($k, $v);
         }
     }
 }

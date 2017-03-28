@@ -389,6 +389,7 @@ class SecurityExtension extends Extension
                     $firewall['logout']['csrf_token_id'],
                     $firewall['logout']['csrf_parameter'],
                     isset($firewall['logout']['csrf_token_generator']) ? new Reference($firewall['logout']['csrf_token_generator']) : null,
+                    false === $firewall['stateless'] && isset($firewall['context']) ? $firewall['context'] : null,
                 ))
             ;
         }
@@ -569,7 +570,7 @@ class SecurityExtension extends Extension
     // Parses a <provider> tag and returns the id for the related user provider service
     private function createUserDaoProvider($name, $provider, ContainerBuilder $container)
     {
-        $name = $this->getUserProviderId(strtolower($name));
+        $name = $this->getUserProviderId($name);
 
         // Doctrine Entity and In-memory DAO provider are managed by factories
         foreach ($this->userProviderFactories as $factory) {
@@ -593,7 +594,7 @@ class SecurityExtension extends Extension
         if (isset($provider['chain'])) {
             $providers = array();
             foreach ($provider['chain']['providers'] as $providerName) {
-                $providers[] = new Reference($this->getUserProviderId(strtolower($providerName)));
+                $providers[] = new Reference($this->getUserProviderId($providerName));
             }
 
             $container
@@ -608,7 +609,7 @@ class SecurityExtension extends Extension
 
     private function getUserProviderId($name)
     {
-        return 'security.user.provider.concrete.'.$name;
+        return 'security.user.provider.concrete.'.strtolower($name);
     }
 
     private function createExceptionListener($container, $config, $id, $defaultEntryPoint, $stateless)

@@ -102,7 +102,7 @@
       <xsd:element name="tag" type="tag" minOccurs="0" maxOccurs="unbounded" />
     </xsd:choice>
     <xsd:attribute name="public" type="boolean" />
-    <xsd:attribute name="autowire" type="boolean" />
+    <xsd:attribute name="autowire" type="autowire" />
     <xsd:attribute name="inherit-tags" type="boolean" />
   </xsd:complexType>
 
@@ -116,7 +116,6 @@
       <xsd:element name="call" type="call" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="tag" type="tag" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="property" type="property" minOccurs="0" maxOccurs="unbounded" />
-      <xsd:element name="getter" type="getter" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="autowiring-type" type="xsd:string" minOccurs="0" maxOccurs="unbounded" />
     </xsd:choice>
     <xsd:attribute name="id" type="xsd:string" />
@@ -131,7 +130,7 @@
     <xsd:attribute name="decorates" type="xsd:string" />
     <xsd:attribute name="decoration-inner-name" type="xsd:string" />
     <xsd:attribute name="decoration-priority" type="xsd:integer" />
-    <xsd:attribute name="autowire" type="boolean" />
+    <xsd:attribute name="autowire" type="autowire" />
     <xsd:attribute name="inherit-tags" type="boolean" />
   </xsd:complexType>
 
@@ -144,14 +143,13 @@
       <xsd:element name="call" type="call" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="tag" type="tag" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="property" type="property" minOccurs="0" maxOccurs="unbounded" />
-      <xsd:element name="getter" type="getter" minOccurs="0" maxOccurs="unbounded" />
     </xsd:choice>
     <xsd:attribute name="id" type="xsd:string" use="required" />
     <xsd:attribute name="shared" type="boolean" />
     <xsd:attribute name="public" type="boolean" />
     <xsd:attribute name="lazy" type="boolean" />
     <xsd:attribute name="abstract" type="boolean" />
-    <xsd:attribute name="autowire" type="boolean" />
+    <xsd:attribute name="autowire" type="autowire" />
   </xsd:complexType>
 
   <xsd:complexType name="prototype">
@@ -163,7 +161,6 @@
       <xsd:element name="call" type="call" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="tag" type="tag" minOccurs="0" maxOccurs="unbounded" />
       <xsd:element name="property" type="property" minOccurs="0" maxOccurs="unbounded" />
-      <xsd:element name="getter" type="getter" minOccurs="0" maxOccurs="unbounded" />
     </xsd:choice>
     <xsd:attribute name="namespace" type="xsd:string" use="required" />
     <xsd:attribute name="resource" type="xsd:string" use="required" />
@@ -172,7 +169,7 @@
     <xsd:attribute name="lazy" type="boolean" />
     <xsd:attribute name="abstract" type="boolean" />
     <xsd:attribute name="parent" type="xsd:string" />
-    <xsd:attribute name="autowire" type="boolean" />
+    <xsd:attribute name="autowire" type="autowire" />
     <xsd:attribute name="inherit-tags" type="boolean" />
   </xsd:complexType>
 
@@ -210,18 +207,6 @@
     <xsd:attribute name="name" type="xsd:string" />
     <xsd:attribute name="on-invalid" type="invalid_sequence" />
     <xsd:attribute name="strict" type="boolean" />
-  </xsd:complexType>
-
-  <xsd:complexType name="getter" mixed="true">
-    <xsd:choice minOccurs="0" maxOccurs="1">
-      <xsd:element name="getter" type="getter" minOccurs="0" maxOccurs="unbounded" />
-      <xsd:element name="service" type="service" />
-    </xsd:choice>
-    <xsd:attribute name="type" type="argument_type" />
-    <xsd:attribute name="id" type="xsd:string" />
-    <xsd:attribute name="key" type="xsd:string" />
-    <xsd:attribute name="name" type="xsd:string" />
-    <xsd:attribute name="on-invalid" type="invalid_sequence" />
   </xsd:complexType>
 
   <xsd:complexType name="argument" mixed="true">
@@ -277,6 +262,12 @@
   <xsd:simpleType name="boolean">
     <xsd:restriction base="xsd:string">
       <xsd:pattern value="(%.+%|true|false)" />
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="autowire">
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="(true|false|by-type|by-id)" />
     </xsd:restriction>
   </xsd:simpleType>
 </xsd:schema>

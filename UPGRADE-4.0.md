@@ -58,6 +58,9 @@ Console
    $commandTester->execute();
    ```
 
+ * The `console.exception` event and the related `ConsoleExceptionEvent` class have
+   been removed in favor of the `console.error` event and the `ConsoleErrorEvent` class.
+
 Debug
 -----
 
@@ -69,6 +72,12 @@ Debug
 
 DependencyInjection
 -------------------
+
+ * `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
+
+ * Non-numeric keys in methods and constructors arguments have never been supported and are now forbidden. Please remove them if you happen to have one.
+
+ * Service names that start with an underscore are now reserved in Yaml files. Please rename any services with such names.
 
  * Autowiring-types have been removed, use aliases instead.
 
@@ -373,6 +382,8 @@ Security
 
  * The `RoleInterface` has been removed. Extend the `Symfony\Component\Security\Core\Role\Role`
    class instead.
+   
+ * The `LogoutUrlGenerator::registerListener()` method expects a 6th `$context = null` argument.
 
 SecurityBundle
 --------------

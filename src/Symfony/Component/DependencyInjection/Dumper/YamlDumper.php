@@ -106,7 +106,7 @@ class YamlDumper extends Dumper
         }
 
         if ($definition->isAutowired()) {
-            $code .= "        autowire: true\n";
+            $code .= sprintf("        autowire: %s\n", Definition::AUTOWIRE_BY_TYPE === $definition->getAutowired() ? 'by_type' : 'by_id');
         }
 
         $autowiringTypesCode = '';
@@ -127,10 +127,6 @@ class YamlDumper extends Dumper
 
         if ($definition->getProperties()) {
             $code .= sprintf("        properties: %s\n", $this->dumper->dump($this->dumpValue($definition->getProperties()), 0));
-        }
-
-        if ($definition->getOverriddenGetters()) {
-            $code .= sprintf("        getters:\n%s\n", $this->dumper->dump($this->dumpValue($definition->getOverriddenGetters()), 0));
         }
 
         if ($definition->getMethodCalls()) {

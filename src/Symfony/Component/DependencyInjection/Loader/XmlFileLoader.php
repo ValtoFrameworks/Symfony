@@ -172,7 +172,7 @@ class XmlFileLoader extends FileLoader
             }
         }
         if ($defaultsNode->hasAttribute('autowire')) {
-            $defaults['autowire'] = XmlUtils::phpize($defaultsNode->getAttribute('autowire'));
+            $defaults['autowire'] = $this->getAutowired($defaultsNode->getAttribute('autowire'), $file);
         }
         if ($defaultsNode->hasAttribute('public')) {
             $defaults['public'] = XmlUtils::phpize($defaultsNode->getAttribute('public'));
@@ -238,7 +238,7 @@ class XmlFileLoader extends FileLoader
         }
 
         if ($value = $service->getAttribute('autowire')) {
-            $definition->setAutowired(XmlUtils::phpize($value));
+            $definition->setAutowired($this->getAutowired($value, $file));
         } elseif (isset($defaults['autowire'])) {
             $definition->setAutowired($defaults['autowire']);
         }
@@ -253,7 +253,6 @@ class XmlFileLoader extends FileLoader
 
         $definition->setArguments($this->getArgumentsAsPhp($service, 'argument', false, $definition instanceof ChildDefinition));
         $definition->setProperties($this->getArgumentsAsPhp($service, 'property'));
-        $definition->setOverriddenGetters($this->getArgumentsAsPhp($service, 'getter'));
 
         if ($factories = $this->getChildren($service, 'factory')) {
             $factory = $factories[0];
@@ -380,7 +379,7 @@ class XmlFileLoader extends FileLoader
         $xpath->registerNamespace('container', self::NS);
 
         // anonymous services as arguments/properties
-        if (false !== $nodes = $xpath->query('//container:argument[@type="service"][not(@id)]|//container:property[@type="service"][not(@id)]|//container:getter[@type="service"][not(@id)]')) {
+        if (false !== $nodes = $xpath->query('//container:argument[@type="service"][not(@id)]|//container:property[@type="service"][not(@id)]')) {
             foreach ($nodes as $node) {
                 // give it a unique name
                 $id = sprintf('%d_%s', ++$count, hash('sha256', $file));
@@ -664,6 +663,23 @@ EOF
 
             $this->container->loadFromExtension($node->namespaceURI, $values);
         }
+    }
+
+    private function getAutowired($value, $file)
+    {
+        if (is_bool($value = XmlUtils::phpize($value))) {
+            return $value;
+        }
+
+        if ('by-type' === $value) {
+            return Definition::AUTOWIRE_BY_TYPE;
+        }
+
+        if ('by-id' === $value) {
+            return Definition::AUTOWIRE_BY_ID;
+        }
+
+        throw new InvalidArgumentException(sprintf('Invalid autowire attribute: "by-type", "by-id", "true" or "false" expected, "%s" given in "%s".', $value, $file));
     }
 
     /**

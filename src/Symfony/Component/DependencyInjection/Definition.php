@@ -21,6 +21,9 @@ use Symfony\Component\DependencyInjection\Exception\OutOfBoundsException;
  */
 class Definition
 {
+    const AUTOWIRE_BY_TYPE = 1;
+    const AUTOWIRE_BY_ID = 2;
+
     private $class;
     private $file;
     private $factory;
@@ -29,7 +32,6 @@ class Definition
     private $deprecationTemplate = 'The "%service_id%" service is deprecated. You should stop using it, as it will soon be removed.';
     private $properties = array();
     private $calls = array();
-    private $getters = array();
     private $instanceof = array();
     private $configurator;
     private $tags = array();
@@ -38,7 +40,7 @@ class Definition
     private $abstract = false;
     private $lazy = false;
     private $decoratedService;
-    private $autowired = false;
+    private $autowired = 0;
     private $autowiringTypes = array();
 
     protected $arguments;
@@ -327,41 +329,6 @@ class Definition
     public function getMethodCalls()
     {
         return $this->calls;
-    }
-
-    /**
-     * @return $this
-     *
-     * @experimental in version 3.3
-     */
-    public function setOverriddenGetter($name, $returnValue)
-    {
-        if (!$name) {
-            throw new InvalidArgumentException(sprintf('Getter name cannot be empty.'));
-        }
-        $this->getters[strtolower($name)] = $returnValue;
-
-        return $this;
-    }
-
-    /**
-     * @return $this
-     *
-     * @experimental in version 3.3
-     */
-    public function setOverriddenGetters(array $getters)
-    {
-        $this->getters = array_change_key_case($getters, CASE_LOWER);
-
-        return $this;
-    }
-
-    /**
-     * @experimental in version 3.3
-     */
-    public function getOverriddenGetters()
-    {
-        return $this->getters;
     }
 
     /**
@@ -737,19 +704,34 @@ class Definition
      */
     public function isAutowired()
     {
+        return (bool) $this->autowired;
+    }
+
+    /**
+     * Gets the autowiring mode.
+     *
+     * @return int
+     */
+    public function getAutowired()
+    {
         return $this->autowired;
     }
 
     /**
      * Sets autowired.
      *
-     * @param bool $autowired
+     * @param bool|int $autowired
      *
      * @return $this
      */
     public function setAutowired($autowired)
     {
-        $this->autowired = (bool) $autowired;
+        $autowired = (int) $autowired;
+
+        if ($autowired && self::AUTOWIRE_BY_TYPE !== $autowired && self::AUTOWIRE_BY_ID !== $autowired) {
+            throw new InvalidArgumentException(sprintf('Invalid argument: Definition::AUTOWIRE_BY_TYPE (%d) or Definition::AUTOWIRE_BY_ID (%d) expected, %d given.', self::AUTOWIRE_BY_TYPE, self::AUTOWIRE_BY_ID, $autowired));
+        }
+        $this->autowired = $autowired;
 
         return $this;
     }

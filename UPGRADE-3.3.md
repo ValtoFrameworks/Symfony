@@ -68,6 +68,10 @@ Console
   ""
   ```
 
+ * The `console.exception` event and the related `ConsoleExceptionEvent` class
+   have been deprecated in favor of the `console.error` event and the `ConsoleErrorEvent`
+   class. The deprecated event and class will be removed in 4.0.
+
 Debug
 -----
 
@@ -75,6 +79,12 @@ Debug
 
 DependencyInjection
 -------------------
+
+ * [BC BREAK] `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
+
+ * [BC BREAK] non-numeric keys in methods and constructors arguments have never been supported and are now forbidden. Please remove them if you happen to have one.
+
+ * Service names that start with an underscore are deprecated in Yaml files and will be reserved in 4.0. Please rename any services with such names.
 
  * Autowiring-types have been deprecated, use aliases instead.
 
@@ -245,6 +255,9 @@ Security
 
  * The `RoleInterface` has been deprecated. Extend the `Symfony\Component\Security\Core\Role\Role`
    class in your custom role implementations instead.
+
+ * The `LogoutUrlGenerator::registerListener()` method will expect a 6th `$context = null` argument in 4.0.
+   Define the argument when overriding this method.
 
 SecurityBundle
 --------------
