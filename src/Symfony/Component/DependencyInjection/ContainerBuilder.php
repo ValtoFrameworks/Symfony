@@ -38,6 +38,7 @@ use Symfony\Component\Config\Resource\ResourceInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\InstantiatorInterface;
 use Symfony\Component\DependencyInjection\LazyProxy\Instantiator\RealServiceInstantiator;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\EventDispatcher\ContainerAwareEventDispatcher;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\ExpressionLanguage\ExpressionFunctionProviderInterface;
 
@@ -80,7 +81,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     private $compiler;
 
-    private $trackResources = true;
+    private $trackResources;
 
     /**
      * @var InstantiatorInterface|null
@@ -121,6 +122,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         parent::__construct($parameterBag);
 
+        $this->trackResources = interface_exists('Symfony\Component\Config\Resource\ResourceInterface');
         $this->setDefinition('service_container', (new Definition(ContainerInterface::class))->setSynthetic(true));
         $this->setAlias(PsrContainerInterface::class, new Alias('service_container', false));
         $this->setAlias(ContainerInterface::class, new Alias('service_container', false));
@@ -1056,11 +1058,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 }
             }
         } else {
-            $r = new \ReflectionClass($parameterBag->resolveValue($definition->getClass()));
+            $r = new \ReflectionClass($class = $parameterBag->resolveValue($definition->getClass()));
 
             $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs($arguments);
+            // don't trigger deprecations for internal uses
+            // @deprecated since version 3.3, to be removed in 4.0 along with the deprecated class
+            $deprecationWhitelist = array('event_dispatcher' => ContainerAwareEventDispatcher::class);
 
-            if (!$definition->isDeprecated() && 0 < strpos($r->getDocComment(), "\n * @deprecated ")) {
+            if (!$definition->isDeprecated() && 0 < strpos($r->getDocComment(), "\n * @deprecated ") && (!isset($deprecationWhitelist[$id]) || $deprecationWhitelist[$id] !== $class)) {
                 @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" class. It should either be deprecated or its implementation upgraded.', $id, $r->name), E_USER_DEPRECATED);
             }
         }

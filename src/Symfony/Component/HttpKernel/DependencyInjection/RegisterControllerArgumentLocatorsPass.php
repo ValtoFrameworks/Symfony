@@ -11,15 +11,16 @@
 
 namespace Symfony\Component\HttpKernel\DependencyInjection;
 
-use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\LazyProxy\ProxyHelper;
 use Symfony\Component\DependencyInjection\Reference;
-use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\TypedReference;
 
 /**
@@ -54,7 +55,7 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                 continue;
             }
             $class = $def->getClass();
-            $isAutowired = $def->isAutowired();
+            $autowire = $def->isAutowired();
 
             // resolve service class, taking parent definitions into account
             while (!$class && $def instanceof ChildDefinition) {
@@ -66,11 +67,15 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
             if (!$r = $container->getReflectionClass($class)) {
                 throw new InvalidArgumentException(sprintf('Class "%s" used for service "%s" cannot be found.', $class, $id));
             }
+            $isContainerAware = $r->implementsInterface(ContainerAwareInterface::class) || is_subclass_of($class, AbstractController::class);
 
             // get regular public methods
             $methods = array();
             $arguments = array();
             foreach ($r->getMethods(\ReflectionMethod::IS_PUBLIC) as $r) {
+                if ('setContainer' === $r->name && $isContainerAware) {
+                    continue;
+                }
                 if (!$r->isConstructor() && !$r->isDestructor() && !$r->isAbstract()) {
                     $methods[strtolower($r->name)] = array($r, $r->getParameters());
                 }
@@ -79,6 +84,7 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
             // validate and collect explicit per-actions and per-arguments service references
             foreach ($tags as $attributes) {
                 if (!isset($attributes['action']) && !isset($attributes['argument']) && !isset($attributes['id'])) {
+                    $autowire = true;
                     continue;
                 }
                 foreach (array('action', 'argument', 'id') as $k) {
@@ -123,29 +129,20 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                         } elseif ($p->allowsNull() && !$p->isOptional()) {
                             $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE;
                         }
-                    } elseif (!$type) {
+                    } elseif (!$type || !$autowire) {
                         continue;
                     }
 
-                    $args[$p->name] = new ServiceClosureArgument($type ? new TypedReference($target, $type, $invalidBehavior, false) : new Reference($target, $invalidBehavior));
+                    $args[$p->name] = $type ? new TypedReference($target, $type, $r->class, $invalidBehavior) : new Reference($target, $invalidBehavior);
                 }
                 // register the maps as a per-method service-locators
                 if ($args) {
-                    $argsId = sprintf('arguments.%s:%s', $id, $r->name);
-                    $container->register($argsId, ServiceLocator::class)
-                        ->addArgument($args)
-                        ->setPublic(false)
-                        ->setAutowired($isAutowired)
-                        ->addTag('controller.arguments_locator', array($class, $id, $r->name));
-                    $controllers[$id.':'.$r->name] = new ServiceClosureArgument(new Reference($argsId));
-                    if ($id === $class) {
-                        $controllers[$id.'::'.$r->name] = new ServiceClosureArgument(new Reference($argsId));
-                    }
+                    $controllers[$id.':'.$r->name] = ServiceLocatorTagPass::register($container, $args);
                 }
             }
         }
 
         $container->getDefinition($this->resolverServiceId)
-            ->replaceArgument(0, (new Definition(ServiceLocator::class, array($controllers)))->addTag('container.service_locator'));
+            ->replaceArgument(0, ServiceLocatorTagPass::register($container, $controllers));
     }
 }

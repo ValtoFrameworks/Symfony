@@ -31,6 +31,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Loader\ClosureLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
 use Symfony\Component\Serializer\Serializer;
@@ -407,10 +408,10 @@ abstract class FrameworkExtensionTest extends TestCase
         $this->assertEquals('assets.custom_version_strategy', (string) $defaultPackage->getArgument(1));
     }
 
-    public function testAssetHasPreloadListener()
+    public function testWebLink()
     {
-        $container = $this->createContainerFromFile('assets');
-        $this->assertTrue($container->hasDefinition('asset.preload_listener'));
+        $container = $this->createContainerFromFile('web_link');
+        $this->assertTrue($container->hasDefinition('web_link.add_link_header_listener'));
     }
 
     public function testTranslator()
@@ -876,6 +877,18 @@ abstract class FrameworkExtensionTest extends TestCase
     {
         $container = $this->createContainerFromFile('property_info');
         $this->assertTrue($container->has('property_info'));
+    }
+
+    public function testEventDispatcherService()
+    {
+        $container = $this->createContainer(array('kernel.charset' => 'UTF-8', 'kernel.secret' => 'secret'));
+        $container->registerExtension(new FrameworkExtension());
+        $this->loadFromFile($container, 'default_config');
+        $container
+            ->register('foo', \stdClass::class)
+            ->setProperty('dispatcher', new Reference('event_dispatcher'));
+        $container->compile();
+        $this->assertInstanceOf(EventDispatcherInterface::class, $container->get('foo')->dispatcher);
     }
 
     public function testCacheDefaultRedisProvider()

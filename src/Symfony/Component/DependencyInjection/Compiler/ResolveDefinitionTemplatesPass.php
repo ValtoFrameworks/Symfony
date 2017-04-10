@@ -100,7 +100,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         $def->setFile($parentDef->getFile());
         $def->setPublic($parentDef->isPublic());
         $def->setLazy($parentDef->isLazy());
-        $def->setAutowired($parentDef->getAutowired());
+        $def->setAutowired($parentDef->isAutowired());
 
         self::mergeDefinition($def, $definition);
 
@@ -146,7 +146,7 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
             $def->setDeprecated($definition->isDeprecated(), $definition->getDeprecationMessage('%service_id%'));
         }
         if (isset($changes['autowired'])) {
-            $def->setAutowired($definition->getAutowired());
+            $def->setAutowired($definition->isAutowired());
         }
         if (isset($changes['decorated_service'])) {
             $decoratedService = $definition->getDecoratedService();
@@ -161,16 +161,11 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         foreach ($definition->getArguments() as $k => $v) {
             if (is_numeric($k)) {
                 $def->addArgument($v);
-                continue;
+            } elseif (0 === strpos($k, 'index_')) {
+                $def->replaceArgument((int) substr($k, strlen('index_')), $v);
+            } else {
+                $def->setArgument($k, $v);
             }
-
-            if (0 === strpos($k, 'index_')) {
-                $index = (int) substr($k, strlen('index_'));
-            } elseif (0 !== strpos($k, '$')) {
-                throw new RuntimeException(sprintf('Invalid argument key "%s" found.', $k));
-            }
-
-            $def->replaceArgument($index, $v);
         }
 
         // merge properties

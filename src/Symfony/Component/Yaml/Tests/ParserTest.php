@@ -602,6 +602,17 @@ YAML;
         $this->parser->parse($yaml, Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE);
     }
 
+    public function testCanParseContentWithTrailingSpaces()
+    {
+        $yaml = "items:  \n  foo: bar";
+
+        $expected = array(
+            'items' => array('foo' => 'bar'),
+        );
+
+        $this->assertSame($expected, $this->parser->parse($yaml));
+    }
+
     /**
      * @group legacy
      * @dataProvider invalidDumpedObjectProvider
@@ -1740,6 +1751,27 @@ INI;
         $arrayFromYaml = $this->parser->parse($yamlString);
 
         $this->assertEquals($trickyVal, $arrayFromYaml);
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Yaml\Exception\ParseException
+     * @expectedExceptionMessage Reference "foo" does not exist at line 2
+     */
+    public function testParserCleansUpReferencesBetweenRuns()
+    {
+        $yaml = <<<YAML
+foo: &foo
+    baz: foobar
+bar:
+    <<: *foo
+YAML;
+        $this->parser->parse($yaml);
+
+        $yaml = <<<YAML
+bar:
+    <<: *foo
+YAML;
+        $this->parser->parse($yaml);
     }
 }
 

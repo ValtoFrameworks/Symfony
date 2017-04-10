@@ -80,6 +80,8 @@ Debug
 DependencyInjection
 -------------------
 
+ * [BC BREAK] autowiring now happens only when a type-hint matches its corresponding FQCN id or alias. Please follow the suggestions provided by the exceptions thrown at compilation to upgrade your service configuration.
+
  * [BC BREAK] `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
 
  * [BC BREAK] non-numeric keys in methods and constructors arguments have never been supported and are now forbidden. Please remove them if you happen to have one.
@@ -130,6 +132,34 @@ Finder
 
  * The `ExceptionInterface` has been deprecated and will be removed in 4.0.
 
+Form
+----
+
+ * Using the "choices" option in ``CountryType``, ``CurrencyType``, ``LanguageType``,
+   ``LocaleType``, and ``TimezoneType`` without overriding the ``choice_loader``
+   option has been deprecated and will be ignored in 4.0.
+   
+   Before:
+   ```php
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choices' => $availableLocales,
+   ));
+   ```
+   
+   After:
+   ```php
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choices' => $availableLocales,
+       'choice_loader' => null,
+   ));
+   // or
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choice_loader' => new CallbackChoiceLoader(function () {
+           return $this->getAvailableLocales();
+       }),
+   ));
+   ```
+
 FrameworkBundle
 ---------------
 
@@ -138,8 +168,10 @@ FrameworkBundle
 
  * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been deprecated and will be removed in 4.0. Use the Request::setTrustedProxies() method in your front controller instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\CompilerDebugDumpPass` has been deprecated.
 
- * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been deprecated. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been deprecated.
+   Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\SerializerPass` class has been
    deprecated and will be removed in 4.0.
@@ -207,9 +239,8 @@ FrameworkBundle
 HttpFoundation
 --------------
 
- * The `Request::setTrustedProxies()` method takes a new `$trustedHeaderSet` argument - not setting it is deprecated.
-   Set it to `Request::HEADER_FORWARDED` if your reverse-proxy uses the RFC7239 `Forwarded` header,
-   or to `Request::HEADER_X_FORWARDED_ALL` if it is using `X-Forwarded-*` headers instead.
+ * [BC BREAK] The `Request::setTrustedProxies()` method takes a new `$trustedHeaderSet` argument.
+   See http://symfony.com/doc/current/components/http_foundation/trusting_proxies.html for more info.
 
  * The `Request::setTrustedHeaderName()` and `Request::getTrustedHeaderName()` methods are deprecated,
    use the RFC7239 `Forwarded` header, or the `X-Forwarded-*` headers instead.
@@ -258,6 +289,9 @@ Security
 
  * The `LogoutUrlGenerator::registerListener()` method will expect a 6th `$context = null` argument in 4.0.
    Define the argument when overriding this method.
+
+ * The `AccessDecisionManager::setVoters()` method has been deprecated. Pass
+   the voters to the constructor instead.
 
 SecurityBundle
 --------------

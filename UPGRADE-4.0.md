@@ -73,6 +73,8 @@ Debug
 DependencyInjection
 -------------------
 
+ * Autowiring now happens only when a type-hint matches its corresponding FQCN id or alias.
+
  * `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
 
  * Non-numeric keys in methods and constructors arguments have never been supported and are now forbidden. Please remove them if you happen to have one.
@@ -193,6 +195,31 @@ Form
    }
    ```
 
+ * Using the "choices" option in ``CountryType``, ``CurrencyType``, ``LanguageType``,
+   ``LocaleType``, and ``TimezoneType`` without overriding the ``choice_loader``
+   option is now ignored.
+   
+   Before:
+   ```php
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choices' => $availableLocales,
+   ));
+   ```
+   
+   After:
+   ```php
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choices' => $availableLocales,
+       'choice_loader' => null,
+   ));
+   // or
+   $builder->add('custom_locales', LocaleType::class, array(
+       'choice_loader' => new CallbackChoiceLoader(function () {
+           return $this->getAvailableLocales();
+       }),
+   ));
+   ```
+
 FrameworkBundle
 ---------------
 
@@ -240,7 +267,10 @@ FrameworkBundle
    `serializer.mapping.cache.apc` and `serializer.mapping.cache.doctrine.apc`
    have been removed. APCu should now be automatically used when available.
 
- * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been removed. Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\CompilerDebugDumpPass` has been removed.
+
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddConsoleCommandPass` has been removed.
+   Use `Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass` instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\SerializerPass` class has been removed.
    Use the `Symfony\Component\Serializer\DependencyInjection\SerializerPass` class instead.
@@ -300,8 +330,7 @@ HttpFoundation
 --------------
 
  * The `Request::setTrustedProxies()` method takes a new `$trustedHeaderSet` argument.
-   Set it to `Request::HEADER_FORWARDED` if your reverse-proxy uses the RFC7239 `Forwarded` header,
-   or to `Request::HEADER_X_FORWARDED_ALL` if it is using `X-Forwarded-*` headers instead.
+   See http://symfony.com/doc/current/components/http_foundation/trusting_proxies.html for more info.
 
  * The `Request::setTrustedHeaderName()` and `Request::getTrustedHeaderName()` methods have been removed.
 
@@ -384,6 +413,9 @@ Security
    class instead.
    
  * The `LogoutUrlGenerator::registerListener()` method expects a 6th `$context = null` argument.
+
+ * The `AccessDecisionManager::setVoters()` method has been removed. Pass the
+   voters to the constructor instead.
 
 SecurityBundle
 --------------

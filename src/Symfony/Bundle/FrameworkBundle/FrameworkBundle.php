@@ -25,7 +25,6 @@ use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddCacheWarmerPa
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddCacheClearerPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddExpressionLanguageProvidersPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ContainerBuilderDebugDumpPass;
-use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\CompilerDebugDumpPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\TranslationExtractorPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\TranslationDumperPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\UnusedTagsPass;
@@ -61,10 +60,12 @@ class FrameworkBundle extends Bundle
     {
         ErrorHandler::register(null, false)->throwAt($this->container->getParameter('debug.error_handler.throw_at'), true);
 
-        if ($trustedProxies = $this->container->getParameter('kernel.trusted_proxies')) {
+        if ($this->container->hasParameter('kernel.trusted_proxies')) {
             @trigger_error('The "kernel.trusted_proxies" parameter is deprecated since version 3.3 and will be removed in 4.0. Use the Request::setTrustedProxies() method in your front controller instead.', E_USER_DEPRECATED);
 
-            Request::setTrustedProxies($trustedProxies, Request::getTrustedHeaderSet());
+            if ($trustedProxies = $this->container->getParameter('kernel.trusted_proxies')) {
+                Request::setTrustedProxies($trustedProxies, Request::getTrustedHeaderSet());
+            }
         }
 
         if ($this->container->getParameter('kernel.http_method_override')) {
@@ -113,7 +114,6 @@ class FrameworkBundle extends Bundle
             $container->addCompilerPass(new AddDebugLogProcessorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, -32);
             $container->addCompilerPass(new UnusedTagsPass(), PassConfig::TYPE_AFTER_REMOVING);
             $container->addCompilerPass(new ContainerBuilderDebugDumpPass(), PassConfig::TYPE_AFTER_REMOVING);
-            $container->addCompilerPass(new CompilerDebugDumpPass(), PassConfig::TYPE_AFTER_REMOVING, -32);
             $this->addCompilerPassIfExists($container, ConfigCachePass::class);
             $container->addCompilerPass(new CacheCollectorPass());
         }

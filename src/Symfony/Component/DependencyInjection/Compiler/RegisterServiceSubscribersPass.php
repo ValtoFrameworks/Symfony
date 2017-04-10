@@ -11,13 +11,11 @@
 
 namespace Symfony\Component\DependencyInjection\Compiler;
 
-use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ServiceSubscriberInterface;
-use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\TypedReference;
 
 /**
@@ -40,9 +38,11 @@ class RegisterServiceSubscribersPass extends AbstractRecursivePass
         }
 
         $serviceMap = array();
+        $autowire = $value->isAutowired();
 
         foreach ($value->getTag('container.service_subscriber') as $attributes) {
             if (!$attributes) {
+                $autowire = true;
                 continue;
             }
             ksort($attributes);
@@ -71,10 +71,11 @@ class RegisterServiceSubscribersPass extends AbstractRecursivePass
         }
         $this->container->addObjectResource($class);
         $subscriberMap = array();
+        $declaringClass = (new \ReflectionMethod($class, 'getSubscribedServices'))->class;
 
         foreach ($class::getSubscribedServices() as $key => $type) {
             if (!is_string($type) || !preg_match('/^\??[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*+(?:\\\\[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*+)*+$/', $type)) {
-                throw new InvalidArgumentException(sprintf('%s::getSubscribedServices() must return valid PHP types for service "%s" key "%s", "%s" returned.', $class, $this->currentId, $key, is_string($type) ? $type : gettype($type)));
+                throw new InvalidArgumentException(sprintf('"%s::getSubscribedServices()" must return valid PHP types for service "%s" key "%s", "%s" returned.', $class, $this->currentId, $key, is_string($type) ? $type : gettype($type)));
             }
             if ($optionalBehavior = '?' === $type[0]) {
                 $type = substr($type, 1);
@@ -84,24 +85,23 @@ class RegisterServiceSubscribersPass extends AbstractRecursivePass
                 $key = $type;
             }
             if (!isset($serviceMap[$key])) {
+                if (!$autowire) {
+                    throw new InvalidArgumentException(sprintf('Service "%s" misses a "container.service_subscriber" tag with "key"/"id" attributes corresponding to entry "%s" as returned by "%s::getSubscribedServices()".', $this->currentId, $key, $class));
+                }
                 $serviceMap[$key] = new Reference($type);
             }
 
-            $subscriberMap[$key] = new ServiceClosureArgument(new TypedReference((string) $serviceMap[$key], $type, $optionalBehavior ?: ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE));
+            $subscriberMap[$key] = new TypedReference((string) $serviceMap[$key], $type, $declaringClass, $optionalBehavior ?: ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE);
             unset($serviceMap[$key]);
         }
 
         if ($serviceMap = array_keys($serviceMap)) {
-            $this->container->log($this, sprintf('Service keys "%s" do not exist in the map returned by %s::getSubscribedServices() for service "%s".', implode('", "', $serviceMap), $class, $this->currentId));
+            $message = sprintf(1 < count($serviceMap) ? 'keys "%s" do' : 'key "%s" does', str_replace('%', '%%', implode('", "', $serviceMap)));
+            throw new InvalidArgumentException(sprintf('Service %s not exist in the map returned by "%s::getSubscribedServices()" for service "%s".', $message, $class, $this->currentId));
         }
 
         $serviceLocator = $this->serviceLocator;
-        $this->serviceLocator = 'container.'.$this->currentId.'.'.md5(serialize($value));
-        $this->container->register($this->serviceLocator, ServiceLocator::class)
-            ->addArgument($subscriberMap)
-            ->setPublic(false)
-            ->setAutowired($value->isAutowired())
-            ->addTag('container.service_locator');
+        $this->serviceLocator = (string) ServiceLocatorTagPass::register($this->container, $subscriberMap);
 
         try {
             return parent::processValue($value);

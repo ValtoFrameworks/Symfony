@@ -21,9 +21,6 @@ use Symfony\Component\DependencyInjection\Exception\OutOfBoundsException;
  */
 class Definition
 {
-    const AUTOWIRE_BY_TYPE = 1;
-    const AUTOWIRE_BY_ID = 2;
-
     private $class;
     private $file;
     private $factory;
@@ -40,7 +37,7 @@ class Definition
     private $abstract = false;
     private $lazy = false;
     private $decoratedService;
-    private $autowired = 0;
+    private $autowired = false;
     private $autowiringTypes = array();
 
     protected $arguments;
@@ -219,6 +216,13 @@ class Definition
         return $this;
     }
 
+    public function setArgument($key, $value)
+    {
+        $this->arguments[$key] = $value;
+
+        return $this;
+    }
+
     /**
      * Gets the arguments to pass to the service constructor/factory method.
      *
@@ -277,7 +281,7 @@ class Definition
     public function addMethodCall($method, array $arguments = array())
     {
         if (empty($method)) {
-            throw new InvalidArgumentException(sprintf('Method name cannot be empty.'));
+            throw new InvalidArgumentException('Method name cannot be empty.');
         }
         $this->calls[] = array($method, $arguments);
 
@@ -335,8 +339,6 @@ class Definition
      * Sets the definition templates to conditionally apply on the current definition, keyed by parent interface/class.
      *
      * @param $instanceof ChildDefinition[]
-     *
-     * @experimental in version 3.3
      */
     public function setInstanceofConditionals(array $instanceof)
     {
@@ -349,8 +351,6 @@ class Definition
      * Gets the definition templates to conditionally apply on the current definition, keyed by parent interface/class.
      *
      * @return ChildDefinition[]
-     *
-     * @experimental in version 3.3
      */
     public function getInstanceofConditionals()
     {
@@ -704,34 +704,19 @@ class Definition
      */
     public function isAutowired()
     {
-        return (bool) $this->autowired;
-    }
-
-    /**
-     * Gets the autowiring mode.
-     *
-     * @return int
-     */
-    public function getAutowired()
-    {
         return $this->autowired;
     }
 
     /**
      * Sets autowired.
      *
-     * @param bool|int $autowired
+     * @param bool $autowired
      *
      * @return $this
      */
     public function setAutowired($autowired)
     {
-        $autowired = (int) $autowired;
-
-        if ($autowired && self::AUTOWIRE_BY_TYPE !== $autowired && self::AUTOWIRE_BY_ID !== $autowired) {
-            throw new InvalidArgumentException(sprintf('Invalid argument: Definition::AUTOWIRE_BY_TYPE (%d) or Definition::AUTOWIRE_BY_ID (%d) expected, %d given.', self::AUTOWIRE_BY_TYPE, self::AUTOWIRE_BY_ID, $autowired));
-        }
-        $this->autowired = $autowired;
+        $this->autowired = (bool) $autowired;
 
         return $this;
     }
