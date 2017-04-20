@@ -4,12 +4,13 @@ CHANGELOG
 3.3.0
 -----
 
- * [BC BREAK] autowiring now happens only when a type-hint matches its corresponding FQCN id or alias.
-   Please follow the suggestions provided by the exceptions thrown at compilation to upgrade your service configuration.
+ * deprecated autowiring services based on the types they implement;
+   rename (or alias) your services to their FQCN id to make them autowirable
  * added "ServiceSubscriberInterface" - to allow for per-class explicit service-locator definitions
  * added "container.service_locator" tag for defining service-locator services
  * added anonymous services support in YAML configuration files using the `!service` tag.
  * added "TypedReference" and "ServiceClosureArgument" for creating service-locator services
+ * added `ServiceLocator` - a PSR-11 container holding a set of services to be lazily loaded
  * added "instanceof" section for local interface-defined configs
  * added prototype services for PSR4-based discovery and registration
  * added `ContainerBuilder::getReflectionClass()` for retrieving and tracking reflection class info

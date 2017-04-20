@@ -648,6 +648,8 @@ class XmlFileLoaderTest extends TestCase
         $this->assertFalse($container->getDefinition('with_defaults')->isPublic());
         $this->assertSame(array('foo' => array(array())), $container->getDefinition('with_defaults')->getTags());
         $this->assertTrue($container->getDefinition('with_defaults')->isAutowired());
+        $this->assertArrayNotHasKey('public', $container->getDefinition('with_defaults')->getChanges());
+        $this->assertArrayNotHasKey('autowire', $container->getDefinition('with_defaults')->getChanges());
 
         $this->assertArrayNotHasKey('public', $container->getDefinition('no_defaults_child')->getChanges());
         $this->assertArrayNotHasKey('autowire', $container->getDefinition('no_defaults_child')->getChanges());
@@ -690,6 +692,16 @@ class XmlFileLoaderTest extends TestCase
         $this->assertTrue($definition->isAutowired());
         $this->assertTrue($definition->isLazy());
         $this->assertSame(array('foo' => array(array()), 'bar' => array(array())), $definition->getTags());
+    }
+
+    public function testAutoConfigureInstanceof()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services_autoconfigure.xml');
+
+        $this->assertTrue($container->getDefinition('use_defaults_settings')->isAutoconfigured());
+        $this->assertFalse($container->getDefinition('override_defaults_settings_to_false')->isAutoconfigured());
     }
 }
 

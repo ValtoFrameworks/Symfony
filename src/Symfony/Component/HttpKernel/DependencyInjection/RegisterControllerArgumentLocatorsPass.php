@@ -24,7 +24,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\TypedReference;
 
 /**
- * Creates the service-locators required by ServiceArgumentValueResolver.
+ * Creates the service-locators required by ServiceValueResolver.
  *
  * @author Nicolas Grekas <p@tchwork.com>
  */
@@ -48,12 +48,8 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
         $parameterBag = $container->getParameterBag();
         $controllers = array();
 
-        foreach ($container->findTaggedServiceIds($this->controllerTag) as $id => $tags) {
+        foreach ($container->findTaggedServiceIds($this->controllerTag, true) as $id => $tags) {
             $def = $container->getDefinition($id);
-
-            if ($def->isAbstract()) {
-                continue;
-            }
             $class = $def->getClass();
             $autowire = $def->isAutowired();
 

@@ -118,6 +118,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     private $vendors;
 
+    private $automaticInstanceofDefinitions = array();
+
     public function __construct(ParameterBagInterface $parameterBag = null)
     {
         parent::__construct($parameterBag);
@@ -637,6 +639,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             } else {
                 $this->envCounters[$env] += $count;
             }
+        }
+
+        foreach ($container->getAutomaticInstanceofDefinitions() as $interface => $childDefinition) {
+            if (isset($this->automaticInstanceofDefinitions[$interface])) {
+                throw new InvalidArgumentException(sprintf('"%s" has already been autoconfigured and merge() does not support merging autoconfiguration for the same class/interface.', $interface));
+            }
+
+            $this->automaticInstanceofDefinitions[$interface] = $childDefinition;
         }
     }
 
@@ -1200,16 +1210,20 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *     }
      * }
      *
-     * @param string $name The tag name
+     * @param string $name
+     * @param bool   $throwOnAbstract
      *
      * @return array An array of tags with the tagged service as key, holding a list of attribute arrays
      */
-    public function findTaggedServiceIds($name)
+    public function findTaggedServiceIds($name, $throwOnAbstract = false)
     {
         $this->usedTags[] = $name;
         $tags = array();
         foreach ($this->getDefinitions() as $id => $definition) {
             if ($definition->hasTag($name)) {
+                if ($throwOnAbstract && $definition->isAbstract()) {
+                    throw new InvalidArgumentException(sprintf('The service "%s" tagged "%s" must not be abstract.', $id, $name));
+                }
                 $tags[$id] = $definition->getTag($name);
             }
         }
@@ -1253,6 +1267,31 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     public function getExpressionLanguageProviders()
     {
         return $this->expressionLanguageProviders;
+    }
+
+    /**
+     * Returns a ChildDefinition that will be used for autoconfiguring the interface/class.
+     *
+     * @param string $interface The class or interface to match
+     * @return ChildDefinition
+     */
+    public function registerForAutoconfiguration($interface)
+    {
+        if (!isset($this->automaticInstanceofDefinitions[$interface])) {
+            $this->automaticInstanceofDefinitions[$interface] = new ChildDefinition('');
+        }
+
+        return $this->automaticInstanceofDefinitions[$interface];
+    }
+
+    /**
+     * Returns an array of ChildDefinition[] keyed by interface.
+     *
+     * @return ChildDefinition[]
+     */
+    public function getAutomaticInstanceofDefinitions()
+    {
+        return $this->automaticInstanceofDefinitions;
     }
 
     /**

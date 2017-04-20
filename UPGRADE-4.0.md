@@ -73,7 +73,7 @@ Debug
 DependencyInjection
 -------------------
 
- * Autowiring now happens only when a type-hint matches its corresponding FQCN id or alias.
+ * Autowiring services based on the types they implement is not supported anymore. Rename (or alias) your services to their FQCN id to make them autowirable.
 
  * `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
 
@@ -198,14 +198,14 @@ Form
  * Using the "choices" option in ``CountryType``, ``CurrencyType``, ``LanguageType``,
    ``LocaleType``, and ``TimezoneType`` without overriding the ``choice_loader``
    option is now ignored.
-   
+
    Before:
    ```php
    $builder->add('custom_locales', LocaleType::class, array(
        'choices' => $availableLocales,
    ));
    ```
-   
+
    After:
    ```php
    $builder->add('custom_locales', LocaleType::class, array(
@@ -227,6 +227,8 @@ FrameworkBundle
    be done via the `cache:warmup` command.
 
  * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been removed. Use the `Request::setTrustedProxies()` method in your front controller instead.
+
+ * The default value of the `framework.workflows.[name].type` configuration options is now `state_machine`.
 
  * Support for absolute template paths has been removed.
 
@@ -326,6 +328,10 @@ FrameworkBundle
    removed. Use the `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass`
    class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ValidateWorkflowsPass` class
+   has been removed. Use the `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass`
+   class instead.
+
 HttpFoundation
 --------------
 
@@ -359,6 +365,14 @@ HttpFoundation
 
 HttpKernel
 ----------
+
+ * Removed the `kernel.root_dir` parameter. Use the `kernel.project_dir` parameter
+   instead.
+
+ * Removed the `Kernel::getRootDir()` method. Use the `Kernel::getProjectDir()`
+   method instead.
+
+ * The `Extension::addClassesToCompile()` method has been removed.
 
  * Possibility to pass non-scalar values as URI attributes to the ESI and SSI
    renderers has been removed. The inline fragment renderer should be used with
@@ -411,7 +425,7 @@ Security
 
  * The `RoleInterface` has been removed. Extend the `Symfony\Component\Security\Core\Role\Role`
    class instead.
-   
+
  * The `LogoutUrlGenerator::registerListener()` method expects a 6th `$context = null` argument.
 
  * The `AccessDecisionManager::setVoters()` method has been removed. Pass the

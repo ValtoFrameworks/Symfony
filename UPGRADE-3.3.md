@@ -80,7 +80,7 @@ Debug
 DependencyInjection
 -------------------
 
- * [BC BREAK] autowiring now happens only when a type-hint matches its corresponding FQCN id or alias. Please follow the suggestions provided by the exceptions thrown at compilation to upgrade your service configuration.
+ * Autowiring services based on the types they implement is deprecated and won't be supported in version 4.0. Rename (or alias) your services to their FQCN id to make them autowirable.
 
  * [BC BREAK] `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
 
@@ -138,14 +138,14 @@ Form
  * Using the "choices" option in ``CountryType``, ``CurrencyType``, ``LanguageType``,
    ``LocaleType``, and ``TimezoneType`` without overriding the ``choice_loader``
    option has been deprecated and will be ignored in 4.0.
-   
+
    Before:
    ```php
    $builder->add('custom_locales', LocaleType::class, array(
        'choices' => $availableLocales,
    ));
    ```
-   
+
    After:
    ```php
    $builder->add('custom_locales', LocaleType::class, array(
@@ -167,6 +167,9 @@ FrameworkBundle
    Warmup should be done via the `cache:warmup` command.
 
  * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been deprecated and will be removed in 4.0. Use the Request::setTrustedProxies() method in your front controller instead.
+
+ * Not defining the `type` option of the `framework.workflows.*` configuration entries is deprecated.
+   The default value will be `state_machine` in Symfony 4.0.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\CompilerDebugDumpPass` has been deprecated.
 
@@ -236,6 +239,10 @@ FrameworkBundle
    class has been deprecated and will be removed in 4.0.
    Use the `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass` class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ValidateWorkflowsPass`
+   class has been deprecated and will be removed in 4.0. Use the
+   `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass` class instead.
+
 HttpFoundation
 --------------
 
@@ -247,6 +254,14 @@ HttpFoundation
 
 HttpKernel
 -----------
+
+ * Deprecated the `kernel.root_dir` parameter. Use the new `kernel.project_dir`
+   parameter instead.
+
+ * Deprecated the `Kernel::getRootDir()` method. Use the new `Kernel::getProjectDir()`
+   method instead.
+
+ * The `Extension::addClassesToCompile()` method has been deprecated and will be removed in 4.0.
 
  * The `Psr6CacheClearer::addPool()` method has been deprecated. Pass an array
    of pools indexed by name to the constructor instead.
