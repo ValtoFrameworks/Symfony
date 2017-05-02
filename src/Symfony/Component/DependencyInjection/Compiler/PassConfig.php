@@ -43,7 +43,6 @@ class PassConfig
             100 => array(
                 $resolveClassPass = new ResolveClassPass(),
                 new ResolveInstanceofConditionalsPass(),
-                new ResolveTagsInheritancePass(),
             ),
         );
 
@@ -59,6 +58,7 @@ class PassConfig
             new RegisterServiceSubscribersPass(),
             new ResolveNamedArgumentsPass(),
             new AutowirePass(),
+            new ResolveServiceSubscribersPass(),
             new ResolveReferencesToAliasesPass(),
             new ResolveInvalidReferencesPass(),
             new AnalyzeServiceReferencesPass(true),

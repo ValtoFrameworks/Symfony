@@ -118,7 +118,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     private $vendors;
 
-    private $automaticInstanceofDefinitions = array();
+    private $autoconfiguredInstanceof = array();
 
     public function __construct(ParameterBagInterface $parameterBag = null)
     {
@@ -641,12 +641,12 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             }
         }
 
-        foreach ($container->getAutomaticInstanceofDefinitions() as $interface => $childDefinition) {
-            if (isset($this->automaticInstanceofDefinitions[$interface])) {
+        foreach ($container->getAutoconfiguredInstanceof() as $interface => $childDefinition) {
+            if (isset($this->autoconfiguredInstanceof[$interface])) {
                 throw new InvalidArgumentException(sprintf('"%s" has already been autoconfigured and merge() does not support merging autoconfiguration for the same class/interface.', $interface));
             }
 
-            $this->automaticInstanceofDefinitions[$interface] = $childDefinition;
+            $this->autoconfiguredInstanceof[$interface] = $childDefinition;
         }
     }
 
@@ -1135,8 +1135,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 return $this->resolveServices($reference);
             };
         } elseif ($value instanceof IteratorArgument) {
-            $parameterBag = $this->getParameterBag();
-            $value = new RewindableGenerator(function () use ($value, $parameterBag) {
+            $value = new RewindableGenerator(function () use ($value) {
                 foreach ($value->getValues() as $k => $v) {
                     foreach (self::getServiceConditionals($v) as $s) {
                         if (!$this->has($s)) {
@@ -1144,7 +1143,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                         }
                     }
 
-                    yield $k => $this->resolveServices($parameterBag->unescapeValue($parameterBag->resolveValue($v)));
+                    yield $k => $this->resolveServices($v);
                 }
             }, function () use ($value) {
                 $count = 0;
@@ -1273,15 +1272,16 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * Returns a ChildDefinition that will be used for autoconfiguring the interface/class.
      *
      * @param string $interface The class or interface to match
+     *
      * @return ChildDefinition
      */
     public function registerForAutoconfiguration($interface)
     {
-        if (!isset($this->automaticInstanceofDefinitions[$interface])) {
-            $this->automaticInstanceofDefinitions[$interface] = new ChildDefinition('');
+        if (!isset($this->autoconfiguredInstanceof[$interface])) {
+            $this->autoconfiguredInstanceof[$interface] = new ChildDefinition('');
         }
 
-        return $this->automaticInstanceofDefinitions[$interface];
+        return $this->autoconfiguredInstanceof[$interface];
     }
 
     /**
@@ -1289,9 +1289,9 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *
      * @return ChildDefinition[]
      */
-    public function getAutomaticInstanceofDefinitions()
+    public function getAutoconfiguredInstanceof()
     {
-        return $this->automaticInstanceofDefinitions;
+        return $this->autoconfiguredInstanceof;
     }
 
     /**
@@ -1444,7 +1444,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * Shares a given service in the container.
      *
      * @param Definition  $definition
-     * @param mixed       $service
+     * @param object      $service
      * @param string|null $id
      */
     private function shareService(Definition $definition, $service, $id)

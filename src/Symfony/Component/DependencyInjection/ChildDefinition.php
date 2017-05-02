@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\DependencyInjection;
 
+use Symfony\Component\DependencyInjection\Exception\BadMethodCallException;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\OutOfBoundsException;
 
@@ -22,7 +23,6 @@ use Symfony\Component\DependencyInjection\Exception\OutOfBoundsException;
 class ChildDefinition extends Definition
 {
     private $parent;
-    private $inheritTags = false;
 
     /**
      * @param string $parent The id of Definition instance to decorate
@@ -54,30 +54,6 @@ class ChildDefinition extends Definition
         $this->parent = $parent;
 
         return $this;
-    }
-
-    /**
-     * Sets whether tags should be inherited from the parent or not.
-     *
-     * @param bool $boolean
-     *
-     * @return $this
-     */
-    public function setInheritTags($boolean)
-    {
-        $this->inheritTags = (bool) $boolean;
-
-        return $this;
-    }
-
-    /**
-     * Returns whether tags should be inherited from the parent or not.
-     *
-     * @return bool
-     */
-    public function getInheritTags()
-    {
-        return $this->inheritTags;
     }
 
     /**
@@ -133,6 +109,22 @@ class ChildDefinition extends Definition
         }
 
         return $this;
+    }
+
+    /**
+     * @internal
+     */
+    public function setAutoconfigured($autoconfigured)
+    {
+        throw new BadMethodCallException('A ChildDefinition cannot be autoconfigured.');
+    }
+
+    /**
+     * @internal
+     */
+    public function setInstanceofConditionals(array $instanceof)
+    {
+        throw new BadMethodCallException('A ChildDefinition cannot have instanceof conditionals set on it.');
     }
 }
 

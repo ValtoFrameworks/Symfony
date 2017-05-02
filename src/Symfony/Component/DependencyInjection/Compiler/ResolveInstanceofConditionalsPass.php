@@ -14,6 +14,8 @@ namespace Symfony\Component\DependencyInjection\Compiler;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\RuntimeException;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 
 /**
  * Applies instanceof conditionals to definitions.
@@ -27,6 +29,15 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
      */
     public function process(ContainerBuilder $container)
     {
+        foreach ($container->getAutoconfiguredInstanceof() as $interface => $definition) {
+            if ($definition->getArguments()) {
+                throw new InvalidArgumentException(sprintf('Autoconfigured instanceof for type "%s" defines arguments but these are not supported and should be removed.', $interface));
+            }
+            if ($definition->getMethodCalls()) {
+                throw new InvalidArgumentException(sprintf('Autoconfigured instanceof for type "%s" defines method calls but these are not supported and should be removed.', $interface));
+            }
+        }
+
         foreach ($container->getDefinitions() as $id => $definition) {
             if ($definition instanceof ChildDefinition) {
                 // don't apply "instanceof" to children: it will be applied to their parent
@@ -39,9 +50,8 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
     private function processDefinition(ContainerBuilder $container, $id, Definition $definition)
     {
         $instanceofConditionals = $definition->getInstanceofConditionals();
-        $automaticInstanceofConditionals = $definition->isAutoconfigured() ? $container->getAutomaticInstanceofDefinitions() : array();
-
-        if (!$instanceofConditionals && !$automaticInstanceofConditionals) {
+        $autoconfiguredInstanceof = $definition->isAutoconfigured() ? $container->getAutoconfiguredInstanceof() : array();
+        if (!$instanceofConditionals && !$autoconfiguredInstanceof) {
             return $definition;
         }
 
@@ -49,14 +59,14 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
             return $definition;
         }
 
-        $conditionals = $this->mergeConditionals($automaticInstanceofConditionals, $instanceofConditionals);
+        $conditionals = $this->mergeConditionals($autoconfiguredInstanceof, $instanceofConditionals, $container);
 
         $definition->setInstanceofConditionals(array());
         $parent = $shared = null;
         $instanceofTags = array();
 
         foreach ($conditionals as $interface => $instanceofDefs) {
-            if ($interface !== $class && (!$container->getReflectionClass($interface) || !$container->getReflectionClass($class))) {
+            if ($interface !== $class && (!$container->getReflectionClass($class))) {
                 continue;
             }
 
@@ -67,7 +77,7 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
             foreach ($instanceofDefs as $key => $instanceofDef) {
                 /** @var ChildDefinition $instanceofDef */
                 $instanceofDef = clone $instanceofDef;
-                $instanceofDef->setAbstract(true)->setInheritTags(false)->setParent($parent ?: 'abstract.instanceof.'.$id);
+                $instanceofDef->setAbstract(true)->setParent($parent ?: 'abstract.instanceof.'.$id);
                 $parent = 'instanceof.'.$interface.'.'.$key.'.'.$id;
                 $container->setDefinition($parent, $instanceofDef);
                 $instanceofTags[] = $instanceofDef->getTags();
@@ -113,13 +123,18 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
         return $definition;
     }
 
-    private function mergeConditionals(array $automaticInstanceofConditionals, array $instanceofConditionals)
+    private function mergeConditionals(array $autoconfiguredInstanceof, array $instanceofConditionals, ContainerBuilder $container)
     {
         // make each value an array of ChildDefinition
-        $conditionals = array_map(function($childDef) { return array($childDef); }, $automaticInstanceofConditionals);
+        $conditionals = array_map(function ($childDef) { return array($childDef); }, $autoconfiguredInstanceof);
 
         foreach ($instanceofConditionals as $interface => $instanceofDef) {
-            if (!isset($automaticInstanceofConditionals[$interface])) {
+            // make sure the interface/class exists (but don't validate automaticInstanceofConditionals)
+            if (!$container->getReflectionClass($interface)) {
+                throw new RuntimeException(sprintf('"%s" is set as an "instanceof" conditional, but it does not exist.', $interface));
+            }
+
+            if (!isset($autoconfiguredInstanceof[$interface])) {
                 $conditionals[$interface] = array();
             }
 

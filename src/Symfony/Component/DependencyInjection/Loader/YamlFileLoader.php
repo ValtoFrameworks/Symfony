@@ -51,7 +51,6 @@ class YamlFileLoader extends FileLoader
         'configurator' => 'configurator',
         'calls' => 'calls',
         'tags' => 'tags',
-        'inherit_tags' => 'inherit_tags',
         'decorates' => 'decorates',
         'decoration_inner_name' => 'decoration_inner_name',
         'decoration_priority' => 'decoration_priority',
@@ -74,7 +73,6 @@ class YamlFileLoader extends FileLoader
         'configurator' => 'configurator',
         'calls' => 'calls',
         'tags' => 'tags',
-        'inherit_tags' => 'inherit_tags',
         'autowire' => 'autowire',
         'autoconfigure' => 'autoconfigure',
     );
@@ -88,13 +86,11 @@ class YamlFileLoader extends FileLoader
         'calls' => 'calls',
         'tags' => 'tags',
         'autowire' => 'autowire',
-        'autoconfigure' => 'autoconfigure',
     );
 
     private static $defaultsKeywords = array(
         'public' => 'public',
         'tags' => 'tags',
-        'inherit_tags' => 'inherit_tags',
         'autowire' => 'autowire',
         'autoconfigure' => 'autoconfigure',
     );
@@ -205,7 +201,7 @@ class YamlFileLoader extends FileLoader
             throw new InvalidArgumentException(sprintf('The "services" key should contain an array in %s. Check your YAML syntax.', $file));
         }
 
-        if (isset($content['services']['_instanceof'])) {
+        if (array_key_exists('_instanceof', $content['services'])) {
             $instanceof = $content['services']['_instanceof'];
             unset($content['services']['_instanceof']);
 
@@ -242,7 +238,7 @@ class YamlFileLoader extends FileLoader
      */
     private function parseDefaults(array &$content, $file)
     {
-        if (!isset($content['services']['_defaults'])) {
+        if (!array_key_exists('_defaults', $content['services'])) {
             return array();
         }
         $defaults = $content['services']['_defaults'];
@@ -357,13 +353,15 @@ class YamlFileLoader extends FileLoader
         if ($this->isLoadingInstanceof) {
             $definition = new ChildDefinition('');
         } elseif (isset($service['parent'])) {
-            $definition = new ChildDefinition($service['parent']);
-
-            $inheritTag = isset($service['inherit_tags']) ? $service['inherit_tags'] : (isset($defaults['inherit_tags']) ? $defaults['inherit_tags'] : null);
-            if (null !== $inheritTag) {
-                $definition->setInheritTags($inheritTag);
+            if (!empty($this->instanceof)) {
+                throw new InvalidArgumentException(sprintf('The service "%s" cannot use the "parent" option in the same file where "_instanceof" configuration is defined as using both is not supported. Try moving your child definitions to a different file.', $id));
             }
-            $defaults = array();
+
+            if (!empty($defaults)) {
+                throw new InvalidArgumentException(sprintf('The service "%s" cannot use the "parent" option in the same file where "_defaults" configuration is defined as using both is not supported. Try moving your child definitions to a different file.', $id));
+            }
+
+            $definition = new ChildDefinition($service['parent']);
         } else {
             $definition = new Definition();
 
@@ -451,13 +449,7 @@ class YamlFileLoader extends FileLoader
             throw new InvalidArgumentException(sprintf('Parameter "tags" must be an array for service "%s" in %s. Check your YAML syntax.', $id, $file));
         }
 
-        if (!isset($defaults['tags'])) {
-            // no-op
-        } elseif (!isset($service['inherit_tags'])) {
-            if (!isset($service['tags'])) {
-                $tags = $defaults['tags'];
-            }
-        } elseif ($service['inherit_tags']) {
+        if (isset($defaults['tags'])) {
             $tags = array_merge($tags, $defaults['tags']);
         }
 
@@ -518,7 +510,11 @@ class YamlFileLoader extends FileLoader
         }
 
         if (isset($service['autoconfigure'])) {
-            $definition->setAutoconfigured($service['autoconfigure']);
+            if (!$definition instanceof ChildDefinition) {
+                $definition->setAutoconfigured($service['autoconfigure']);
+            } elseif ($service['autoconfigure']) {
+                throw new InvalidArgumentException(sprintf('The service "%s" cannot have a "parent" and also have "autoconfigure". Try setting "autoconfigure: false" for the service.', $id));
+            }
         }
 
         if (array_key_exists('resource', $service)) {
@@ -665,14 +661,18 @@ class YamlFileLoader extends FileLoader
             $argument = $value->getValue();
             if ('iterator' === $value->getTag()) {
                 if (!is_array($argument)) {
-                    throw new InvalidArgumentException('"!iterator" tag only accepts sequences.');
+                    throw new InvalidArgumentException(sprintf('"!iterator" tag only accepts sequences in "%s".', $file));
                 }
-
-                return new IteratorArgument($this->resolveServices($argument, $file, $isParameter));
+                $argument = $this->resolveServices($argument, $file, $isParameter);
+                try {
+                    return new IteratorArgument($argument);
+                } catch (InvalidArgumentException $e) {
+                    throw new InvalidArgumentException(sprintf('"!iterator" tag only accepts arrays of "@service" references in "%s".', $file));
+                }
             }
             if ('closure_proxy' === $value->getTag()) {
                 if (!is_array($argument) || array(0, 1) !== array_keys($argument) || !is_string($argument[0]) || !is_string($argument[1]) || 0 !== strpos($argument[0], '@') || 0 === strpos($argument[0], '@@')) {
-                    throw new InvalidArgumentException('"!closure_proxy" tagged values must be arrays of [@service, method].');
+                    throw new InvalidArgumentException(sprintf('"!closure_proxy" tagged values must be arrays of [@service, method] in "%s".', $file));
                 }
 
                 if (0 === strpos($argument[0], '@?')) {
