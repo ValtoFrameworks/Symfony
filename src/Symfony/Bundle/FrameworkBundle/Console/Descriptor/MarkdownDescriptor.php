@@ -128,15 +128,20 @@ class MarkdownDescriptor extends Descriptor
         $this->write($title."\n".str_repeat('=', strlen($title)));
 
         $serviceIds = isset($options['tag']) && $options['tag'] ? array_keys($builder->findTaggedServiceIds($options['tag'])) : $builder->getServiceIds();
-        $showPrivate = isset($options['show_private']) && $options['show_private'];
         $showArguments = isset($options['show_arguments']) && $options['show_arguments'];
         $services = array('definitions' => array(), 'aliases' => array(), 'services' => array());
+
+        if (isset($options['filter'])) {
+            $serviceIds = array_filter($serviceIds, $options['filter']);
+        }
 
         foreach ($this->sortServiceIds($serviceIds) as $serviceId) {
             $service = $this->resolveServiceDefinition($builder, $serviceId);
 
             if ($service instanceof Alias) {
-                $services['aliases'][$serviceId] = $service;
+                if ($showPrivate || $service->isPublic()) {
+                    $services['aliases'][$serviceId] = $service;
+                }
             } elseif ($service instanceof Definition) {
                 if (($showPrivate || $service->isPublic())) {
                     $services['definitions'][$serviceId] = $service;
@@ -185,10 +190,6 @@ class MarkdownDescriptor extends Descriptor
             ."\n".'- Autowired: '.($definition->isAutowired() ? 'yes' : 'no')
             ."\n".'- Autoconfigured: '.($definition->isAutoconfigured() ? 'yes' : 'no')
         ;
-
-        foreach ($definition->getAutowiringTypes(false) as $autowiringType) {
-            $output .= "\n".'- Autowiring Type: `'.$autowiringType.'`';
-        }
 
         if (isset($options['show_arguments']) && $options['show_arguments']) {
             $output .= "\n".'- Arguments: '.($definition->getArguments() ? 'yes' : 'no');

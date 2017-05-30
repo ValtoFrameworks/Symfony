@@ -186,6 +186,10 @@ class TextDescriptor extends Descriptor
         $serviceIds = isset($options['tag']) && $options['tag'] ? array_keys($builder->findTaggedServiceIds($options['tag'])) : $builder->getServiceIds();
         $maxTags = array();
 
+        if (isset($options['filter'])) {
+            $serviceIds = array_filter($serviceIds, $options['filter']);
+        }
+
         foreach ($serviceIds as $key => $serviceId) {
             $definition = $this->resolveServiceDefinition($builder, $serviceId);
             if ($definition instanceof Definition) {
@@ -207,6 +211,11 @@ class TextDescriptor extends Descriptor
                         }
                     }
                 }
+            } elseif ($definition instanceof Alias) {
+                if (!$showPrivate && !$definition->isPublic()) {
+                    unset($serviceIds[$key]);
+                    continue;
+                }
             }
         }
 
@@ -215,8 +224,10 @@ class TextDescriptor extends Descriptor
 
         $tableHeaders = array_merge(array('Service ID'), $tagsNames, array('Class name'));
         $tableRows = array();
+        $rawOutput = isset($options['raw_text']) && $options['raw_text'];
         foreach ($this->sortServiceIds($serviceIds) as $serviceId) {
             $definition = $this->resolveServiceDefinition($builder, $serviceId);
+            $styledServiceId = $rawOutput ? $serviceId : sprintf('<fg=cyan>%s</fg=cyan>', $serviceId);
             if ($definition instanceof Definition) {
                 if ($showTag) {
                     foreach ($definition->getTag($showTag) as $key => $tag) {
@@ -231,13 +242,13 @@ class TextDescriptor extends Descriptor
                         }
                     }
                 } else {
-                    $tableRows[] = array($serviceId, $definition->getClass());
+                    $tableRows[] = array($styledServiceId, $definition->getClass());
                 }
             } elseif ($definition instanceof Alias) {
                 $alias = $definition;
-                $tableRows[] = array_merge(array($serviceId, sprintf('alias for "%s"', $alias)), $tagsCount ? array_fill(0, $tagsCount, '') : array());
+                $tableRows[] = array_merge(array($styledServiceId, sprintf('alias for "%s"', $alias)), $tagsCount ? array_fill(0, $tagsCount, '') : array());
             } else {
-                $tableRows[] = array_merge(array($serviceId, get_class($definition)), $tagsCount ? array_fill(0, $tagsCount, '') : array());
+                $tableRows[] = array_merge(array($styledServiceId, get_class($definition)), $tagsCount ? array_fill(0, $tagsCount, '') : array());
             }
         }
 
@@ -296,10 +307,7 @@ class TextDescriptor extends Descriptor
         $tableRows[] = array('Shared', $definition->isShared() ? 'yes' : 'no');
         $tableRows[] = array('Abstract', $definition->isAbstract() ? 'yes' : 'no');
         $tableRows[] = array('Autowired', $definition->isAutowired() ? 'yes' : 'no');
-
-        if ($autowiringTypes = $definition->getAutowiringTypes(false)) {
-            $tableRows[] = array('Autowiring Types', implode(', ', $autowiringTypes));
-        }
+        $tableRows[] = array('Autoconfigured', $definition->isAutoconfigured() ? 'yes' : 'no');
 
         if ($definition->getFile()) {
             $tableRows[] = array('Required File', $definition->getFile() ? $definition->getFile() : '-');

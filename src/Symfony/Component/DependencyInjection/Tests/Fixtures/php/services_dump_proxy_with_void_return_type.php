@@ -52,16 +52,6 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * {@inheritdoc}
-     */
-    public function isFrozen()
-    {
-        @trigger_error(sprintf('The %s() method is deprecated since version 3.3 and will be removed in 4.0. Use the isCompiled() method instead.', __METHOD__), E_USER_DEPRECATED);
-
-        return true;
-    }
-
-    /**
      * Gets the 'bar' service.
      *
      * This service is shared.
@@ -74,7 +64,7 @@ class ProjectServiceContainer extends Container
         $this->services['bar'] = $instance = new \stdClass();
 
         $instance->foo = array(0 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\ContainerVoid\Foo::withVoid */ function (): void {
-            ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withVoid();
+            ($this->services['foo'] ?? $this->get('foo'))->withVoid();
         });
 
         return $instance;

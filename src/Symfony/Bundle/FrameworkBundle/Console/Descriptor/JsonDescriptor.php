@@ -105,11 +105,17 @@ class JsonDescriptor extends Descriptor
         $showArguments = isset($options['show_arguments']) && $options['show_arguments'];
         $data = array('definitions' => array(), 'aliases' => array(), 'services' => array());
 
+        if (isset($options['filter'])) {
+            $serviceIds = array_filter($serviceIds, $options['filter']);
+        }
+
         foreach ($this->sortServiceIds($serviceIds) as $serviceId) {
             $service = $this->resolveServiceDefinition($builder, $serviceId);
 
             if ($service instanceof Alias) {
-                $data['aliases'][$serviceId] = $this->getContainerAliasData($service);
+                if ($showPrivate || $service->isPublic()) {
+                    $data['aliases'][$serviceId] = $this->getContainerAliasData($service);
+                }
             } elseif ($service instanceof Definition) {
                 if (($showPrivate || $service->isPublic())) {
                     $data['definitions'][$serviceId] = $this->getContainerDefinitionData($service, $omitTags, $showArguments);
@@ -224,10 +230,6 @@ class JsonDescriptor extends Descriptor
             'autowire' => $definition->isAutowired(),
             'autoconfigure' => $definition->isAutoconfigured(),
         );
-
-        foreach ($definition->getAutowiringTypes(false) as $autowiringType) {
-            $data['autowiring_types'][] = $autowiringType;
-        }
 
         if ($showArguments) {
             $data['arguments'] = $this->describeValue($definition->getArguments(), $omitTags, $showArguments);

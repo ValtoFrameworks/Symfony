@@ -82,6 +82,8 @@ DependencyInjection
 
  * Autowiring services based on the types they implement is deprecated and won't be supported in version 4.0. Rename (or alias) your services to their FQCN id to make them autowirable.
 
+ * [BC BREAK] The `NullDumper` class has been made final
+
  * [BC BREAK] `_defaults` and `_instanceof` are now reserved service names in Yaml configurations. Please rename any services with that names.
 
  * [BC BREAK] non-numeric keys in methods and constructors arguments have never been supported and are now forbidden. Please remove them if you happen to have one.
@@ -201,11 +203,6 @@ FrameworkBundle
    deprecated and will be removed in 4.0. Use the `Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass`
    class instead.
 
- * The `ConstraintValidatorFactory::$validators` and `$container` properties
-   have been deprecated and will be removed in 4.0.
-
- * Extending `ConstraintValidatorFactory` is deprecated and won't be supported in 4.0.
-
  * Class parameters related to routing have been deprecated and will be removed in 4.0.
      * router.options.generator_class
      * router.options.generator_base_class
@@ -244,6 +241,10 @@ FrameworkBundle
    class has been deprecated and will be removed in 4.0. Use the
    `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass` class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\Validator\ConstraintValidatorFactory`
+   class has been deprecated and will be removed in 4.0.
+   Use `Symfony\Component\Validator\ContainerConstraintValidatorFactory` instead.
+
 HttpFoundation
 --------------
 
@@ -262,7 +263,7 @@ HttpKernel
  * Deprecated the `Kernel::getRootDir()` method. Use the new `Kernel::getProjectDir()`
    method instead.
 
- * The `Extension::addClassesToCompile()` method has been deprecated and will be removed in 4.0.
+ * The `Extension::addClassesToCompile()` and `Extension::getClassesToCompile()` methods have been deprecated and will be removed in 4.0.
 
  * The `Psr6CacheClearer::addPool()` method has been deprecated. Pass an array
    of pools indexed by name to the constructor instead.
@@ -297,13 +298,18 @@ Process
  * Extending `Process::run()`, `Process::mustRun()` and `Process::restart()` is
    deprecated and won't be supported in 4.0.
 
+ProxyManager
+------------
+
+ * [BC BREAK] The `ProxyDumper` class has been made final
+
 Security
 --------
 
  * The `RoleInterface` has been deprecated. Extend the `Symfony\Component\Security\Core\Role\Role`
    class in your custom role implementations instead.
 
- * The `LogoutUrlGenerator::registerListener()` method will expect a 6th `$context = null` argument in 4.0.
+ * The `LogoutUrlGenerator::registerListener()` method will expect a 6th `string $context = null` argument in 4.0.
    Define the argument when overriding this method.
 
  * The `AccessDecisionManager::setVoters()` method has been deprecated. Pass

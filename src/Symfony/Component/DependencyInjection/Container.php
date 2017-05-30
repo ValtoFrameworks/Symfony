@@ -115,20 +115,6 @@ class Container implements ResettableContainerInterface
     }
 
     /**
-     * Returns true if the container parameter bag are frozen.
-     *
-     * Deprecated since 3.3, to be removed in 4.0.
-     *
-     * @return bool true if the container parameter bag are frozen, false otherwise
-     */
-    public function isFrozen()
-    {
-        @trigger_error(sprintf('The %s() method is deprecated since version 3.3 and will be removed in 4.0. Use the isCompiled() method instead.', __METHOD__), E_USER_DEPRECATED);
-
-        return $this->parameterBag instanceof FrozenParameterBag;
-    }
-
-    /**
      * Gets the service container parameter bag.
      *
      * @return ParameterBagInterface A ParameterBagInterface instance
@@ -228,6 +214,9 @@ class Container implements ResettableContainerInterface
     public function has($id)
     {
         for ($i = 2;;) {
+            if (isset($this->privates[$id])) {
+                @trigger_error(sprintf('Checking for the existence of the "%s" private service is deprecated since Symfony 3.2 and won\'t be supported anymore in Symfony 4.0.', $id), E_USER_DEPRECATED);
+            }
             if ('service_container' === $id) {
                 return true;
             }
@@ -238,10 +227,6 @@ class Container implements ResettableContainerInterface
                 return true;
             }
 
-            if (isset($this->privates[$id])) {
-                @trigger_error(sprintf('Checking for the existence of the "%s" private service is deprecated since Symfony 3.2 and won\'t be supported anymore in Symfony 4.0.', $id), E_USER_DEPRECATED);
-            }
-
             if (isset($this->methodMap[$id])) {
                 return true;
             }
@@ -249,14 +234,6 @@ class Container implements ResettableContainerInterface
             if (--$i && $id !== $normalizedId = $this->normalizeId($id)) {
                 $id = $normalizedId;
                 continue;
-            }
-
-            // We only check the convention-based factory in a compiled container (i.e. a child class other than a ContainerBuilder,
-            // and only when the dumper has not generated the method map (otherwise the method map is considered to be fully populated by the dumper)
-            if (!$this->methodMap && !$this instanceof ContainerBuilder && __CLASS__ !== static::class && method_exists($this, 'get'.strtr($id, $this->underscoreMap).'Service')) {
-                @trigger_error('Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.', E_USER_DEPRECATED);
-
-                return true;
             }
 
             return false;
@@ -287,12 +264,16 @@ class Container implements ResettableContainerInterface
         // this method can be called thousands of times during a request, avoid
         // calling $this->normalizeId($id) unless necessary.
         for ($i = 2;;) {
+            if (isset($this->privates[$id])) {
+                @trigger_error(sprintf('Requesting the "%s" private service is deprecated since Symfony 3.2 and won\'t be supported anymore in Symfony 4.0.', $id), E_USER_DEPRECATED);
+            }
             if ('service_container' === $id) {
                 return $this;
             }
             if (isset($this->aliases[$id])) {
                 $id = $this->aliases[$id];
             }
+
             // Re-use shared service instance if it exists.
             if (isset($this->services[$id])) {
                 return $this->services[$id];
@@ -307,11 +288,6 @@ class Container implements ResettableContainerInterface
             } elseif (--$i && $id !== $normalizedId = $this->normalizeId($id)) {
                 $id = $normalizedId;
                 continue;
-            } elseif (!$this->methodMap && !$this instanceof ContainerBuilder && __CLASS__ !== static::class && method_exists($this, $method = 'get'.strtr($id, $this->underscoreMap).'Service')) {
-                // We only check the convention-based factory in a compiled container (i.e. a child class other than a ContainerBuilder,
-                // and only when the dumper has not generated the method map (otherwise the method map is considered to be fully populated by the dumper)
-                @trigger_error('Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.', E_USER_DEPRECATED);
-                // $method is set to the right value, proceed
             } else {
                 if (self::EXCEPTION_ON_INVALID_REFERENCE === $invalidBehavior) {
                     if (!$id) {
@@ -330,9 +306,6 @@ class Container implements ResettableContainerInterface
                 }
 
                 return;
-            }
-            if (isset($this->privates[$id])) {
-                @trigger_error(sprintf('Requesting the "%s" private service is deprecated since Symfony 3.2 and won\'t be supported anymore in Symfony 4.0.', $id), E_USER_DEPRECATED);
             }
 
             $this->loading[$id] = true;
@@ -370,6 +343,10 @@ class Container implements ResettableContainerInterface
             $id = $this->aliases[$id];
         }
 
+        if (isset($this->privates[$id])) {
+            @trigger_error(sprintf('Checking for the initialization of the "%s" private service is deprecated since Symfony 3.4 and won\'t be supported anymore in Symfony 4.0.', $id), E_USER_DEPRECATED);
+        }
+
         return isset($this->services[$id]);
     }
 
@@ -388,22 +365,7 @@ class Container implements ResettableContainerInterface
      */
     public function getServiceIds()
     {
-        $ids = array();
-
-        if (!$this->methodMap && !$this instanceof ContainerBuilder && __CLASS__ !== static::class) {
-            // We only check the convention-based factory in a compiled container (i.e. a child class other than a ContainerBuilder,
-            // and only when the dumper has not generated the method map (otherwise the method map is considered to be fully populated by the dumper)
-            @trigger_error('Generating a dumped container without populating the method map is deprecated since 3.2 and will be unsupported in 4.0. Update your dumper to generate the method map.', E_USER_DEPRECATED);
-
-            foreach (get_class_methods($this) as $method) {
-                if (preg_match('/^get(.+)Service$/', $method, $match)) {
-                    $ids[] = self::underscore($match[1]);
-                }
-            }
-        }
-        $ids[] = 'service_container';
-
-        return array_unique(array_merge($ids, array_keys($this->methodMap), array_keys($this->services)));
+        return array_unique(array_merge(array('service_container'), array_keys($this->methodMap), array_keys($this->services)));
     }
 
     /**

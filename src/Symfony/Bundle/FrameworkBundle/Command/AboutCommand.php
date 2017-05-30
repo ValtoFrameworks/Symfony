@@ -46,7 +46,6 @@ class AboutCommand extends ContainerAwareCommand
 
         /** @var $kernel KernelInterface */
         $kernel = $this->getContainer()->get('kernel');
-        $baseDir = realpath($kernel->getRootDir().DIRECTORY_SEPARATOR.'..');
 
         $io->table(array(), array(
             array('<info>Symfony</>'),
@@ -62,15 +61,15 @@ class AboutCommand extends ContainerAwareCommand
             array('Environment', $kernel->getEnvironment()),
             array('Debug', $kernel->isDebug() ? 'true' : 'false'),
             array('Charset', $kernel->getCharset()),
-            array('Root directory', self::formatPath($kernel->getRootDir(), $baseDir)),
-            array('Cache directory', self::formatPath($kernel->getCacheDir(), $baseDir).' (<comment>'.self::formatFileSize($kernel->getCacheDir()).'</>)'),
-            array('Log directory', self::formatPath($kernel->getLogDir(), $baseDir).' (<comment>'.self::formatFileSize($kernel->getLogDir()).'</>)'),
+            array('Root directory', self::formatPath($kernel->getRootDir(), $kernel->getProjectDir())),
+            array('Cache directory', self::formatPath($kernel->getCacheDir(), $kernel->getProjectDir()).' (<comment>'.self::formatFileSize($kernel->getCacheDir()).'</>)'),
+            array('Log directory', self::formatPath($kernel->getLogDir(), $kernel->getProjectDir()).' (<comment>'.self::formatFileSize($kernel->getLogDir()).'</>)'),
             new TableSeparator(),
             array('<info>PHP</>'),
             new TableSeparator(),
             array('Version', PHP_VERSION),
             array('Architecture', (PHP_INT_SIZE * 8).' bits'),
-            array('Intl locale', \Locale::getDefault() ?: 'n/a'),
+            array('Intl locale', class_exists('Locale', false) && \Locale::getDefault() ? \Locale::getDefault() : 'n/a'),
             array('Timezone', date_default_timezone_get().' (<comment>'.(new \DateTime())->format(\DateTime::W3C).'</>)'),
             array('OPcache', extension_loaded('Zend OPcache') && ini_get('opcache.enable') ? 'true' : 'false'),
             array('APCu', extension_loaded('apcu') && ini_get('apc.enabled') ? 'true' : 'false'),

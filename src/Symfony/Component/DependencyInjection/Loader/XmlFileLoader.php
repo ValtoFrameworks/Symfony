@@ -43,8 +43,10 @@ class XmlFileLoader extends FileLoader
 
         $this->container->fileExists($path);
 
+        $defaults = $this->getServiceDefaults($xml, $path);
+
         // anonymous services
-        $this->processAnonymousServices($xml, $path);
+        $this->processAnonymousServices($xml, $path, $defaults);
 
         // imports
         $this->parseImports($xml, $path);
@@ -57,7 +59,7 @@ class XmlFileLoader extends FileLoader
 
         // services
         try {
-            $this->parseDefinitions($xml, $path);
+            $this->parseDefinitions($xml, $path, $defaults);
         } finally {
             $this->instanceof = array();
         }
@@ -120,7 +122,7 @@ class XmlFileLoader extends FileLoader
      * @param \DOMDocument $xml
      * @param string       $file
      */
-    private function parseDefinitions(\DOMDocument $xml, $file)
+    private function parseDefinitions(\DOMDocument $xml, $file, $defaults)
     {
         $xpath = new \DOMXPath($xml);
         $xpath->registerNamespace('container', self::NS);
@@ -138,11 +140,10 @@ class XmlFileLoader extends FileLoader
         }
 
         $this->isLoadingInstanceof = false;
-        $defaults = $this->getServiceDefaults($xml, $file);
         foreach ($services as $service) {
             if (null !== $definition = $this->parseDefinition($service, $file, $defaults)) {
                 if ('prototype' === $service->tagName) {
-                    $this->registerClasses($definition, (string) $service->getAttribute('namespace'), (string) $service->getAttribute('resource'));
+                    $this->registerClasses($definition, (string) $service->getAttribute('namespace'), (string) $service->getAttribute('resource'), (string) $service->getAttribute('exclude'));
                 } else {
                     $this->setDefinition((string) $service->getAttribute('id'), $definition);
                 }
@@ -194,7 +195,7 @@ class XmlFileLoader extends FileLoader
      *
      * @return Definition|null
      */
-    private function parseDefinition(\DOMElement $service, $file, array $defaults = array())
+    private function parseDefinition(\DOMElement $service, $file, array $defaults)
     {
         if ($alias = $service->getAttribute('alias')) {
             $this->validateAlias($service, $file);
@@ -214,11 +215,18 @@ class XmlFileLoader extends FileLoader
             $definition = new ChildDefinition('');
         } elseif ($parent = $service->getAttribute('parent')) {
             if (!empty($this->instanceof)) {
-                throw new InvalidArgumentException(sprintf('The service "%s" cannot use the "parent" option in the same file where "instanceof" configuration is defined as using both is not supported. Try moving your child definitions to a different file.', $service->getAttribute('id')));
+                throw new InvalidArgumentException(sprintf('The service "%s" cannot use the "parent" option in the same file where "instanceof" configuration is defined as using both is not supported. Move your child definitions to a separate file.', $service->getAttribute('id')));
             }
 
-            if (!empty($defaults)) {
-                throw new InvalidArgumentException(sprintf('The service "%s" cannot use the "parent" option in the same file where "defaults" configuration is defined as using both is not supported. Try moving your child definitions to a different file.', $service->getAttribute('id')));
+            foreach ($defaults as $k => $v) {
+                if ('tags' === $k) {
+                    // since tags are never inherited from parents, there is no confusion
+                    // thus we can safely add them as defaults to ChildDefinition
+                    continue;
+                }
+                if (!$service->hasAttribute($k)) {
+                    throw new InvalidArgumentException(sprintf('Attribute "%s" on service "%s" cannot be inherited from "defaults" when a "parent" is set. Move your child definitions to a separate file or define this attribute explicitly.', $k, $service->getAttribute('id')));
+                }
             }
 
             $definition = new ChildDefinition($parent);
@@ -333,10 +341,6 @@ class XmlFileLoader extends FileLoader
             $definition->addTag($tag->getAttribute('name'), $parameters);
         }
 
-        foreach ($this->getChildren($service, 'autowiring-type') as $type) {
-            $definition->addAutowiringType($type->textContent);
-        }
-
         if ($value = $service->getAttribute('decorates')) {
             $renameId = $service->hasAttribute('decoration-inner-name') ? $service->getAttribute('decoration-inner-name') : null;
             $priority = $service->hasAttribute('decoration-priority') ? $service->getAttribute('decoration-priority') : 0;
@@ -373,8 +377,9 @@ class XmlFileLoader extends FileLoader
      *
      * @param \DOMDocument $xml
      * @param string       $file
+     * @param array        $defaults
      */
-    private function processAnonymousServices(\DOMDocument $xml, $file)
+    private function processAnonymousServices(\DOMDocument $xml, $file, $defaults)
     {
         $definitions = array();
         $count = 0;
@@ -404,6 +409,8 @@ class XmlFileLoader extends FileLoader
         // anonymous services "in the wild"
         if (false !== $nodes = $xpath->query('//container:services/container:service[not(@id)]')) {
             foreach ($nodes as $node) {
+                @trigger_error(sprintf('Top-level anonymous services are deprecated since Symfony 3.4, the "id" attribute will be required in version 4.0 in %s at line %d.', $file, $node->getLineNo()), E_USER_DEPRECATED);
+
                 // give it a unique name
                 $id = sprintf('%d_%s', ++$count, hash('sha256', $file));
                 $node->setAttribute('id', $id);
@@ -414,7 +421,7 @@ class XmlFileLoader extends FileLoader
         // resolve definitions
         uksort($definitions, 'strnatcmp');
         foreach (array_reverse($definitions) as $id => list($domElement, $file, $wild)) {
-            if (null !== $definition = $this->parseDefinition($domElement, $file)) {
+            if (null !== $definition = $this->parseDefinition($domElement, $file, $wild ? $defaults : array())) {
                 $this->setDefinition($id, $definition);
             }
 

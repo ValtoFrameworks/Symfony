@@ -20,8 +20,8 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
 use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Config\FileLocator;
-use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\Config\Resource\FileResource;
+use Symfony\Component\Config\Resource\GlobResource;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy;
@@ -230,6 +230,28 @@ class XmlFileLoaderTest extends TestCase
         $this->assertSame($fooArgs[0], $barArgs[0]);
     }
 
+    /**
+     * @group legacy
+     * @expectedDeprecation Top-level anonymous services are deprecated since Symfony 3.4, the "id" attribute will be required in version 4.0 in %sservices_without_id.xml at line 4.
+     */
+    public function testLoadAnonymousServicesWithoutId()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('services_without_id.xml');
+    }
+
+    public function testLoadAnonymousNestedServices()
+    {
+        $container = new ContainerBuilder();
+        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
+        $loader->load('nested_service_without_id.xml');
+
+        $this->assertTrue($container->hasDefinition('FooClass'));
+        $arguments = $container->getDefinition('FooClass')->getArguments();
+        $this->assertInstanceOf(Reference::class, array_shift($arguments));
+    }
+
     public function testLoadServices()
     {
         $container = new ContainerBuilder();
@@ -273,7 +295,7 @@ class XmlFileLoaderTest extends TestCase
 
         $lazyDefinition = $container->getDefinition('lazy_context');
 
-        $this->assertEquals(array(new IteratorArgument(array('k1' => new Reference('foo.baz'), 'k2' => new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
+        $this->assertEquals(array(new IteratorArgument(array('k1' => new Reference('foo.baz'), 'k2' => new Reference('service_container'))), new IteratorArgument(array())), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
     }
 
     public function testParsesTags()
@@ -563,18 +585,6 @@ class XmlFileLoaderTest extends TestCase
         $this->assertSame('configureBar', $barConfigurator[1]);
     }
 
-    /**
-     * @group legacy
-     */
-    public function testType()
-    {
-        $container = new ContainerBuilder();
-        $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
-        $loader->load('services22.xml');
-
-        $this->assertEquals(array('Bar', 'Baz'), $container->getDefinition('foo')->getAutowiringTypes());
-    }
-
     public function testAutowire()
     {
         $container = new ContainerBuilder();
@@ -608,7 +618,7 @@ class XmlFileLoaderTest extends TestCase
 
         $fixturesDir = dirname(__DIR__).DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR;
         $this->assertTrue(false !== array_search(new FileResource($fixturesDir.'xml'.DIRECTORY_SEPARATOR.'services_prototype.xml'), $resources));
-        $this->assertTrue(false !== array_search(new DirectoryResource($fixturesDir.'Prototype', '/^$/'), $resources));
+        $this->assertTrue(false !== array_search(new GlobResource($fixturesDir.'Prototype', '/*', true), $resources));
         $resources = array_map('strval', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Foo', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Sub\Bar', $resources);
@@ -643,7 +653,7 @@ class XmlFileLoaderTest extends TestCase
     {
         $container = new ContainerBuilder();
         $loader = new XmlFileLoader($container, new FileLocator(self::$fixturesPath.'/xml'));
-        $loader->load('services29.xml');
+        $loader->load('services28.xml');
 
         $this->assertFalse($container->getDefinition('with_defaults')->isPublic());
         $this->assertSame(array('foo' => array(array())), $container->getDefinition('with_defaults')->getTags());
@@ -658,6 +668,20 @@ class XmlFileLoaderTest extends TestCase
         $this->assertSame(array('foo' => array(array())), $container->getDefinition('no_defaults')->getTags());
 
         $this->assertFalse($container->getDefinition('no_defaults')->isAutowired());
+
+        $this->assertTrue($container->getDefinition('child_def')->isPublic());
+        $this->assertSame(array('foo' => array(array())), $container->getDefinition('child_def')->getTags());
+        $this->assertFalse($container->getDefinition('child_def')->isAutowired());
+
+        $definitions = $container->getDefinitions();
+        $this->assertSame('service_container', key($definitions));
+
+        array_shift($definitions);
+        $anonymous = current($definitions);
+        $this->assertSame('bar', key($definitions));
+        $this->assertTrue($anonymous->isPublic());
+        $this->assertTrue($anonymous->isAutowired());
+        $this->assertSame(array('foo' => array(array())), $anonymous->getTags());
     }
 
     public function testNamedArguments()
@@ -689,7 +713,7 @@ class XmlFileLoaderTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "instanceof" configuration is defined as using both is not supported. Try moving your child definitions to a different file.
+     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "instanceof" configuration is defined as using both is not supported. Move your child definitions to a separate file.
      */
     public function testInstanceOfAndChildDefinitionNotAllowed()
     {
@@ -713,7 +737,7 @@ class XmlFileLoaderTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "defaults" configuration is defined as using both is not supported. Try moving your child definitions to a different file.
+     * @expectedExceptionMessage Attribute "autowire" on service "child_service" cannot be inherited from "defaults" when a "parent" is set. Move your child definitions to a separate file or define this attribute explicitly.
      */
     public function testDefaultsAndChildDefinitionNotAllowed()
     {

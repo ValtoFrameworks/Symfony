@@ -12,6 +12,7 @@
 namespace Symfony\Component\HttpKernel\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\Config\EnvParametersResource;
@@ -87,20 +88,6 @@ class KernelTest extends TestCase
         $this->assertTrue($kernel->isBooted());
     }
 
-    /**
-     * @group legacy
-     */
-    public function testClassCacheIsLoaded()
-    {
-        $kernel = $this->getKernel(array('initializeBundles', 'initializeContainer', 'doLoadClassCache'));
-        $kernel->loadClassCache('name', '.extension');
-        $kernel->expects($this->once())
-            ->method('doLoadClassCache')
-            ->with('name', '.extension');
-
-        $kernel->boot();
-    }
-
     public function testClassCacheIsNotLoadedByDefault()
     {
         $kernel = $this->getKernel(array('initializeBundles', 'initializeContainer', 'doLoadClassCache'));
@@ -108,17 +95,6 @@ class KernelTest extends TestCase
             ->method('doLoadClassCache');
 
         $kernel->boot();
-    }
-
-    /**
-     * @group legacy
-     */
-    public function testClassCacheIsNotLoadedWhenKernelIsNotBooted()
-    {
-        $kernel = $this->getKernel(array('initializeBundles', 'initializeContainer', 'doLoadClassCache'));
-        $kernel->loadClassCache();
-        $kernel->expects($this->never())
-            ->method('doLoadClassCache');
     }
 
     public function testEnvParametersResourceIsAdded()
@@ -743,25 +719,6 @@ EOF;
     }
 
     /**
-     * @group legacy
-     * @expectedDeprecation The Symfony\Component\HttpKernel\Kernel::getEnvParameters() method is deprecated as of 3.3 and will be removed in 4.0. Use the %cenv()%c syntax to get the value of any environment variable from configuration files instead.
-     * @expectedDeprecation The support of special environment variables that start with SYMFONY__ (such as "SYMFONY__FOO__BAR") is deprecated as of 3.3 and will be removed in 4.0. Use the %cenv()%c syntax instead to get the value of environment variables in configuration files.
-     */
-    public function testSymfonyEnvironmentVariables()
-    {
-        $_SERVER['SYMFONY__FOO__BAR'] = 'baz';
-
-        $kernel = $this->getKernel();
-        $method = new \ReflectionMethod($kernel, 'getEnvParameters');
-        $method->setAccessible(true);
-
-        $envParameters = $method->invoke($kernel);
-        $this->assertSame('baz', $envParameters['foo.bar']);
-
-        unset($_SERVER['SYMFONY__FOO__BAR']);
-    }
-
-    /**
      * Returns a mock for the BundleInterface.
      *
      * @return BundleInterface
@@ -855,5 +812,36 @@ class TestKernel implements HttpKernelInterface
 
     public function handle(Request $request, $type = self::MASTER_REQUEST, $catch = true)
     {
+    }
+}
+
+class CustomProjectDirKernel extends Kernel
+{
+    private $baseDir;
+
+    public function __construct()
+    {
+        parent::__construct('test', false);
+
+        $this->baseDir = 'foo';
+    }
+
+    public function registerBundles()
+    {
+        return array();
+    }
+
+    public function registerContainerConfiguration(LoaderInterface $loader)
+    {
+    }
+
+    public function getProjectDir()
+    {
+        return $this->baseDir;
+    }
+
+    public function getRootDir()
+    {
+        return __DIR__.'/Fixtures';
     }
 }

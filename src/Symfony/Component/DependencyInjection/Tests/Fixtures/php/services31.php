@@ -52,16 +52,6 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * {@inheritdoc}
-     */
-    public function isFrozen()
-    {
-        @trigger_error(sprintf('The %s() method is deprecated since version 3.3 and will be removed in 4.0. Use the isCompiled() method instead.', __METHOD__), E_USER_DEPRECATED);
-
-        return true;
-    }
-
-    /**
      * Gets the 'bar' service.
      *
      * This service is shared.
@@ -74,11 +64,11 @@ class ProjectServiceContainer extends Container
         $this->services['bar'] = $instance = new \stdClass();
 
         $instance->foo = array(0 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container31\Foo::withNoArgs */ function () {
-            return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withNoArgs();
+            return ($this->services['foo'] ?? $this->get('foo'))->withNoArgs();
         }, 1 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container31\Foo::withArgs */ function ($a, \Symfony\Component\DependencyInjection\Tests\Fixtures\Container31\Foo $b = NULL, $c = array(0 => 123)) {
-            return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withArgs($a, $b, $c);
+            return ($this->services['foo'] ?? $this->get('foo'))->withArgs($a, $b, $c);
         }, 2 => /** @closure-proxy Symfony\Component\DependencyInjection\Tests\Fixtures\Container31\Foo::withRefs */ function &(&$a = NULL, &$b) {
-            return ${($_ = isset($this->services['foo']) ? $this->services['foo'] : $this->get('foo')) && false ?: '_'}->withRefs($a, $b);
+            return ($this->services['foo'] ?? $this->get('foo'))->withRefs($a, $b);
         });
 
         return $instance;

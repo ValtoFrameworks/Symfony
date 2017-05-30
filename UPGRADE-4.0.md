@@ -128,6 +128,8 @@ DependencyInjection
  * The ``strict`` attribute in service arguments has been removed.
    The attribute is ignored since 3.0, so you can simply remove it.
 
+ * Top-level anonymous services in XML are no longer supported.
+
 EventDispatcher
 ---------------
 
@@ -145,6 +147,8 @@ Finder
 ------
 
  * The `ExceptionInterface` has been removed.
+ * The `Symfony\Component\Finder\Iterator\FilterIterator` class has been
+   removed as it used to fix a bug which existed before version 5.5.23/5.6.7
 
 Form
 ----
@@ -294,11 +298,6 @@ FrameworkBundle
    removed. Use the `Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass`
    class instead.
 
- * The `ConstraintValidatorFactory::$validators` and `$container` properties
-   have been removed.
-
- * Extending `ConstraintValidatorFactory` is not supported anymore.
-
  * Class parameters related to routing have been removed
     * router.options.generator_class
     * router.options.generator_base_class
@@ -331,6 +330,9 @@ FrameworkBundle
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ValidateWorkflowsPass` class
    has been removed. Use the `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass`
    class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\Validator\ConstraintValidatorFactory` class has been removed.
+   Use `Symfony\Component\Validator\ContainerConstraintValidatorFactory` instead.
 
 HttpFoundation
 --------------
@@ -372,7 +374,7 @@ HttpKernel
  * Removed the `Kernel::getRootDir()` method. Use the `Kernel::getProjectDir()`
    method instead.
 
- * The `Extension::addClassesToCompile()` method has been removed.
+ * The `Extension::addClassesToCompile()` and `Extension::getClassesToCompile()` methods have been removed.
 
  * Possibility to pass non-scalar values as URI attributes to the ESI and SSI
    renderers has been removed. The inline fragment renderer should be used with
@@ -420,13 +422,18 @@ Process
  * Extending `Process::run()`, `Process::mustRun()` and `Process::restart()` is
    not supported anymore.
 
+ProxyManager
+------------
+
+ * The `ProxyDumper` class has been made final
+
 Security
 --------
 
  * The `RoleInterface` has been removed. Extend the `Symfony\Component\Security\Core\Role\Role`
    class instead.
 
- * The `LogoutUrlGenerator::registerListener()` method expects a 6th `$context = null` argument.
+ * The `LogoutUrlGenerator::registerListener()` method expects a 6th `string $context = null` argument.
 
  * The `AccessDecisionManager::setVoters()` method has been removed. Pass the
    voters to the constructor instead.
@@ -506,6 +513,9 @@ TwigBridge
 
 Validator
 ---------
+
+ * The default value of the `strict` option of the `Choice` constraint was changed
+   to `true`. Using any other value will throw an exception.
 
  * The `DateTimeValidator::PATTERN` constant was removed.
 

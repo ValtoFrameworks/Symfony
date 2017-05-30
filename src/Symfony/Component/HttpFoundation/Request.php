@@ -30,12 +30,13 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
  */
 class Request
 {
-    const HEADER_FORWARDED = 0b00001;
-    const HEADER_X_FORWARDED_ALL = 0b11110;
-    const HEADER_X_FORWARDED_FOR = 2;
-    const HEADER_X_FORWARDED_HOST = 4;
-    const HEADER_X_FORWARDED_PROTO = 8;
-    const HEADER_X_FORWARDED_PORT = 16;
+    const HEADER_FORWARDED = 0b00001; // When using RFC 7239
+    const HEADER_X_FORWARDED_FOR = 0b00010;
+    const HEADER_X_FORWARDED_HOST = 0b00100;
+    const HEADER_X_FORWARDED_PROTO = 0b01000;
+    const HEADER_X_FORWARDED_PORT = 0b10000;
+    const HEADER_X_FORWARDED_ALL = 0b11110; // All "X-Forwarded-*" headers
+    const HEADER_X_FORWARDED_AWS_ELB = 0b11010; // AWS ELB doesn't send X-Forwarded-Host
 
     /** @deprecated since version 3.3, to be removed in 4.0 */
     const HEADER_CLIENT_IP = self::HEADER_X_FORWARDED_FOR;
@@ -300,20 +301,7 @@ class Request
      */
     public static function createFromGlobals()
     {
-        // With the php's bug #66606, the php's built-in web server
-        // stores the Content-Type and Content-Length header values in
-        // HTTP_CONTENT_TYPE and HTTP_CONTENT_LENGTH fields.
-        $server = $_SERVER;
-        if ('cli-server' === PHP_SAPI) {
-            if (array_key_exists('HTTP_CONTENT_LENGTH', $_SERVER)) {
-                $server['CONTENT_LENGTH'] = $_SERVER['HTTP_CONTENT_LENGTH'];
-            }
-            if (array_key_exists('HTTP_CONTENT_TYPE', $_SERVER)) {
-                $server['CONTENT_TYPE'] = $_SERVER['HTTP_CONTENT_TYPE'];
-            }
-        }
-
-        $request = self::createRequestFromFactory($_GET, $_POST, array(), $_COOKIE, $_FILES, $server);
+        $request = self::createRequestFromFactory($_GET, $_POST, array(), $_COOKIE, $_FILES, $_SERVER);
 
         if (0 === strpos($request->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded')
             && in_array(strtoupper($request->server->get('REQUEST_METHOD', 'GET')), array('PUT', 'DELETE', 'PATCH'))
@@ -1576,9 +1564,6 @@ class Request
     public function getContent($asResource = false)
     {
         $currentContentIsResource = is_resource($this->content);
-        if (PHP_VERSION_ID < 50600 && false === $this->content) {
-            throw new \LogicException('getContent() can only be called once when using the resource return type and PHP below 5.6.');
-        }
 
         if (true === $asResource) {
             if ($currentContentIsResource) {

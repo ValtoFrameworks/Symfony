@@ -1,4 +1,5 @@
 <?php
+
 namespace Symfony\Component\DependencyInjection\Dump;
 
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
@@ -45,16 +46,6 @@ class Container extends AbstractContainer
      */
     public function isCompiled()
     {
-        return true;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isFrozen()
-    {
-        @trigger_error(sprintf('The %s() method is deprecated since version 3.3 and will be removed in 4.0. Use the isCompiled() method instead.', __METHOD__), E_USER_DEPRECATED);
-
         return true;
     }
 }

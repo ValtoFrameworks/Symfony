@@ -21,8 +21,8 @@ use Symfony\Component\DependencyInjection\Loader\IniFileLoader;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Config\FileLocator;
-use Symfony\Component\Config\Resource\DirectoryResource;
 use Symfony\Component\Config\Resource\FileResource;
+use Symfony\Component\Config\Resource\GlobResource;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy;
@@ -307,37 +307,6 @@ class YamlFileLoaderTest extends TestCase
         $loader->load('tag_name_no_string.yml');
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     */
-    public function testTypesNotArray()
-    {
-        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
-        $loader->load('bad_types1.yml');
-    }
-
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     */
-    public function testTypeNotString()
-    {
-        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
-        $loader->load('bad_types2.yml');
-    }
-
-    /**
-     * @group legacy
-     */
-    public function testTypes()
-    {
-        $container = new ContainerBuilder();
-        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
-        $loader->load('services22.yml');
-
-        $this->assertEquals(array('Foo', 'Bar'), $container->getDefinition('foo_service')->getAutowiringTypes());
-        $this->assertEquals(array('Foo'), $container->getDefinition('baz_service')->getAutowiringTypes());
-    }
-
     public function testParsesIteratorArgument()
     {
         $container = new ContainerBuilder();
@@ -346,7 +315,7 @@ class YamlFileLoaderTest extends TestCase
 
         $lazyDefinition = $container->getDefinition('lazy_context');
 
-        $this->assertEquals(array(new IteratorArgument(array('k1' => new Reference('foo.baz'), 'k2' => new Reference('service_container')))), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
+        $this->assertEquals(array(new IteratorArgument(array('k1' => new Reference('foo.baz'), 'k2' => new Reference('service_container'))), new IteratorArgument(array())), $lazyDefinition->getArguments(), '->load() parses lazy arguments');
     }
 
     public function testAutowire()
@@ -382,7 +351,7 @@ class YamlFileLoaderTest extends TestCase
 
         $fixturesDir = dirname(__DIR__).DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR;
         $this->assertTrue(false !== array_search(new FileResource($fixturesDir.'yaml'.DIRECTORY_SEPARATOR.'services_prototype.yml'), $resources));
-        $this->assertTrue(false !== array_search(new DirectoryResource($fixturesDir.'Prototype', '/^$/'), $resources));
+        $this->assertTrue(false !== array_search(new GlobResource($fixturesDir.'Prototype', '', true), $resources));
         $resources = array_map('strval', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Foo', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Sub\Bar', $resources);
@@ -418,6 +387,10 @@ class YamlFileLoaderTest extends TestCase
 
         $this->assertTrue($container->getDefinition('with_null')->isAutowired());
         $this->assertFalse($container->getDefinition('no_defaults')->isAutowired());
+
+        $this->assertTrue($container->getDefinition('child_def')->isPublic());
+        $this->assertSame(array('foo' => array(array())), $container->getDefinition('child_def')->getTags());
+        $this->assertFalse($container->getDefinition('child_def')->isAutowired());
     }
 
     public function testNamedArguments()
@@ -451,7 +424,7 @@ class YamlFileLoaderTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "_instanceof" configuration is defined as using both is not supported. Try moving your child definitions to a different file.
+     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "_instanceof" configuration is defined as using both is not supported. Move your child definitions to a separate file.
      */
     public function testInstanceOfAndChildDefinitionNotAllowed()
     {
@@ -475,7 +448,7 @@ class YamlFileLoaderTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage The service "child_service" cannot use the "parent" option in the same file where "_defaults" configuration is defined as using both is not supported. Try moving your child definitions to a different file.
+     * @expectedExceptionMessage Attribute "autowire" on service "child_service" cannot be inherited from "_defaults" when a "parent" is set. Move your child definitions to a separate file or define this attribute explicitly.
      */
     public function testDefaultsAndChildDefinitionNotAllowed()
     {
@@ -506,8 +479,8 @@ class YamlFileLoaderTest extends TestCase
     }
 
     /**
-     * @group legacy
-     * @expectedDeprecation Service names that start with an underscore are deprecated since Symfony 3.3 and will be reserved in 4.0. Rename the "_foo" service or define it in XML instead.
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessage Service names that start with an underscore are reserved. Rename the "_foo" service or define it in XML instead.
      */
     public function testUnderscoreServiceId()
     {
@@ -628,6 +601,28 @@ class YamlFileLoaderTest extends TestCase
         $container = new ContainerBuilder();
         $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
         $loader->load('bad_empty_instanceof.yml');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessageRegExp /^The configuration key "private" is unsupported for definition "bar"/
+     */
+    public function testUnsupportedKeywordThrowsException()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('bad_keyword.yml');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessageRegExp /^The configuration key "calls" is unsupported for the service "bar" which is defined as an alias/
+     */
+    public function testUnsupportedKeywordInServiceAliasThrowsException()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('bad_alias.yml');
     }
 }
 
