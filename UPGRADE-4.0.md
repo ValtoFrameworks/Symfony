@@ -134,7 +134,7 @@ EventDispatcher
 ---------------
 
  * The `ContainerAwareEventDispatcher` class has been removed.
-   Use `EventDispatcher` with closure-proxy injection instead.
+   Use `EventDispatcher` with closure factories instead.
 
 ExpressionLanguage
 ------------------
@@ -226,6 +226,8 @@ Form
 
 FrameworkBundle
 ---------------
+
+ * The `validator.mapping.cache.doctrine.apc` service has been removed.
 
  * The `cache:clear` command does not warmup the cache anymore. Warmup should
    be done via the `cache:warmup` command.
@@ -330,9 +332,21 @@ FrameworkBundle
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ValidateWorkflowsPass` class
    has been removed. Use the `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass`
    class instead.
+   
+ * Using the `KERNEL_DIR` environment variable and the automatic guessing based
+   on the `phpunit.xml` file location have been removed from the `KernelTestCase::getKernelClass()` 
+   method implementation. Set the `KERNEL_CLASS` environment variable to the
+   fully-qualified class name of your Kernel or override the `KernelTestCase::createKernel()` 
+   or `KernelTestCase::getKernelClass()` method instead.
+   
+ * The methods `KernelTestCase::getPhpUnitXmlDir()` and `KernelTestCase::getPhpUnitCliConfigArgument()`
+   have been removed.
 
  * The `Symfony\Bundle\FrameworkBundle\Validator\ConstraintValidatorFactory` class has been removed.
    Use `Symfony\Component\Validator\ContainerConstraintValidatorFactory` instead.
+
+ * The `--no-prefix` option of the `translation:update` command has
+   been removed.
 
 HttpFoundation
 --------------
@@ -410,6 +424,9 @@ Ldap
 
 Process
 -------
+
+ * The `Symfony\Component\Process\ProcessBuilder` class has been removed,
+   use the `Symfony\Component\Process\Process` class directly instead.
 
  * The `ProcessUtils::escapeArgument()` method has been removed, use a command line array or give env vars to the `Process::start/run()` method instead.
 

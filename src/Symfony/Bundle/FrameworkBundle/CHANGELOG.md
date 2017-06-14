@@ -17,6 +17,20 @@ CHANGELOG
  * Removed `ConstraintValidatorFactory`
  * Removed class parameters related to routing
  * Removed absolute template paths support in the template name parser
+ * Removed support of the `KERNEL_DIR` environment variable with `KernelTestCase::getKernelClass()`.
+ * Removed the `KernelTestCase::getPhpUnitXmlDir()` and `KernelTestCase::getPhpUnitCliConfigArgument()` methods.
+
+3.4.0
+-----
+
+ * Removed `doctrine/cache` from the list of required dependencies in `composer.json`
+ * Deprecated `validator.mapping.cache.doctrine.apc` service
+ * Deprecated using the `KERNEL_DIR` environment variable with `KernelTestCase::getKernelClass()`.
+ * Deprecated the `KernelTestCase::getPhpUnitXmlDir()` and `KernelTestCase::getPhpUnitCliConfigArgument()` methods.
+ * The `symfony/stopwatch` dependency has been removed, require it via `composer
+   require symfony/stopwatch` in your `dev` environment.
+ * Deprecated using the `KERNEL_DIR` environment variable with `KernelTestCase::getKernelClass()`.
+ * Deprecated the `KernelTestCase::getPhpUnitXmlDir()` and `KernelTestCase::getPhpUnitCliConfigArgument()` methods.
 
 3.3.0
 -----
@@ -24,7 +38,7 @@ CHANGELOG
  * Not defining the `type` option of the `framework.workflows.*` configuration entries is deprecated.
    The default value will be `state_machine` in Symfony 4.0.
  * Deprecated the `CompilerDebugDumpPass` class
- * [BC BREAK] Removed the "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter
+ * Deprecated the "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter
  * Added a new new version strategy option called json_manifest_path
    that allows you to use the `JsonManifestVersionStrategy`.
  * Added `Symfony\Bundle\FrameworkBundle\Controller\AbstractController`. It provides
@@ -65,7 +79,7 @@ CHANGELOG
    `Symfony\Component\Validator\DependencyInjection\AddConstraintValidatorsPass` instead
  * Deprecated `ValidateWorkflowsPass`, use
    `Symfony\Component\Workflow\DependencyInjection\ValidateWorkflowsPass` instead
- * Deprecated `ConstraintValidatorFactory`, use 
+ * Deprecated `ConstraintValidatorFactory`, use
    `Symfony\Component\Validator\ContainerConstraintValidatorFactory` instead.
 
 3.2.0

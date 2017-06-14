@@ -9,6 +9,12 @@ CHANGELOG
  * made the first `UserPasswordEncoderCommand::_construct()` argument mandatory
  * `UserPasswordEncoderCommand` does not extend `ContainerAwareCommand` anymore
 
+3.4.0
+-----
+
+ * [BC BREAK] `FirewallContext::getListeners()` now returns `\Traversable|array`
+ * added info about called security listeners in profiler 
+
 3.3.0
 -----
 
