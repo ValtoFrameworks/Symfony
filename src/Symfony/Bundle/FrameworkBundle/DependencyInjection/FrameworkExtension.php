@@ -40,6 +40,7 @@ use Symfony\Component\Form\FormTypeGuesserInterface;
 use Symfony\Component\Form\FormTypeInterface;
 use Symfony\Component\HttpKernel\CacheClearer\CacheClearerInterface;
 use Symfony\Component\HttpKernel\CacheWarmer\CacheWarmerInterface;
+use Symfony\Component\HttpKernel\Controller\ArgumentValueResolverInterface;
 use Symfony\Component\HttpKernel\DataCollector\DataCollectorInterface;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
@@ -79,6 +80,7 @@ class FrameworkExtension extends Extension
     private $translationConfigEnabled = false;
     private $sessionConfigEnabled = false;
     private $annotationsConfigEnabled = false;
+    private $validatorConfigEnabled = false;
 
     /**
      * @var string|null
@@ -248,6 +250,8 @@ class FrameworkExtension extends Extension
             ->addTag('config_cache.resource_checker');
         $container->registerForAutoconfiguration(ServiceSubscriberInterface::class)
             ->addTag('container.service_subscriber');
+        $container->registerForAutoconfiguration(ArgumentValueResolverInterface::class)
+            ->addTag('controller.argument_value_resolver');
         $container->registerForAutoconfiguration(AbstractController::class)
             ->addTag('controller.service_arguments');
         $container->registerForAutoconfiguration(Controller::class)
@@ -330,6 +334,8 @@ class FrameworkExtension extends Extension
     private function registerEsiConfiguration(array $config, ContainerBuilder $container, XmlFileLoader $loader)
     {
         if (!$this->isConfigEnabled($container, $config)) {
+            $container->removeDefinition('fragment.renderer.esi');
+
             return;
         }
 
@@ -346,6 +352,8 @@ class FrameworkExtension extends Extension
     private function registerSsiConfiguration(array $config, ContainerBuilder $container, XmlFileLoader $loader)
     {
         if (!$this->isConfigEnabled($container, $config)) {
+            $container->removeDefinition('fragment.renderer.ssi');
+
             return;
         }
 
@@ -362,6 +370,8 @@ class FrameworkExtension extends Extension
     private function registerFragmentsConfiguration(array $config, ContainerBuilder $container, XmlFileLoader $loader)
     {
         if (!$this->isConfigEnabled($container, $config)) {
+            $container->removeDefinition('fragment.renderer.hinclude');
+
             return;
         }
 
@@ -393,6 +403,10 @@ class FrameworkExtension extends Extension
 
         if ($this->formConfigEnabled) {
             $loader->load('form_debug.xml');
+        }
+
+        if ($this->validatorConfigEnabled) {
+            $loader->load('validator_debug.xml');
         }
 
         if ($this->translationConfigEnabled) {
@@ -576,7 +590,7 @@ class FrameworkExtension extends Extension
         $loader->load('debug_prod.xml');
 
         if (class_exists(Stopwatch::class)) {
-            $container->register('debug.stopwatch', Stopwatch::class);
+            $container->register('debug.stopwatch', Stopwatch::class)->addArgument(true);
             $container->setAlias(Stopwatch::class, 'debug.stopwatch');
         }
 
@@ -672,7 +686,7 @@ class FrameworkExtension extends Extension
         // session storage
         $container->setAlias('session.storage', $config['storage_id']);
         $options = array();
-        foreach (array('name', 'cookie_lifetime', 'cookie_path', 'cookie_domain', 'cookie_secure', 'cookie_httponly', 'use_cookies', 'gc_maxlifetime', 'gc_probability', 'gc_divisor') as $key) {
+        foreach (array('name', 'cookie_lifetime', 'cookie_path', 'cookie_domain', 'cookie_secure', 'cookie_httponly', 'use_cookies', 'gc_maxlifetime', 'gc_probability', 'gc_divisor', 'use_strict_mode') as $key) {
             if (isset($config[$key])) {
                 $options[$key] = $config[$key];
             }
@@ -997,7 +1011,7 @@ class FrameworkExtension extends Extension
      */
     private function registerValidationConfiguration(array $config, ContainerBuilder $container, XmlFileLoader $loader)
     {
-        if (!$this->isConfigEnabled($container, $config)) {
+        if (!$this->validatorConfigEnabled = $this->isConfigEnabled($container, $config)) {
             return;
         }
 
@@ -1039,16 +1053,7 @@ class FrameworkExtension extends Extension
             }
         }
 
-        if (isset($config['cache']) && $config['cache']) {
-            @trigger_error('The "framework.validation.cache" option is deprecated since Symfony 3.2 and will be removed in 4.0. Configure the "cache.validator" service under "framework.cache.pools" instead.', E_USER_DEPRECATED);
-
-            $container->setParameter(
-                'validator.mapping.cache.prefix',
-                'validator_'.$this->getKernelRootHash($container)
-            );
-
-            $validatorBuilder->addMethodCall('setMetadataCache', array(new Reference($config['cache'])));
-        } elseif (!$container->getParameter('kernel.debug')) {
+        if (!$container->getParameter('kernel.debug')) {
             $validatorBuilder->addMethodCall('setMetadataCache', array(new Reference('validator.mapping.cache.symfony')));
         }
     }
@@ -1067,7 +1072,10 @@ class FrameworkExtension extends Extension
         foreach ($container->getParameter('kernel.bundles_metadata') as $bundle) {
             $dirname = $bundle['path'];
 
-            if ($container->fileExists($file = $dirname.'/Resources/config/validation.yml', false)) {
+            if (
+                $container->fileExists($file = $dirname.'/Resources/config/validation.yaml', false) ||
+                $container->fileExists($file = $dirname.'/Resources/config/validation.yml', false)
+            ) {
                 $fileRecorder('yml', $file);
             }
 
@@ -1205,7 +1213,7 @@ class FrameworkExtension extends Extension
     private function registerSerializerConfiguration(array $config, ContainerBuilder $container, XmlFileLoader $loader)
     {
         if (class_exists('Symfony\Component\Serializer\Normalizer\DataUriNormalizer')) {
-            // Run after serializer.normalizer.object
+            // Run before serializer.normalizer.object
             $definition = $container->register('serializer.normalizer.data_uri', DataUriNormalizer::class);
             $definition->setPublic(false);
             $definition->addTag('serializer.normalizer', array('priority' => -920));
@@ -1268,7 +1276,10 @@ class FrameworkExtension extends Extension
                 $fileRecorder('xml', $file);
             }
 
-            if ($container->fileExists($file = $dirname.'/Resources/config/serialization.yml', false)) {
+            if (
+                $container->fileExists($file = $dirname.'/Resources/config/serialization.yaml', false) ||
+                $container->fileExists($file = $dirname.'/Resources/config/serialization.yml', false)
+            ) {
                 $fileRecorder('yml', $file);
             }
 

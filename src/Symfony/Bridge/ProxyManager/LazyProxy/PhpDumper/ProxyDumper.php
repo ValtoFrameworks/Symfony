@@ -13,7 +13,7 @@ namespace Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper;
 
 use ProxyManager\Generator\ClassGenerator;
 use ProxyManager\GeneratorStrategy\BaseGeneratorStrategy;
-use ProxyManager\ProxyGenerator\LazyLoadingValueHolderGenerator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\LazyProxy\PhpDumper\DumperInterface;
 
@@ -64,16 +64,16 @@ class ProxyDumper implements DumperInterface
     /**
      * {@inheritdoc}
      */
-    public function getProxyFactoryCode(Definition $definition, $id, $methodName = null)
+    public function getProxyFactoryCode(Definition $definition, $id, $factoryCode = null)
     {
         $instantiation = 'return';
 
         if ($definition->isShared()) {
-            $instantiation .= " \$this->services['$id'] =";
+            $instantiation .= sprintf(' $this->%s[\'%s\'] =', $definition->isPublic() || !method_exists(ContainerBuilder::class, 'addClassResource') ? 'services' : 'privates', $id);
         }
 
-        if (null === $methodName) {
-            throw new \InvalidArgumentException(sprintf('Missing name of method to call to construct the service "%s".', $id));
+        if (null === $factoryCode) {
+            throw new \InvalidArgumentException(sprintf('Missing factory code to construct the service "%s".', $id));
         }
 
         $proxyClass = $this->getProxyClassName($definition);
@@ -89,7 +89,7 @@ class ProxyDumper implements DumperInterface
 
             $instantiation $constructorCall(
                 function (&\$wrappedInstance, \ProxyManager\Proxy\LazyLoadingInterface \$proxy) {
-                    \$wrappedInstance = \$this->$methodName(false);
+                    \$wrappedInstance = $factoryCode;
 
                     \$proxy->setProxyInitializer(null);
 

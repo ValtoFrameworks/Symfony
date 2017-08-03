@@ -12,10 +12,12 @@
 namespace Symfony\Bundle\SecurityBundle\Tests\DependencyInjection;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
 
 abstract class CompleteConfigurationTest extends TestCase
 {
@@ -57,10 +59,10 @@ abstract class CompleteConfigurationTest extends TestCase
         $this->assertEquals(array(), array_diff($providers, $expectedProviders));
 
         // chain provider
-        $this->assertEquals(array(array(
+        $this->assertEquals(array(new IteratorArgument(array(
             new Reference('security.user.provider.concrete.service'),
             new Reference('security.user.provider.concrete.basic'),
-        )), $container->getDefinition('security.user.provider.concrete.chain')->getArguments());
+        ))), $container->getDefinition('security.user.provider.concrete.chain')->getArguments());
     }
 
     public function testFirewalls()
@@ -82,7 +84,7 @@ abstract class CompleteConfigurationTest extends TestCase
             array(
                 'simple',
                 'security.user_checker',
-                'security.request_matcher.707b20193d4cb9f2718114abcbebb32af48f948484fc166a03482f49bf14f25e271f72c7',
+                'security.request_matcher.6tndozi',
                 false,
             ),
             array(
@@ -107,11 +109,15 @@ abstract class CompleteConfigurationTest extends TestCase
                     'remember_me',
                     'anonymous',
                 ),
+                array(
+                    'parameter' => '_switch_user',
+                    'role' => 'ROLE_ALLOWED_TO_SWITCH',
+                ),
             ),
             array(
                 'host',
                 'security.user_checker',
-                'security.request_matcher.dda8b565689ad8509623ee68fb2c639cd81cd4cb339d60edbaf7d67d30e6aa09bd8c63c3',
+                'security.request_matcher.and0kk1',
                 true,
                 false,
                 'security.user.provider.concrete.default',
@@ -123,6 +129,7 @@ abstract class CompleteConfigurationTest extends TestCase
                     'http_basic',
                     'anonymous',
                 ),
+                null,
             ),
             array(
                 'with_user_checker',
@@ -139,6 +146,7 @@ abstract class CompleteConfigurationTest extends TestCase
                     'http_basic',
                     'anonymous',
                 ),
+                null,
             ),
         ), $configs);
 
@@ -348,6 +356,29 @@ abstract class CompleteConfigurationTest extends TestCase
     public function testUserPasswordEncoderCommandIsRegistered()
     {
         $this->assertTrue($this->getContainer('remember_me_options')->has('security.console.user_password_encoder_command'));
+    }
+
+    public function testDefaultAccessDecisionManagerStrategyIsAffirmative()
+    {
+        $container = $this->getContainer('access_decision_manager_default_strategy');
+
+        $this->assertSame(AccessDecisionManager::STRATEGY_AFFIRMATIVE, $container->getDefinition('security.access.decision_manager')->getArgument(1), 'Default vote strategy is affirmative');
+    }
+
+    public function testCustomAccessDecisionManagerService()
+    {
+        $container = $this->getContainer('access_decision_manager_service');
+
+        $this->assertSame('app.access_decision_manager', (string) $container->getAlias('security.access.decision_manager'), 'The custom access decision manager service is aliased');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
+     * @expectedExceptionMessage "strategy" and "service" cannot be used together.
+     */
+    public function testAccessDecisionManagerServiceAndStrategyCannotBeUsedAtTheSameTime()
+    {
+        $container = $this->getContainer('access_decision_manager_service_and_strategy');
     }
 
     protected function getContainer($file)

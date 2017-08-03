@@ -20,15 +20,25 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
      */
     public function __construct()
     {
-        $this->services = array();
+        $this->services = $this->privates = array();
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**

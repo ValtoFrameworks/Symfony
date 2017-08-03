@@ -20,23 +20,29 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
      */
     public function __construct()
     {
-        $this->services = array();
+        $this->services = $this->privates = array();
         $this->methodMap = array(
             'bar_service' => 'getBarServiceService',
-            'baz_service' => 'getBazServiceService',
             'foo_service' => 'getFooServiceService',
-        );
-        $this->privates = array(
-            'baz_service' => true,
         );
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**
@@ -56,45 +62,22 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'bar_service' service.
+     * Gets the public 'bar_service' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getBarServiceService()
     {
-        return $this->services['bar_service'] = new \stdClass(($this->services['baz_service'] ?? $this->getBazServiceService()));
+        return $this->services['bar_service'] = new \stdClass(($this->privates['baz_service'] ?? ($this->privates['baz_service'] = new \stdClass())));
     }
 
     /**
-     * Gets the 'foo_service' service.
+     * Gets the public 'foo_service' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getFooServiceService()
     {
-        return $this->services['foo_service'] = new \stdClass(($this->services['baz_service'] ?? $this->getBazServiceService()));
-    }
-
-    /**
-     * Gets the 'baz_service' service.
-     *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * This service is private.
-     * If you want to be able to request this service from the container directly,
-     * make it public, otherwise you might end up with broken code.
-     *
-     * @return \stdClass A stdClass instance
-     */
-    protected function getBazServiceService()
-    {
-        return $this->services['baz_service'] = new \stdClass();
+        return $this->services['foo_service'] = new \stdClass(($this->privates['baz_service'] ?? ($this->privates['baz_service'] = new \stdClass())));
     }
 }

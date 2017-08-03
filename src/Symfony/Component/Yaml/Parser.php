@@ -75,6 +75,16 @@ class Parser
         return $data;
     }
 
+    /**
+     * @internal
+     *
+     * @return int
+     */
+    public function getLastLineNumberBeforeDeprecation()
+    {
+        return $this->getRealCurrentLineNb();
+    }
+
     private function doParse($value, $flags)
     {
         $this->currentLineNb = -1;
@@ -187,8 +197,8 @@ class Parser
                     throw $e;
                 }
 
-                if (!(Yaml::PARSE_KEYS_AS_STRINGS & $flags) && !is_string($key) && !is_int($key)) {
-                    throw new ParseException('Non-string mapping keys are not supported. Pass the Yaml::PARSE_KEYS_AS_STRINGS flag to cast them to strings.', $this->getRealCurrentLineNb() + 1, $this->currentLine);
+                if (!is_string($key) && !is_int($key)) {
+                    throw new ParseException(sprintf('%s keys are not supported. Quote your evaluable mapping keys instead.', is_numeric($key) ? 'Numeric' : 'Non-string'), $this->getRealCurrentLineNb() + 1, $this->currentLine);
                 }
 
                 // Convert float keys to strings, to avoid being converted to integers by PHP
@@ -403,9 +413,11 @@ class Parser
     /**
      * Returns the current line number (takes the offset into account).
      *
+     * @internal
+     *
      * @return int The current line number
      */
-    private function getRealCurrentLineNb()
+    public function getRealCurrentLineNb()
     {
         $realCurrentLineNumber = $this->currentLineNb + $this->offset;
 
@@ -609,12 +621,12 @@ class Parser
 
             $data = $this->parseBlockScalar($matches['separator'], preg_replace('#\d+#', '', $modifiers), (int) abs($modifiers));
 
-            if ('' !== $matches['tag']) {
+            if ('' !== $matches['tag'] && '!' !== $matches['tag']) {
                 if ('!!binary' === $matches['tag']) {
                     return Inline::evaluateBinaryScalar($data);
-                } elseif ('!' !== $matches['tag']) {
-                    @trigger_error(sprintf('Using the custom tag "%s" for the value "%s" is deprecated since version 3.3. It will be replaced by an instance of %s in 4.0.', $matches['tag'], $data, TaggedValue::class), E_USER_DEPRECATED);
                 }
+
+                return new TaggedValue(substr($matches['tag'], 1), $data);
             }
 
             return $data;

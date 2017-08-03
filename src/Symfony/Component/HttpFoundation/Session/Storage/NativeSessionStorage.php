@@ -11,7 +11,6 @@
 
 namespace Symfony\Component\HttpFoundation\Session\Storage;
 
-use Symfony\Component\Debug\Exception\ContextErrorException;
 use Symfony\Component\HttpFoundation\Session\SessionBagInterface;
 use Symfony\Component\HttpFoundation\Session\Storage\Handler\NativeSessionHandler;
 use Symfony\Component\HttpFoundation\Session\Storage\Proxy\AbstractProxy;
@@ -89,6 +88,10 @@ class NativeSessionStorage implements SessionStorageInterface
      * upload_progress.freq, "1%"
      * upload_progress.min-freq, "1"
      * url_rewriter.tags, "a=href,area=href,frame=src,form=,fieldset="
+     * sid_length, "32"
+     * sid_bits_per_character, "5"
+     * trans_sid_hosts, $_SERVER['HTTP_HOST']
+     * trans_sid_tags, "a=href,area=href,frame=src,form="
      *
      * @param array                                                            $options Session configuration options
      * @param AbstractProxy|NativeSessionHandler|\SessionHandlerInterface|null $handler
@@ -209,13 +212,13 @@ class NativeSessionStorage implements SessionStorageInterface
     {
         // Register custom error handler to catch a possible failure warning during session write
         set_error_handler(function ($errno, $errstr, $errfile, $errline, $errcontext) {
-            throw new ContextErrorException($errstr, $errno, E_WARNING, $errfile, $errline, $errcontext);
+            throw new \ErrorException($errstr, $errno, E_WARNING, $errfile, $errline, $errcontext);
         }, E_WARNING);
 
         try {
             session_write_close();
             restore_error_handler();
-        } catch (ContextErrorException $e) {
+        } catch (\ErrorException $e) {
             // The default PHP error message is not very helpful, as it does not give any information on the current save handler.
             // Therefore, we catch this error and trigger a warning with a better error message
             $handler = $this->getSaveHandler();
@@ -332,6 +335,7 @@ class NativeSessionStorage implements SessionStorageInterface
             'use_only_cookies', 'use_trans_sid', 'upload_progress.enabled',
             'upload_progress.cleanup', 'upload_progress.prefix', 'upload_progress.name',
             'upload_progress.freq', 'upload_progress.min-freq', 'url_rewriter.tags',
+            'sid_length', 'sid_bits_per_character', 'trans_sid_hosts', 'trans_sid_tags',
         ));
 
         foreach ($options as $key => $value) {

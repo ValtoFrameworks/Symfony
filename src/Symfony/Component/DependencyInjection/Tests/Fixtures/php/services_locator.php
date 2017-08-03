@@ -20,16 +20,16 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
      */
     public function __construct()
     {
-        $this->services = array();
+        $this->services = $this->privates = array();
         $this->methodMap = array(
             'bar_service' => 'getBarServiceService',
-            'baz_service' => 'getBazServiceService',
             'foo_service' => 'getFooServiceService',
             'translator.loader_1' => 'getTranslator_Loader1Service',
             'translator.loader_2' => 'getTranslator_Loader2Service',
@@ -38,11 +38,17 @@ class ProjectServiceContainer extends Container
             'translator_2' => 'getTranslator2Service',
             'translator_3' => 'getTranslator3Service',
         );
-        $this->privates = array(
-            'baz_service' => true,
-        );
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**
@@ -62,44 +68,35 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'bar_service' service.
+     * Gets the public 'bar_service' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getBarServiceService()
     {
-        return $this->services['bar_service'] = new \stdClass(($this->services['baz_service'] ?? $this->getBazServiceService()));
+        return $this->services['bar_service'] = new \stdClass(($this->privates['baz_service'] ?? ($this->privates['baz_service'] = new \stdClass())));
     }
 
     /**
-     * Gets the 'foo_service' service.
+     * Gets the public 'foo_service' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \Symfony\Component\DependencyInjection\ServiceLocator A Symfony\Component\DependencyInjection\ServiceLocator instance
+     * @return \Symfony\Component\DependencyInjection\ServiceLocator
      */
     protected function getFooServiceService()
     {
         return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\ServiceLocator(array('bar' => function () {
-            return ($this->services['bar_service'] ?? $this->get('bar_service'));
+            return ($this->services['bar_service'] ?? $this->getBarServiceService());
         }, 'baz' => function (): \stdClass {
-            return ($this->services['baz_service'] ?? $this->getBazServiceService());
+            return ($this->privates['baz_service'] ?? ($this->privates['baz_service'] = new \stdClass()));
         }, 'nil' => function () {
             return NULL;
         }));
     }
 
     /**
-     * Gets the 'translator.loader_1' service.
+     * Gets the public 'translator.loader_1' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getTranslator_Loader1Service()
     {
@@ -107,12 +104,9 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'translator.loader_2' service.
+     * Gets the public 'translator.loader_2' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getTranslator_Loader2Service()
     {
@@ -120,12 +114,9 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'translator.loader_3' service.
+     * Gets the public 'translator.loader_3' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getTranslator_Loader3Service()
     {
@@ -133,75 +124,49 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'translator_1' service.
+     * Gets the public 'translator_1' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator A Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator
      */
     protected function getTranslator1Service()
     {
         return $this->services['translator_1'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator(new \Symfony\Component\DependencyInjection\ServiceLocator(array('translator.loader_1' => function () {
-            return ($this->services['translator.loader_1'] ?? $this->get('translator.loader_1'));
+            return ($this->services['translator.loader_1'] ?? $this->getTranslator_Loader1Service());
         })));
     }
 
     /**
-     * Gets the 'translator_2' service.
+     * Gets the public 'translator_2' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator A Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator
      */
     protected function getTranslator2Service()
     {
         $this->services['translator_2'] = $instance = new \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator(new \Symfony\Component\DependencyInjection\ServiceLocator(array('translator.loader_2' => function () {
-            return ($this->services['translator.loader_2'] ?? $this->get('translator.loader_2'));
+            return ($this->services['translator.loader_2'] ?? $this->getTranslator_Loader2Service());
         })));
 
-        $instance->addResource('db', ($this->services['translator.loader_2'] ?? $this->get('translator.loader_2')), 'nl');
+        $instance->addResource('db', ($this->services['translator.loader_2'] ?? $this->getTranslator_Loader2Service()), 'nl');
 
         return $instance;
     }
 
     /**
-     * Gets the 'translator_3' service.
+     * Gets the public 'translator_3' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator A Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator
      */
     protected function getTranslator3Service()
     {
-        $a = ($this->services['translator.loader_3'] ?? $this->get('translator.loader_3'));
+        $a = ($this->services['translator.loader_3'] ?? $this->getTranslator_Loader3Service());
 
         $this->services['translator_3'] = $instance = new \Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator(new \Symfony\Component\DependencyInjection\ServiceLocator(array('translator.loader_3' => function () {
-            return ($this->services['translator.loader_3'] ?? $this->get('translator.loader_3'));
+            return ($this->services['translator.loader_3'] ?? $this->getTranslator_Loader3Service());
         })));
 
         $instance->addResource('db', $a, 'nl');
         $instance->addResource('db', $a, 'en');
 
         return $instance;
-    }
-
-    /**
-     * Gets the 'baz_service' service.
-     *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * This service is private.
-     * If you want to be able to request this service from the container directly,
-     * make it public, otherwise you might end up with broken code.
-     *
-     * @return \stdClass A stdClass instance
-     */
-    protected function getBazServiceService()
-    {
-        return $this->services['baz_service'] = new \stdClass();
     }
 }

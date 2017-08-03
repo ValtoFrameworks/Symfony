@@ -4,6 +4,8 @@ CHANGELOG
 4.0.0
 -----
 
+ * The behavior of the non-specific tag `!` is changed and now forces
+   non-evaluating your values.
  * complex mappings will throw a `ParseException`
  * support for the comma as a group separator for floats has been dropped, use
    the underscore instead
@@ -21,6 +23,21 @@ CHANGELOG
    the parser and dumper is no longer supported, pass bitmask flags instead
  * the constructor arguments of the `Parser` class have been removed
  * the `Inline` class is internal and no longer part of the BC promise
+ * removed support for the `!str` tag, use the `!!str` tag instead
+ * added support for tagged scalars.
+
+   ```yml
+   Yaml::parse('!foo bar', Yaml::PARSE_CUSTOM_TAGS);
+   // returns TaggedValue('foo', 'bar');
+   ```
+
+3.4.0
+-----
+
+ * Support for the `!str` tag is deprecated, use the `!!str` tag instead.
+
+ * Deprecated using the non-specific tag `!` as its behavior will change in 4.0.
+   It will force non-evaluating your values in 4.0. Use plain integers or `!!float` instead.
 
 3.3.0
 -----
@@ -30,8 +47,7 @@ CHANGELOG
 
  * Deprecated support for implicitly parsing non-string mapping keys as strings.
    Mapping keys that are no strings will lead to a `ParseException` in Symfony
-   4.0. Use the `PARSE_KEYS_AS_STRINGS` flag to opt-in for keys to be parsed as
-   strings.
+   4.0. Use quotes to opt-in for keys to be parsed as strings.
 
    Before:
 
@@ -39,7 +55,6 @@ CHANGELOG
    $yaml = <<<YAML
    null: null key
    true: boolean true
-   1: integer key
    2.0: float key
    YAML;
 
@@ -51,13 +66,12 @@ CHANGELOG
    ```php
 
    $yaml = <<<YAML
-   null: null key
-   true: boolean true
-   1: integer key
-   2.0: float key
+   "null": null key
+   "true": boolean true
+   "2.0": float key
    YAML;
 
-   Yaml::parse($yaml, Yaml::PARSE_KEYS_AS_STRINGS);
+   Yaml::parse($yaml);
    ```
 
  * Omitted mapping values will be parsed as `null`.

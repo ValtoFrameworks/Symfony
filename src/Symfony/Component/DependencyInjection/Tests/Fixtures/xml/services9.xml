@@ -112,6 +112,7 @@
     </service>
     <service id="factory_simple" class="SimpleFactoryClass" public="false">
       <argument>foo</argument>
+      <deprecated>The "%service_id%" service is deprecated. You should stop using it, as it will soon be removed.</deprecated>
     </service>
     <service id="factory_service_simple" class="Bar">
       <factory service="factory_simple" method="getInstance"/>
@@ -130,6 +131,11 @@
       </argument>
       <argument type="iterator"/>
     </service>
+    <service id="BAR" class="stdClass">
+      <property name="bar" type="service" id="bar"/>
+    </service>
+    <service id="bar2" class="stdClass"/>
+    <service id="BAR2" class="stdClass"/>
     <service id="Psr\Container\ContainerInterface" alias="service_container" public="false"/>
     <service id="Symfony\Component\DependencyInjection\ContainerInterface" alias="service_container" public="false"/>
     <service id="alias_for_foo" alias="foo"/>

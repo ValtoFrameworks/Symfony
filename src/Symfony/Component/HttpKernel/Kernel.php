@@ -494,7 +494,7 @@ abstract class Kernel implements KernelInterface, TerminableInterface
                         return;
                     }
 
-                    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+                    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
                     // Clean the trace by removing first frames added by the error handler itself.
                     for ($i = 0; isset($backtrace[$i]); ++$i) {
                         if (isset($backtrace[$i]['file'], $backtrace[$i]['line']) && $backtrace[$i]['line'] === $line && $backtrace[$i]['file'] === $file) {
@@ -668,7 +668,7 @@ abstract class Kernel implements KernelInterface, TerminableInterface
         $dumper = new PhpDumper($container);
 
         if (class_exists('ProxyManager\Configuration') && class_exists('Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper')) {
-            $dumper->setProxyDumper(new ProxyDumper(md5($cache->getPath())));
+            $dumper->setProxyDumper(new ProxyDumper(substr(hash('sha256', $cache->getPath()), 0, 7)));
         }
 
         $content = $dumper->dump(array('class' => $class, 'base_class' => $baseClass, 'file' => $cache->getPath(), 'debug' => $this->debug));

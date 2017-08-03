@@ -105,6 +105,7 @@ services:
         factory: [Bar\FooClass, getInstance]
     factory_simple:
         class: SimpleFactoryClass
+        deprecated: The "%service_id%" service is deprecated. You should stop using it, as it will soon be removed.
         public: false
         arguments: ['foo']
     factory_service_simple:
@@ -116,6 +117,13 @@ services:
     lazy_context_ignore_invalid_ref:
         class: LazyContext
         arguments: [!iterator ['@foo.baz', '@?invalid'], !iterator []]
+    BAR:
+        class: stdClass
+        properties: { bar: '@bar' }
+    bar2:
+        class: stdClass
+    BAR2:
+        class: stdClass
     alias_for_foo: '@foo'
     alias_for_alias: '@foo'
     Psr\Container\ContainerInterface:

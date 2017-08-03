@@ -20,6 +20,7 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
@@ -28,9 +29,18 @@ class ProjectServiceContainer extends Container
     {
         $this->parameters = $this->getDefaultParameters();
 
-        $this->services = array();
+        $this->services = $this->privates = array();
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**
@@ -54,10 +64,12 @@ class ProjectServiceContainer extends Container
      */
     public function getParameter($name)
     {
-        $name = strtolower($name);
+        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
+            $name = strtolower($name);
 
-        if (!(isset($this->parameters[$name]) || array_key_exists($name, $this->parameters) || isset($this->loadedDynamicParameters[$name]))) {
-            throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
+            if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
+                throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
+            }
         }
         if (isset($this->loadedDynamicParameters[$name])) {
             return $this->loadedDynamicParameters[$name] ? $this->dynamicParameters[$name] : $this->getDynamicParameter($name);
@@ -73,7 +85,7 @@ class ProjectServiceContainer extends Container
     {
         $name = strtolower($name);
 
-        return isset($this->parameters[$name]) || array_key_exists($name, $this->parameters) || isset($this->loadedDynamicParameters[$name]);
+        return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
     }
 
     /**

@@ -46,6 +46,8 @@ class ParserTest extends TestCase
     }
 
     /**
+     * @group legacy
+     * @expectedDeprecationMessage Using the Yaml::PARSE_KEYS_AS_STRINGS flag is deprecated since version 3.4 as it will be removed in 4.0. Quote your keys when they are evaluable
      * @dataProvider getNonStringMappingKeysData
      */
     public function testNonStringMappingKeys($expected, $yaml, $comment)
@@ -449,13 +451,9 @@ EOF;
     /**
      * @dataProvider getObjectForMapTests
      */
-    public function testObjectForMap($yaml, $expected, $explicitlyParseKeysAsStrings = false)
+    public function testObjectForMap($yaml, $expected)
     {
         $flags = Yaml::PARSE_OBJECT_FOR_MAP;
-
-        if ($explicitlyParseKeysAsStrings) {
-            $flags |= Yaml::PARSE_KEYS_AS_STRINGS;
-        }
 
         $this->assertEquals($expected, $this->parser->parse($yaml, $flags));
     }
@@ -507,18 +505,18 @@ YAML;
         $expected->map = new \stdClass();
         $expected->map->{1} = 'one';
         $expected->map->{2} = 'two';
-        $tests['numeric-keys'] = array($yaml, $expected, true);
+        $tests['numeric-keys'] = array($yaml, $expected);
 
         $yaml = <<<'YAML'
 map:
-  0: one
-  1: two
+  '0': one
+  '1': two
 YAML;
         $expected = new \stdClass();
         $expected->map = new \stdClass();
         $expected->map->{0} = 'one';
         $expected->map->{1} = 'two';
-        $tests['zero-indexed-numeric-keys'] = array($yaml, $expected, true);
+        $tests['zero-indexed-numeric-keys'] = array($yaml, $expected);
 
         return $tests;
     }
@@ -991,7 +989,7 @@ EOF;
 
     /**
      * @expectedException \Symfony\Component\Yaml\Exception\ParseException
-     * @expectedExceptionMessage Non-string mapping keys are not supported. Pass the Yaml::PARSE_KEYS_AS_STRINGS flag to cast them to strings
+     * @expectedExceptionMessage Numeric keys are not supported. Quote your evaluable mapping keys instead
      */
     public function testFloatKeys()
     {
@@ -1006,7 +1004,7 @@ EOF;
 
     /**
      * @expectedException \Symfony\Component\Yaml\Exception\ParseException
-     * @expectedExceptionMessage Non-string mapping keys are not supported. Pass the Yaml::PARSE_KEYS_AS_STRINGS flag to cast them to strings
+     * @expectedExceptionMessage Non-string keys are not supported. Quote your evaluable mapping keys instead
      */
     public function testBooleanKeys()
     {
@@ -1018,37 +1016,29 @@ EOF;
         $this->parser->parse($yaml);
     }
 
-    public function testExplicitStringCastingOfFloatKeys()
+    public function testExplicitStringCasting()
     {
         $yaml = <<<'EOF'
-foo:
-    1.2: "bar"
-    1.3: "baz"
+'1.2': "bar"
+!!str 1.3: "baz"
+
+'true': foo
+!!str false: bar
+
+!!str null: 'null'
+'~': 'null'
 EOF;
 
         $expected = array(
-            'foo' => array(
-                '1.2' => 'bar',
-                '1.3' => 'baz',
-            ),
-        );
-
-        $this->assertEquals($expected, $this->parser->parse($yaml, Yaml::PARSE_KEYS_AS_STRINGS));
-    }
-
-    public function testExplicitStringCastingOfBooleanKeys()
-    {
-        $yaml = <<<'EOF'
-true: foo
-false: bar
-EOF;
-
-        $expected = array(
+            '1.2' => 'bar',
+            '1.3' => 'baz',
             'true' => 'foo',
             'false' => 'bar',
+            'null' => 'null',
+            '~' => 'null',
         );
 
-        $this->assertEquals($expected, $this->parser->parse($yaml, Yaml::PARSE_KEYS_AS_STRINGS));
+        $this->assertEquals($expected, $this->parser->parse($yaml));
     }
 
     /**
@@ -1542,6 +1532,18 @@ EOF;
     public function taggedValuesProvider()
     {
         return array(
+            'scalars' => array(
+                array(
+                    'foo' => new TaggedValue('inline', 'bar'),
+                    'quz' => new TaggedValue('long', 'this is a long text'),
+                ),
+                <<<YAML
+foo: !inline bar
+quz: !long >
+  this is a long
+  text
+YAML
+            ),
             'sequences' => array(
                 array(new TaggedValue('foo', array('yaml')), new TaggedValue('quz', array('bar'))),
                 <<<YAML
@@ -1569,6 +1571,11 @@ YAML
         );
     }
 
+    public function testNonSpecificTagSupport()
+    {
+        $this->assertSame('12', $this->parser->parse('! 12'));
+    }
+
     /**
      * @expectedException \Symfony\Component\Yaml\Exception\ParseException
      * @expectedExceptionMessage Tags support is not enabled. Enable the `Yaml::PARSE_CUSTOM_TAGS` flag to use "!iterator" at line 1 (near "!iterator [foo]").
@@ -1579,12 +1586,21 @@ YAML
     }
 
     /**
-     * @group legacy
-     * @expectedDeprecation Using the unquoted scalar value "!iterator foo" is deprecated since version 3.3 and will be considered as a tagged value in 4.0. You must quote it.
+     * @expectedException \Symfony\Component\Yaml\Exception\ParseException
+     * @expectedExceptionMessage Tags support is not enabled. Enable the `Yaml::PARSE_CUSTOM_TAGS` flag to use "!iterator" at line 1 (near "!iterator foo").
      */
     public function testUnsupportedTagWithScalar()
     {
-        $this->assertEquals('!iterator foo', $this->parser->parse('!iterator foo'));
+        $this->parser->parse('!iterator foo');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Yaml\Exception\ParseException
+     * @expectedExceptionMessage The string "!!iterator foo" could not be parsed as it uses an unsupported built-in tag at line 1 (near "!!iterator foo").
+     */
+    public function testUnsupportedBuiltInTagWithScalar()
+    {
+        $this->parser->parse('!!iterator foo');
     }
 
     /**
@@ -1739,29 +1755,6 @@ YAML;
         );
 
         $this->assertSame($expected, $this->parser->parse($yaml, Yaml::PARSE_CONSTANT));
-    }
-
-    public function testPhpConstantTagMappingKeyWithKeysCastToStrings()
-    {
-        $yaml = <<<YAML
-transitions:
-    !php/const:Symfony\Component\Yaml\Tests\B::FOO:
-        from:
-            - !php/const:Symfony\Component\Yaml\Tests\B::BAR
-        to: !php/const:Symfony\Component\Yaml\Tests\B::BAZ
-YAML;
-        $expected = array(
-            'transitions' => array(
-                'foo' => array(
-                    'from' => array(
-                        'bar',
-                    ),
-                    'to' => 'baz',
-                ),
-            ),
-        );
-
-        $this->assertSame($expected, $this->parser->parse($yaml, Yaml::PARSE_CONSTANT | Yaml::PARSE_KEYS_AS_STRINGS));
     }
 }
 

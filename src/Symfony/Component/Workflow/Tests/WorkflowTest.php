@@ -263,6 +263,8 @@ class WorkflowTest extends TestCase
             'workflow.workflow_name.entered.b',
             'workflow.workflow_name.entered.c',
             // Following events are fired because of announce() method
+            'workflow.announce',
+            'workflow.workflow_name.announce',
             'workflow.guard',
             'workflow.workflow_name.guard',
             'workflow.workflow_name.guard.t2',
@@ -272,6 +274,35 @@ class WorkflowTest extends TestCase
         $marking = $workflow->apply($subject, 't1');
 
         $this->assertSame($eventNameExpected, $eventDispatcher->dispatchedEvents);
+    }
+
+    public function testEventName()
+    {
+        $definition = $this->createComplexWorkflowDefinition();
+        $subject = new \stdClass();
+        $subject->marking = null;
+        $dispatcher = new EventDispatcher();
+        $name = 'workflow_name';
+        $workflow = new Workflow($definition, new MultipleStateMarkingStore(), $dispatcher, $name);
+
+        $assertWorkflowName = function (Event $event) use ($name) {
+            $this->assertEquals($name, $event->getWorkflowName());
+        };
+
+        $eventNames = array(
+            'workflow.guard',
+            'workflow.leave',
+            'workflow.transition',
+            'workflow.enter',
+            'workflow.entered',
+            'workflow.announce',
+        );
+
+        foreach ($eventNames as $eventName) {
+            $dispatcher->addListener($eventName, $assertWorkflowName);
+        }
+
+        $workflow->apply($subject, 't1');
     }
 
     public function testMarkingStateOnApplyWithEventDispatcher()

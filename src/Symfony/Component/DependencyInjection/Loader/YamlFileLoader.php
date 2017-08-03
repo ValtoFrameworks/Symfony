@@ -15,6 +15,7 @@ use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
@@ -97,6 +98,7 @@ class YamlFileLoader extends FileLoader
     private $yamlParser;
 
     private $anonymousServicesCount;
+    private $anonymousServicesSuffix;
 
     /**
      * {@inheritdoc}
@@ -120,11 +122,11 @@ class YamlFileLoader extends FileLoader
         // parameters
         if (isset($content['parameters'])) {
             if (!is_array($content['parameters'])) {
-                throw new InvalidArgumentException(sprintf('The "parameters" key should contain an array in %s. Check your YAML syntax.', $resource));
+                throw new InvalidArgumentException(sprintf('The "parameters" key should contain an array in %s. Check your YAML syntax.', $path));
             }
 
             foreach ($content['parameters'] as $key => $value) {
-                $this->container->setParameter($key, $this->resolveServices($value, $resource, true));
+                $this->container->setParameter($key, $this->resolveServices($value, $path, true));
             }
         }
 
@@ -133,9 +135,10 @@ class YamlFileLoader extends FileLoader
 
         // services
         $this->anonymousServicesCount = 0;
+        $this->anonymousServicesSuffix = ContainerBuilder::hash($path);
         $this->setCurrentDir(dirname($path));
         try {
-            $this->parseDefinitions($content, $resource);
+            $this->parseDefinitions($content, $path);
         } finally {
             $this->instanceof = array();
         }
@@ -176,7 +179,10 @@ class YamlFileLoader extends FileLoader
         $defaultDirectory = dirname($file);
         foreach ($content['imports'] as $import) {
             if (!is_array($import)) {
-                throw new InvalidArgumentException(sprintf('The values in the "imports" key should be arrays in %s. Check your YAML syntax.', $file));
+                $import = array('resource' => $import);
+            }
+            if (!isset($import['resource'])) {
+                throw new InvalidArgumentException(sprintf('An import should provide a resource in %s. Check your YAML syntax.', $file));
             }
 
             $this->setCurrentDir($defaultDirectory);
@@ -588,7 +594,7 @@ class YamlFileLoader extends FileLoader
         }
 
         try {
-            $configuration = $this->yamlParser->parse(file_get_contents($file), Yaml::PARSE_CONSTANT | Yaml::PARSE_CUSTOM_TAGS | Yaml::PARSE_KEYS_AS_STRINGS);
+            $configuration = $this->yamlParser->parse(file_get_contents($file), Yaml::PARSE_CONSTANT | Yaml::PARSE_CUSTOM_TAGS);
         } catch (ParseException $e) {
             throw new InvalidArgumentException(sprintf('The file "%s" does not contain valid YAML.', $file), 0, $e);
         }
@@ -670,7 +676,7 @@ class YamlFileLoader extends FileLoader
                 $instanceof = $this->instanceof;
                 $this->instanceof = array();
 
-                $id = sprintf('%d_%s', ++$this->anonymousServicesCount, hash('sha256', $file));
+                $id = sprintf('%d_%s', ++$this->anonymousServicesCount, preg_replace('/^.*\\\\/', '', isset($argument['class']) ? $argument['class'] : '').$this->anonymousServicesSuffix);
                 $this->parseDefinition($id, $argument, $file, array());
 
                 if (!$this->container->hasDefinition($id)) {

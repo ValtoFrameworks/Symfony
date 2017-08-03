@@ -20,18 +20,28 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
      */
     public function __construct()
     {
-        $this->services = array();
+        $this->services = $this->privates = array();
         $this->methodMap = array(
             'bar' => 'getBarService',
         );
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**
@@ -51,12 +61,9 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'bar' service.
+     * Gets the public 'bar' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \stdClass A stdClass instance
+     * @return \stdClass
      */
     protected function getBarService()
     {

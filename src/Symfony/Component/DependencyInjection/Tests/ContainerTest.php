@@ -134,19 +134,20 @@ class ContainerTest extends TestCase
 
         $sc = new ProjectServiceContainer();
         $sc->set('foo', $obj = new \stdClass());
-        $this->assertEquals(array('service_container', 'internal', 'bar', 'foo_bar', 'foo.baz', 'circular', 'throw_exception', 'throws_exception_on_service_configuration', 'internal_dependency', 'foo'), $sc->getServiceIds(), '->getServiceIds() returns defined service ids by factory methods in the method map, followed by service ids defined by set()');
+        $this->assertEquals(array('service_container', 'bar', 'foo_bar', 'foo.baz', 'circular', 'throw_exception', 'throws_exception_on_service_configuration', 'internal_dependency', 'foo'), $sc->getServiceIds(), '->getServiceIds() returns defined service ids by factory methods in the method map, followed by service ids defined by set()');
     }
 
     public function testSet()
     {
         $sc = new Container();
-        $sc->set('foo', $foo = new \stdClass());
-        $this->assertSame($foo, $sc->get('foo'), '->set() sets a service');
+        $sc->set('._. \\o/', $foo = new \stdClass());
+        $this->assertSame($foo, $sc->get('._. \\o/'), '->set() sets a service');
     }
 
     public function testSetWithNullResetTheService()
     {
         $sc = new Container();
+        $sc->set('foo', new \stdClass());
         $sc->set('foo', null);
         $this->assertFalse($sc->has('foo'), '->set() with null service resets the service');
     }
@@ -157,22 +158,6 @@ class ContainerTest extends TestCase
 
         $c->set('alias', $foo = new \stdClass());
         $this->assertSame($foo, $c->get('alias'), '->set() replaces an existing alias');
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation Unsetting the "bar" pre-defined service is deprecated since Symfony 3.3 and won't be supported anymore in Symfony 4.0.
-     */
-    public function testSetWithNullResetPredefinedService()
-    {
-        $sc = new Container();
-        $sc->set('foo', new \stdClass());
-        $sc->set('foo', null);
-        $this->assertFalse($sc->has('foo'), '->set() with null service resets the service');
-
-        $sc = new ProjectServiceContainer();
-        $sc->set('bar', null);
-        $this->assertTrue($sc->has('bar'), '->set() with null service resets the pre-defined service');
     }
 
     public function testGet()
@@ -193,26 +178,15 @@ class ContainerTest extends TestCase
         $this->assertNull($sc->get('', ContainerInterface::NULL_ON_INVALID_REFERENCE), '->get() returns null if the service is empty');
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "Foo" instead of "foo" is deprecated since version 3.3.
-     */
-    public function testGetInsensitivity()
+    public function testCaseSensitivity()
     {
-        $sc = new ProjectServiceContainer();
-        $sc->set('foo', $foo = new \stdClass());
-        $this->assertSame($foo, $sc->get('Foo'), '->get() returns the service for the given id, and converts id to lowercase');
-    }
+        $sc = new Container();
+        $sc->set('foo', $foo1 = new \stdClass());
+        $sc->set('Foo', $foo2 = new \stdClass());
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Service identifiers will be made case sensitive in Symfony 4.0. Using "foo" instead of "Foo" is deprecated since version 3.3.
-     */
-    public function testNormalizeIdKeepsCase()
-    {
-        $sc = new ProjectServiceContainer();
-        $sc->normalizeId('Foo', true);
-        $this->assertSame('Foo', $sc->normalizeId('foo'));
+        $this->assertSame(array('service_container', 'foo', 'Foo'), $sc->getServiceIds());
+        $this->assertSame($foo1, $sc->get('foo'), '->get() returns the service for the given id, case sensitively');
+        $this->assertSame($foo2, $sc->get('Foo'), '->get() returns the service for the given id, case sensitively');
     }
 
     public function testGetThrowServiceNotFoundException()
@@ -256,7 +230,7 @@ class ContainerTest extends TestCase
      */
     public function testGetSyntheticServiceThrows()
     {
-        require_once __DIR__.'/Fixtures/php/services9.php';
+        require_once __DIR__.'/Fixtures/php/services9_compiled.php';
 
         $container = new \ProjectServiceContainer();
         $container->get('request');
@@ -286,15 +260,11 @@ class ContainerTest extends TestCase
         $this->assertTrue($sc->initialized('alias'), '->initialized() returns true for alias if aliased service is initialized');
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Checking for the initialization of the "internal" private service is deprecated since Symfony 3.4 and won't be supported anymore in Symfony 4.0.
-     */
     public function testInitializedWithPrivateService()
     {
         $sc = new ProjectServiceContainer();
         $sc->get('internal_dependency');
-        $this->assertTrue($sc->initialized('internal'));
+        $this->assertFalse($sc->initialized('internal'));
     }
 
     public function testReset()
@@ -370,43 +340,18 @@ class ContainerTest extends TestCase
         $this->assertTrue($clone->isPrivate());
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Unsetting the "internal" private service is deprecated since Symfony 3.2 and won't be supported anymore in Symfony 4.0.
-     */
-    public function testUnsetInternalPrivateServiceIsDeprecated()
-    {
-        $c = new ProjectServiceContainer();
-        $c->set('internal', null);
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation Setting the "internal" private service is deprecated since Symfony 3.2 and won't be supported anymore in Symfony 4.0.
-     */
-    public function testChangeInternalPrivateServiceIsDeprecated()
-    {
-        $c = new ProjectServiceContainer();
-        $c->set('internal', $internal = new \stdClass());
-        $this->assertSame($c->get('internal'), $internal);
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation Checking for the existence of the "internal" private service is deprecated since Symfony 3.2 and won't be supported anymore in Symfony 4.0.
-     */
-    public function testCheckExistenceOfAnInternalPrivateServiceIsDeprecated()
+    public function testCheckExistenceOfAnInternalPrivateService()
     {
         $c = new ProjectServiceContainer();
         $c->get('internal_dependency');
-        $this->assertTrue($c->has('internal'));
+        $this->assertFalse($c->has('internal'));
     }
 
     /**
-     * @group legacy
-     * @expectedDeprecation Requesting the "internal" private service is deprecated since Symfony 3.2 and won't be supported anymore in Symfony 4.0.
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException
+     * @expectedExceptionMessage You have requested a non-existent service "internal".
      */
-    public function testRequestAnInternalSharedPrivateServiceIsDeprecated()
+    public function testRequestAnInternalSharedPrivateService()
     {
         $c = new ProjectServiceContainer();
         $c->get('internal_dependency');
@@ -414,16 +359,13 @@ class ContainerTest extends TestCase
     }
 
     /**
-     * @group legacy
-     * @expectedDeprecation Setting the "bar" pre-defined service is deprecated since Symfony 3.3 and won't be supported anymore in Symfony 4.0.
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessage You cannot set the pre-defined service "bar".
      */
-    public function testReplacingAPreDefinedServiceIsDeprecated()
+    public function testReplacingAPreDefinedService()
     {
         $c = new ProjectServiceContainer();
         $c->set('bar', new \stdClass());
-        $c->set('bar', $bar = new \stdClass());
-
-        $this->assertSame($bar, $c->get('bar'), '->set() replaces a pre-defined service');
     }
 }
 
@@ -434,7 +376,6 @@ class ProjectServiceContainer extends Container
     public $__foo_baz;
     public $__internal;
     protected $methodMap = array(
-        'internal' => 'getInternalService',
         'bar' => 'getBarService',
         'foo_bar' => 'getFooBarService',
         'foo.baz' => 'getFoo_BazService',
@@ -452,13 +393,13 @@ class ProjectServiceContainer extends Container
         $this->__foo_bar = new \stdClass();
         $this->__foo_baz = new \stdClass();
         $this->__internal = new \stdClass();
-        $this->privates = array('internal' => true);
+        $this->privates = array();
         $this->aliases = array('alias' => 'bar');
     }
 
     protected function getInternalService()
     {
-        return $this->services['internal'] = $this->__internal;
+        return $this->privates['internal'] = $this->__internal;
     }
 
     protected function getBarService()
@@ -497,7 +438,7 @@ class ProjectServiceContainer extends Container
     {
         $this->services['internal_dependency'] = $instance = new \stdClass();
 
-        $instance->internal = isset($this->services['internal']) ? $this->services['internal'] : $this->getInternalService();
+        $instance->internal = $this->privates['internal'] ?? $this->getInternalService();
 
         return $instance;
     }

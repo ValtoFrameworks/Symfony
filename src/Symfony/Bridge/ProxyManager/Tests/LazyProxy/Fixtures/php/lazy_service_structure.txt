@@ -1,9 +1,9 @@
 <?php
 
 use %a
-class ProjectServiceContainer extends Container
+class LazyServiceProjectServiceContainer extends Container
 {%a
-    public function getFooService($lazyLoad = true)
+    p%s function getFooService($lazyLoad = true)
     {
         if ($lazyLoad) {
 

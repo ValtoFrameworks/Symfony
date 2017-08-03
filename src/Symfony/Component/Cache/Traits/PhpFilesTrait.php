@@ -17,6 +17,7 @@ use Symfony\Component\Cache\Exception\InvalidArgumentException;
 /**
  * @author Piotr Stankowski <git@trakos.pl>
  * @author Nicolas Grekas <p@tchwork.com>
+ * @author Rob Frawley 2nd <rmf@src.run>
  *
  * @internal
  */
@@ -28,7 +29,36 @@ trait PhpFilesTrait
 
     public static function isSupported()
     {
-        return function_exists('opcache_compile_file') && ini_get('opcache.enable');
+        return function_exists('opcache_invalidate') && ini_get('opcache.enable');
+    }
+
+    /**
+     * @return bool
+     */
+    public function prune()
+    {
+        $time = time();
+        $pruned = true;
+        $allowCompile = 'cli' !== PHP_SAPI || ini_get('opcache.enable_cli');
+
+        set_error_handler($this->includeHandler);
+        try {
+            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->directory, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::LEAVES_ONLY) as $file) {
+                list($expiresAt) = include $file;
+
+                if ($time >= $expiresAt) {
+                    $pruned = @unlink($file) && !file_exists($file) && $pruned;
+
+                    if ($allowCompile) {
+                        @opcache_invalidate($file, true);
+                    }
+                }
+            }
+        } finally {
+            restore_error_handler();
+        }
+
+        return $pruned;
     }
 
     /**
@@ -108,7 +138,7 @@ trait PhpFilesTrait
             $ok = $this->write($file, '<?php return '.var_export($data, true).';') && $ok;
 
             if ($allowCompile) {
-                @opcache_compile_file($file);
+                @opcache_invalidate($file, true);
             }
         }
 

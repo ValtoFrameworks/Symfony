@@ -298,7 +298,10 @@ class Workflow
             return;
         }
 
-        $event = new Event($subject, $marking, $initialTransition);
+        $event = new Event($subject, $marking, $initialTransition, $this->name);
+
+        $this->dispatcher->dispatch('workflow.announce', $event);
+        $this->dispatcher->dispatch(sprintf('workflow.%s.announce', $this->name), $event);
 
         foreach ($this->getEnabledTransitions($subject) as $transition) {
             $this->dispatcher->dispatch(sprintf('workflow.%s.announce.%s', $this->name, $transition->getName()), $event);

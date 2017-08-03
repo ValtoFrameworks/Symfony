@@ -20,27 +20,29 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
+    private $privates = array();
 
     /**
      * Constructor.
      */
     public function __construct()
     {
-        $this->services = array();
-        $this->normalizedIds = array(
-            'autowired.symfony\\component\\dependencyinjection\\tests\\fixtures\\customdefinition' => 'autowired.Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition',
-            'symfony\\component\\dependencyinjection\\tests\\fixtures\\testservicesubscriber' => 'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber',
-        );
+        $this->services = $this->privates = array();
         $this->methodMap = array(
-            'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber' => 'getSymfony_Component_DependencyInjection_Tests_Fixtures_TestServiceSubscriberService',
-            'autowired.Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => 'getAutowired_Symfony_Component_DependencyInjection_Tests_Fixtures_CustomDefinitionService',
+            'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber' => 'getTestServiceSubscriberService',
             'foo_service' => 'getFooServiceService',
-        );
-        $this->privates = array(
-            'autowired.Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => true,
         );
 
         $this->aliases = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        $this->privates = array();
+        parent::reset();
     }
 
     /**
@@ -60,57 +62,30 @@ class ProjectServiceContainer extends Container
     }
 
     /**
-     * Gets the 'Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber' service.
+     * Gets the public 'Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber' shared service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber A Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber
      */
-    protected function getSymfony_Component_DependencyInjection_Tests_Fixtures_TestServiceSubscriberService()
+    protected function getTestServiceSubscriberService()
     {
         return $this->services['Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber();
     }
 
     /**
-     * Gets the 'foo_service' service.
+     * Gets the public 'foo_service' shared autowired service.
      *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * This service is autowired.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber A Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber instance
+     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber
      */
     protected function getFooServiceService()
     {
-        return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber(new \Symfony\Component\DependencyInjection\ServiceLocator(array('Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => function (): \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition {
-            return ($this->services['autowired.Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] ?? $this->getAutowired_Symfony_Component_DependencyInjection_Tests_Fixtures_CustomDefinitionService());
+        return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber(new \Symfony\Component\DependencyInjection\ServiceLocator(array('Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => function (): ?\Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition {
+            return ($this->privates['Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] ?? ($this->privates['Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition()));
         }, 'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber' => function (): \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber {
-            return ($this->services['Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'] ?? $this->get('Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'));
+            return ($this->services['Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'] ?? $this->getTestServiceSubscriberService());
         }, 'bar' => function (): \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition {
-            return ($this->services['Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'] ?? $this->get('Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'));
-        }, 'baz' => function (): \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition {
-            return ($this->services['autowired.Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] ?? $this->getAutowired_Symfony_Component_DependencyInjection_Tests_Fixtures_CustomDefinitionService());
+            return ($this->services['Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber'] ?? $this->getTestServiceSubscriberService());
+        }, 'baz' => function (): ?\Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition {
+            return ($this->privates['Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] ?? ($this->privates['Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition()));
         })));
-    }
-
-    /**
-     * Gets the 'autowired.Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition' service.
-     *
-     * This service is shared.
-     * This method always returns the same instance of the service.
-     *
-     * This service is private.
-     * If you want to be able to request this service from the container directly,
-     * make it public, otherwise you might end up with broken code.
-     *
-     * This service is autowired.
-     *
-     * @return \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition A Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition instance
-     */
-    protected function getAutowired_Symfony_Component_DependencyInjection_Tests_Fixtures_CustomDefinitionService()
-    {
-        return $this->services['autowired.Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition();
     }
 }

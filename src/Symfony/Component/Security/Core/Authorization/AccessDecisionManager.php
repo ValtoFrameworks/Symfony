@@ -32,7 +32,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
     private $allowIfEqualGrantedDeniedDecisions;
 
     /**
-     * @param iterable|VoterInterface[] $voters                             An iterator of VoterInterface instances
+     * @param iterable|VoterInterface[] $voters                             An array or an iterator of VoterInterface instances
      * @param string                    $strategy                           The vote strategy
      * @param bool                      $allowIfAllAbstainDecisions         Whether to grant access if all voters abstained or not
      * @param bool                      $allowIfEqualGrantedDeniedDecisions Whether to grant access if result are equals

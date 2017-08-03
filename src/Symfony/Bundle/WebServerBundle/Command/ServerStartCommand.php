@@ -94,7 +94,7 @@ EOF
                 'You can either install it or use the "server:run" command instead.',
             ));
 
-            if ($io->ask('Do you want to execute <info>server:run</info> immediately? [yN] ', false)) {
+            if ($io->confirm('Do you want to execute <info>server:run</info> immediately?', false)) {
                 return $this->getApplication()->find('server:run')->run($input, $output);
             }
 
@@ -108,12 +108,6 @@ EOF
                 return 1;
             }
             $documentRoot = $this->documentRoot;
-        }
-
-        if (!is_dir($documentRoot)) {
-            $io->error(sprintf('The document root directory "%s" does not exist.', $documentRoot));
-
-            return 1;
         }
 
         if (!$env = $this->environment) {
