@@ -12,6 +12,7 @@
 namespace Symfony\Component\DependencyInjection\Compiler;
 
 use Symfony\Component\DependencyInjection\ChildDefinition;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\ExceptionInterface;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
@@ -23,8 +24,28 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
  * @author Johannes M. Schmitt <schmittjoh@gmail.com>
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
+class ResolveChildDefinitionsPass extends AbstractRecursivePass
 {
+    /**
+     * {@inheritdoc}
+     */
+    public function process(ContainerBuilder $container)
+    {
+        parent::process($container);
+
+        foreach ($container->getDefinitions() as $definition) {
+            if ($definition->isPrivate()) {
+                $definition->setPublic(false);
+            }
+        }
+
+        foreach ($container->getAliases() as $alias) {
+            if ($alias->isPrivate()) {
+                $alias->setPublic(false);
+            }
+        }
+    }
+
     protected function processValue($value, $isRoot = false)
     {
         if (!$value instanceof Definition) {
@@ -100,6 +121,8 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         $def->setAutowired($parentDef->isAutowired());
         $def->setChanges($parentDef->getChanges());
 
+        $def->setBindings($parentDef->getBindings());
+
         // overwrite with values specified in the decorator
         $changes = $definition->getChanges();
         if (isset($changes['class'])) {
@@ -116,6 +139,8 @@ class ResolveDefinitionTemplatesPass extends AbstractRecursivePass
         }
         if (isset($changes['public'])) {
             $def->setPublic($definition->isPublic());
+        } else {
+            $def->setPrivate($definition->isPrivate() || $parentDef->isPrivate());
         }
         if (isset($changes['lazy'])) {
             $def->setLazy($definition->isLazy());

@@ -19,7 +19,6 @@ use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\TypedReference;
-use Symfony\Component\HttpKernel\Bundle\Bundle;
 
 class AddConsoleCommandPassTest extends TestCase
 {
@@ -74,8 +73,42 @@ class AddConsoleCommandPassTest extends TestCase
         $this->assertSame(ContainerCommandLoader::class, $commandLoader->getClass());
         $this->assertSame(array('my:command' => 'my-command', 'my:alias' => 'my-command'), $commandLoader->getArgument(1));
         $this->assertEquals(array(array('my-command' => new ServiceClosureArgument(new TypedReference('my-command', MyCommand::class)))), $commandLocator->getArguments());
-        $this->assertSame(array('console.command.symfony_component_console_tests_dependencyinjection_mycommand' => false), $container->getParameter('console.command.ids'));
+        $this->assertSame(array('console.command.symfony_component_console_tests_dependencyinjection_mycommand' => 'my-command'), $container->getParameter('console.command.ids'));
+        $this->assertSame(array('my-command' => true), $container->getParameter('console.lazy_command.ids'));
         $this->assertSame(array(array('setName', array('my:command')), array('setAliases', array(array('my:alias')))), $command->getMethodCalls());
+    }
+
+    public function testProcessFallsBackToDefaultName()
+    {
+        $container = new ContainerBuilder();
+        $container
+            ->register('with-default-name', NamedCommand::class)
+            ->setPublic(false)
+            ->addTag('console.command')
+        ;
+
+        $pass = new AddConsoleCommandPass();
+        $pass->process($container);
+
+        $commandLoader = $container->getDefinition('console.command_loader');
+        $commandLocator = $container->getDefinition((string) $commandLoader->getArgument(0));
+
+        $this->assertSame(ContainerCommandLoader::class, $commandLoader->getClass());
+        $this->assertSame(array('default' => 'with-default-name'), $commandLoader->getArgument(1));
+        $this->assertEquals(array(array('with-default-name' => new ServiceClosureArgument(new TypedReference('with-default-name', NamedCommand::class)))), $commandLocator->getArguments());
+        $this->assertSame(array('console.command.symfony_component_console_tests_dependencyinjection_namedcommand' => 'with-default-name'), $container->getParameter('console.command.ids'));
+        $this->assertSame(array('with-default-name' => true), $container->getParameter('console.lazy_command.ids'));
+
+        $container = new ContainerBuilder();
+        $container
+            ->register('with-default-name', NamedCommand::class)
+            ->setPublic(false)
+            ->addTag('console.command', array('command' => 'new-name'))
+        ;
+
+        $pass->process($container);
+
+        $this->assertSame(array('new-name' => 'with-default-name'), $container->getDefinition('console.command_loader')->getArgument(1));
     }
 
     public function visibilityProvider()
@@ -97,7 +130,7 @@ class AddConsoleCommandPassTest extends TestCase
         $container->addCompilerPass(new AddConsoleCommandPass());
 
         $definition = new Definition('Symfony\Component\Console\Tests\DependencyInjection\MyCommand');
-        $definition->addTag('console.command', array('command' => 'my:command'));
+        $definition->addTag('console.command');
         $definition->setAbstract(true);
         $container->setDefinition('my-command', $definition);
 
@@ -115,7 +148,7 @@ class AddConsoleCommandPassTest extends TestCase
         $container->addCompilerPass(new AddConsoleCommandPass());
 
         $definition = new Definition('SplObjectStorage');
-        $definition->addTag('console.command', array('command' => 'my:command'));
+        $definition->addTag('console.command');
         $container->setDefinition('my-command', $definition);
 
         $container->compile();
@@ -148,6 +181,7 @@ class MyCommand extends Command
 {
 }
 
-class ExtensionPresentBundle extends Bundle
+class NamedCommand extends Command
 {
+    protected static $defaultName = 'default';
 }

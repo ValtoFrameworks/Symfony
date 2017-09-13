@@ -17,6 +17,8 @@ use Symfony\Component\Yaml\Exception\ParseException;
  * Yaml offers convenience methods to load and dump YAML.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final since version 3.4
  */
 class Yaml
 {
@@ -31,11 +33,6 @@ class Yaml
     const PARSE_CONSTANT = 256;
     const PARSE_CUSTOM_TAGS = 512;
     const DUMP_EMPTY_ARRAY_AS_SEQUENCE = 1024;
-
-    /**
-     * @deprecated since version 3.4, to be removed in 4.0. Quote your evaluable keys instead.
-     */
-    const PARSE_KEYS_AS_STRINGS = 2048;
 
     /**
      * Parses YAML into a PHP value.
@@ -53,7 +50,7 @@ class Yaml
      *
      * @throws ParseException If the YAML is not valid
      */
-    public static function parse($input, $flags = 0)
+    public static function parse(string $input, int $flags = 0)
     {
         $yaml = new Parser();
 
@@ -73,7 +70,7 @@ class Yaml
      *
      * @return string A YAML string representing the original PHP value
      */
-    public static function dump($input, $inline = 2, $indent = 4, $flags = 0)
+    public static function dump($input, int $inline = 2, int $indent = 4, int $flags = 0): string
     {
         $yaml = new Dumper($indent);
 

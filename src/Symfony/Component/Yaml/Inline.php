@@ -34,6 +34,22 @@ class Inline
     private static $constantSupport = false;
 
     /**
+     * @param int      $flags
+     * @param int|null $parsedLineNumber
+     */
+    public static function initialize($flags, $parsedLineNumber = null)
+    {
+        self::$exceptionOnInvalidType = (bool) (Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE & $flags);
+        self::$objectSupport = (bool) (Yaml::PARSE_OBJECT & $flags);
+        self::$objectForMap = (bool) (Yaml::PARSE_OBJECT_FOR_MAP & $flags);
+        self::$constantSupport = (bool) (Yaml::PARSE_CONSTANT & $flags);
+
+        if (null !== $parsedLineNumber) {
+            self::$parsedLineNumber = $parsedLineNumber;
+        }
+    }
+
+    /**
      * Converts a YAML string to a PHP value.
      *
      * @param string $value      A YAML string
@@ -44,12 +60,9 @@ class Inline
      *
      * @throws ParseException
      */
-    public static function parse($value, $flags = 0, $references = array())
+    public static function parse(string $value = null, int $flags = 0, array $references = array())
     {
-        self::$exceptionOnInvalidType = (bool) (Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE & $flags);
-        self::$objectSupport = (bool) (Yaml::PARSE_OBJECT & $flags);
-        self::$objectForMap = (bool) (Yaml::PARSE_OBJECT_FOR_MAP & $flags);
-        self::$constantSupport = (bool) (Yaml::PARSE_CONSTANT & $flags);
+        self::initialize($flags);
 
         $value = trim($value);
 
@@ -103,7 +116,7 @@ class Inline
      *
      * @throws DumpException When trying to dump PHP resource
      */
-    public static function dump($value, $flags = 0)
+    public static function dump($value, int $flags = 0): string
     {
         switch (true) {
             case is_resource($value):
@@ -120,11 +133,17 @@ class Inline
                 }
 
                 if (Yaml::DUMP_OBJECT & $flags) {
-                    return '!php/object:'.serialize($value);
+                    return '!php/object '.self::dump(serialize($value));
                 }
 
                 if (Yaml::DUMP_OBJECT_AS_MAP & $flags && ($value instanceof \stdClass || $value instanceof \ArrayObject)) {
-                    return self::dumpArray($value, $flags & ~Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE);
+                    $output = array();
+
+                    foreach ($value as $key => $val) {
+                        $output[] = sprintf('%s: %s', self::dump($key, $flags), self::dump($val, $flags));
+                    }
+
+                    return sprintf('{ %s }', implode(', ', $output));
                 }
 
                 if (Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE & $flags) {
@@ -182,13 +201,11 @@ class Inline
     /**
      * Check if given array is hash or just normal indexed array.
      *
-     * @internal
-     *
      * @param array|\ArrayObject|\stdClass $value The PHP array or array-like object to check
      *
      * @return bool true if value is hash array, false otherwise
      */
-    public static function isHash($value)
+    public static function isHash($value): bool
     {
         if ($value instanceof \stdClass || $value instanceof \ArrayObject) {
             return true;
@@ -213,7 +230,7 @@ class Inline
      *
      * @return string The YAML string representing the PHP array
      */
-    private static function dumpArray($value, $flags)
+    private static function dumpArray(array $value, int $flags): string
     {
         // array
         if (($value || Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE & $flags) && !self::isHash($value)) {
@@ -244,13 +261,11 @@ class Inline
      * @param bool     $evaluate
      * @param array    $references
      *
-     * @return string
+     * @return mixed
      *
      * @throws ParseException When malformed inline YAML string is parsed
-     *
-     * @internal
      */
-    public static function parseScalar($scalar, $flags = 0, $delimiters = null, &$i = 0, $evaluate = true, $references = array())
+    public static function parseScalar(string $scalar, int $flags = 0, array $delimiters = null, int &$i = 0, bool $evaluate = true, array $references = array())
     {
         if (in_array($scalar[$i], array('"', "'"))) {
             // quoted scalar
@@ -302,7 +317,7 @@ class Inline
      *
      * @throws ParseException When malformed inline YAML string is parsed
      */
-    private static function parseQuotedScalar($scalar, &$i)
+    private static function parseQuotedScalar(string $scalar, int &$i): string
     {
         if (!Parser::preg_match('/'.self::REGEX_QUOTED_STRING.'/Au', substr($scalar, $i), $match)) {
             throw new ParseException(sprintf('Malformed inline YAML string: %s.', substr($scalar, $i)));
@@ -334,7 +349,7 @@ class Inline
      *
      * @throws ParseException When malformed inline YAML string is parsed
      */
-    private static function parseSequence($sequence, $flags, &$i = 0, $references = array())
+    private static function parseSequence(string $sequence, int $flags, int &$i = 0, array $references = array()): array
     {
         $output = array();
         $len = strlen($sequence);
@@ -403,7 +418,7 @@ class Inline
      *
      * @throws ParseException When malformed inline YAML string is parsed
      */
-    private static function parseMapping($mapping, $flags, &$i = 0, $references = array())
+    private static function parseMapping(string $mapping, int $flags, int &$i = 0, array $references = array())
     {
         $output = array();
         $len = strlen($mapping);
@@ -515,7 +530,7 @@ class Inline
      *
      * @throws ParseException when object parsing support was disabled and the parser detected a PHP object or when a reference could not be resolved
      */
-    private static function evaluateScalar($scalar, $flags, $references = array())
+    private static function evaluateScalar(string $scalar, int $flags, array $references = array())
     {
         $scalar = trim($scalar);
         $scalarLower = strtolower($scalar);
@@ -554,9 +569,9 @@ class Inline
                         return (string) substr($scalar, 6);
                     case 0 === strpos($scalar, '! '):
                         return substr($scalar, 2);
-                    case 0 === strpos($scalar, '!php/object:'):
+                    case 0 === strpos($scalar, '!php/object'):
                         if (self::$objectSupport) {
-                            return unserialize(substr($scalar, 12));
+                            return unserialize(self::parseScalar(substr($scalar, 12)));
                         }
 
                         if (self::$exceptionOnInvalidType) {
@@ -564,9 +579,9 @@ class Inline
                         }
 
                         return;
-                    case 0 === strpos($scalar, '!php/const:'):
+                    case 0 === strpos($scalar, '!php/const'):
                         if (self::$constantSupport) {
-                            if (defined($const = substr($scalar, 11))) {
+                            if (defined($const = self::parseScalar(substr($scalar, 11)))) {
                                 return constant($const);
                             }
 
@@ -638,22 +653,22 @@ class Inline
      *
      * @return null|string
      */
-    private static function parseTag($value, &$i, $flags)
+    private static function parseTag(string $value, int &$i, int $flags): ?string
     {
         if ('!' !== $value[$i]) {
-            return;
+            return null;
         }
 
-        $tagLength = strcspn($value, " \t\n", $i + 1);
+        $tagLength = strcspn($value, " \t\n[]{},", $i + 1);
         $tag = substr($value, $i + 1, $tagLength);
 
         $nextOffset = $i + $tagLength + 1;
         $nextOffset += strspn($value, ' ', $nextOffset);
 
         // Is followed by a scalar and is a built-in tag
-        if ($tag && (!isset($value[$nextOffset]) || !in_array($value[$nextOffset], array('[', '{'), true)) && ('!' === $tag[0] || 'str' === $tag || 0 === strpos($tag, 'php/const:') || 0 === strpos($tag, 'php/object:'))) {
+        if ($tag && (!isset($value[$nextOffset]) || !in_array($value[$nextOffset], array('[', '{'), true)) && ('!' === $tag[0] || 'str' === $tag || 'php/const' === $tag || 'php/object' === $tag)) {
             // Manage in {@link self::evaluateScalar()}
-            return;
+            return null;
         }
 
         $i = $nextOffset;
@@ -674,10 +689,8 @@ class Inline
      * @param string $scalar
      *
      * @return string
-     *
-     * @internal
      */
-    public static function evaluateBinaryScalar($scalar)
+    public static function evaluateBinaryScalar(string $scalar): string
     {
         $parsedBinaryData = self::parseScalar(preg_replace('/\s/', '', $scalar));
 
@@ -692,7 +705,7 @@ class Inline
         return base64_decode($parsedBinaryData, true);
     }
 
-    private static function isBinaryString($value)
+    private static function isBinaryString(string $value)
     {
         return !preg_match('//u', $value) || preg_match('/[^\x00\x07-\x0d\x1B\x20-\xff]/', $value);
     }
@@ -704,7 +717,7 @@ class Inline
      *
      * @see http://www.yaml.org/spec/1.2/spec.html#id2761573
      */
-    private static function getTimestampRegex()
+    private static function getTimestampRegex(): string
     {
         return <<<EOF
         ~^
@@ -727,7 +740,7 @@ EOF;
      *
      * @return string
      */
-    private static function getHexRegex()
+    private static function getHexRegex(): string
     {
         return '~^0x[0-9a-f_]++$~i';
     }

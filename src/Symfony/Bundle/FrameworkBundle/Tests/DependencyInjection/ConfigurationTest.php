@@ -157,6 +157,7 @@ class ConfigurationTest extends TestCase
                 'enabled' => !class_exists(FullStack::class),
                 'fallbacks' => array('en'),
                 'logging' => true,
+                'formatter' => 'translator.formatter.default',
                 'paths' => array(),
             ),
             'validation' => array(
@@ -233,7 +234,10 @@ class ConfigurationTest extends TestCase
                 'default_redis_provider' => 'redis://localhost',
                 'default_memcached_provider' => 'memcached://localhost',
             ),
-            'workflows' => array(),
+            'workflows' => array(
+                'enabled' => false,
+                'workflows' => array(),
+            ),
             'php_errors' => array(
                 'log' => true,
                 'throw' => true,

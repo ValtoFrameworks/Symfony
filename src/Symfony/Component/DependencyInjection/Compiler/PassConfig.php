@@ -43,12 +43,13 @@ class PassConfig
             100 => array(
                 new ResolveClassPass(),
                 new ResolveInstanceofConditionalsPass(),
+                new RegisterEnvVarProcessorsPass(),
             ),
         );
 
         $this->optimizationPasses = array(array(
             new ExtensionCompilerPass(),
-            new ResolveDefinitionTemplatesPass(),
+            new ResolveChildDefinitionsPass(),
             new ServiceLocatorTagPass(),
             new DecoratorServicePass(),
             new ResolveParameterPlaceHoldersPass(false),
@@ -56,6 +57,7 @@ class PassConfig
             new CheckDefinitionValidityPass(),
             new RegisterServiceSubscribersPass(),
             new ResolveNamedArgumentsPass(),
+            new ResolveBindingsPass(),
             $autowirePass = new AutowirePass(false),
             new ResolveServiceSubscribersPass(),
             new ResolveReferencesToAliasesPass(),

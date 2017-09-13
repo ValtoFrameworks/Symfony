@@ -603,29 +603,55 @@ class ContainerBuilderTest extends TestCase
     public function testResolveEnvValues()
     {
         $_ENV['DUMMY_ENV_VAR'] = 'du%%y';
+        $_SERVER['DUMMY_SERVER_VAR'] = 'ABC';
+        $_SERVER['HTTP_DUMMY_VAR'] = 'DEF';
 
         $container = new ContainerBuilder();
-        $container->setParameter('bar', '%% %env(DUMMY_ENV_VAR)%');
+        $container->setParameter('bar', '%% %env(DUMMY_ENV_VAR)% %env(DUMMY_SERVER_VAR)% %env(HTTP_DUMMY_VAR)%');
+        $container->setParameter('env(HTTP_DUMMY_VAR)', '123');
 
-        $this->assertSame('%% du%%%%y', $container->resolveEnvPlaceholders('%bar%', true));
+        $this->assertSame('%% du%%%%y ABC 123', $container->resolveEnvPlaceholders('%bar%', true));
 
-        unset($_ENV['DUMMY_ENV_VAR']);
+        unset($_ENV['DUMMY_ENV_VAR'], $_SERVER['DUMMY_SERVER_VAR'], $_SERVER['HTTP_DUMMY_VAR']);
     }
 
     public function testCompileWithResolveEnv()
     {
-        $_ENV['DUMMY_ENV_VAR'] = 'du%%y';
+        putenv('DUMMY_ENV_VAR=du%%y');
+        $_SERVER['DUMMY_SERVER_VAR'] = 'ABC';
+        $_SERVER['HTTP_DUMMY_VAR'] = 'DEF';
 
         $container = new ContainerBuilder();
         $container->setParameter('env(FOO)', 'Foo');
-        $container->setParameter('bar', '%% %env(DUMMY_ENV_VAR)%');
+        $container->setParameter('env(DUMMY_ENV_VAR)', 'GHI');
+        $container->setParameter('bar', '%% %env(DUMMY_ENV_VAR)% %env(DUMMY_SERVER_VAR)% %env(HTTP_DUMMY_VAR)%');
         $container->setParameter('foo', '%env(FOO)%');
+        $container->setParameter('baz', '%foo%');
+        $container->setParameter('env(HTTP_DUMMY_VAR)', '123');
+        $container->register('teatime', 'stdClass')
+            ->setProperty('foo', '%env(DUMMY_ENV_VAR)%')
+        ;
         $container->compile(true);
 
-        $this->assertSame('% du%%y', $container->getParameter('bar'));
-        $this->assertSame('Foo', $container->getParameter('foo'));
+        $this->assertSame('% du%%y ABC 123', $container->getParameter('bar'));
+        $this->assertSame('Foo', $container->getParameter('baz'));
+        $this->assertSame('du%%y', $container->get('teatime')->foo);
 
-        unset($_ENV['DUMMY_ENV_VAR']);
+        unset($_SERVER['DUMMY_SERVER_VAR'], $_SERVER['HTTP_DUMMY_VAR']);
+        putenv('DUMMY_ENV_VAR');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     * @expectedExceptionMessage A string value must be composed of strings and/or numbers, but found parameter "env(ARRAY)" of type array inside string value "ABC %env(ARRAY)%".
+     */
+    public function testCompileWithArrayResolveEnv()
+    {
+        $bag = new TestingEnvPlaceholderParameterBag();
+        $container = new ContainerBuilder($bag);
+        $container->setParameter('foo', '%env(ARRAY)%');
+        $container->setParameter('bar', 'ABC %env(ARRAY)%');
+        $container->compile(true);
     }
 
     /**
@@ -637,6 +663,70 @@ class ContainerBuilderTest extends TestCase
         $container = new ContainerBuilder();
         $container->setParameter('foo', '%env(FOO)%');
         $container->compile(true);
+    }
+
+    public function testDynamicEnv()
+    {
+        putenv('DUMMY_FOO=some%foo%');
+        putenv('DUMMY_BAR=%bar%');
+
+        $container = new ContainerBuilder();
+        $container->setParameter('foo', 'Foo%env(resolve:DUMMY_BAR)%');
+        $container->setParameter('bar', 'Bar');
+        $container->setParameter('baz', '%env(resolve:DUMMY_FOO)%');
+
+        $container->compile(true);
+        putenv('DUMMY_FOO');
+        putenv('DUMMY_BAR');
+
+        $this->assertSame('someFooBar', $container->getParameter('baz'));
+    }
+
+    public function testCastEnv()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(FAKE)', '123');
+
+        $container->register('foo', 'stdClass')->setProperties(array(
+            'fake' => '%env(int:FAKE)%',
+        ));
+
+        $container->compile(true);
+
+        $this->assertSame(123, $container->get('foo')->fake);
+    }
+
+    public function testEnvAreNullable()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(FAKE)', null);
+
+        $container->register('foo', 'stdClass')->setProperties(array(
+            'fake' => '%env(int:FAKE)%',
+        ));
+
+        $container->compile(true);
+
+        $this->assertNull($container->get('foo')->fake);
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\ParameterCircularReferenceException
+     * @expectedExceptionMessage Circular reference detected for parameter "env(resolve:DUMMY_ENV_VAR)" ("env(resolve:DUMMY_ENV_VAR)" > "env(resolve:DUMMY_ENV_VAR)").
+     */
+    public function testCircularDynamicEnv()
+    {
+        putenv('DUMMY_ENV_VAR=some%foo%');
+
+        $container = new ContainerBuilder();
+        $container->setParameter('foo', '%bar%');
+        $container->setParameter('bar', '%env(resolve:DUMMY_ENV_VAR)%');
+
+        try {
+            $container->compile(true);
+        } finally {
+            putenv('DUMMY_ENV_VAR');
+        }
     }
 
     /**
@@ -1046,6 +1136,38 @@ class ContainerBuilderTest extends TestCase
         $this->assertSame($container->get('bar_service'), $foo->get('bar'));
     }
 
+    public function testUninitializedReference()
+    {
+        $container = include __DIR__.'/Fixtures/containers/container_uninitialized_ref.php';
+        $container->compile();
+
+        $bar = $container->get('bar');
+
+        $this->assertNull($bar->foo1);
+        $this->assertNull($bar->foo2);
+        $this->assertNull($bar->foo3);
+        $this->assertNull($bar->closures[0]());
+        $this->assertNull($bar->closures[1]());
+        $this->assertNull($bar->closures[2]());
+        $this->assertSame(array(), iterator_to_array($bar->iter));
+
+        $container = include __DIR__.'/Fixtures/containers/container_uninitialized_ref.php';
+        $container->compile();
+
+        $container->get('foo1');
+        $container->get('baz');
+
+        $bar = $container->get('bar');
+
+        $this->assertEquals(new \stdClass(), $bar->foo1);
+        $this->assertNull($bar->foo2);
+        $this->assertEquals(new \stdClass(), $bar->foo3);
+        $this->assertEquals(new \stdClass(), $bar->closures[0]());
+        $this->assertNull($bar->closures[1]());
+        $this->assertEquals(new \stdClass(), $bar->closures[2]());
+        $this->assertEquals(array('foo1' => new \stdClass(), 'foo3' => new \stdClass()), iterator_to_array($bar->iter));
+    }
+
     public function testRegisterForAutoconfiguration()
     {
         $container = new ContainerBuilder();
@@ -1071,6 +1193,17 @@ class ContainerBuilderTest extends TestCase
         $this->assertNotSame($container->get('foo'), $container->get('fOO'), '->get() returns the service for the given id, case sensitively');
         $this->assertSame($container->get('fOO')->Foo->foo, $container->get('foo'), '->get() returns the service for the given id, case sensitively');
     }
+
+    public function testParameterWithMixedCase()
+    {
+        $container = new ContainerBuilder(new ParameterBag(array('foo' => 'bar', 'FOO' => 'BAR')));
+        $container->register('foo', 'stdClass')
+            ->setProperty('foo', '%FOO%');
+
+        $container->compile();
+
+        $this->assertSame('BAR', $container->get('foo')->foo);
+    }
 }
 
 class FooClass
@@ -1085,5 +1218,13 @@ class B
 {
     public function __construct(A $a)
     {
+    }
+}
+
+class TestingEnvPlaceholderParameterBag extends EnvPlaceholderParameterBag
+{
+    public function get($name)
+    {
+        return 'env(array)' === strtolower($name) ? array(123) : parent::get($name);
     }
 }

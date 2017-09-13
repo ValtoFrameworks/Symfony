@@ -45,7 +45,7 @@ final class Dotenv
      * @throws FormatException when a file has a syntax error
      * @throws PathException   when a file does not exist or is not readable
      */
-    public function load($path, ...$paths)
+    public function load(string $path, string ...$paths): void
     {
         array_unshift($paths, $path);
 
@@ -61,20 +61,36 @@ final class Dotenv
     /**
      * Sets values as environment variables (via putenv, $_ENV, and $_SERVER).
      *
-     * Note that existing environment variables are never overridden.
+     * Note that existing environment variables are not overridden.
      *
      * @param array $values An array of env variables
      */
-    public function populate($values)
+    public function populate(array $values): void
     {
+        $loadedVars = array_flip(explode(',', getenv('SYMFONY_DOTENV_VARS')));
+        unset($loadedVars['']);
+
         foreach ($values as $name => $value) {
-            if (isset($_ENV[$name]) || isset($_SERVER[$name]) || false !== getenv($name)) {
+            $notHttpName = 0 !== strpos($name, 'HTTP_');
+            // don't check existence with getenv() because of thread safety issues
+            if (!isset($loadedVars[$name]) && (isset($_ENV[$name]) || (isset($_SERVER[$name]) && $notHttpName))) {
                 continue;
             }
 
             putenv("$name=$value");
             $_ENV[$name] = $value;
-            $_SERVER[$name] = $value;
+            if ($notHttpName) {
+                $_SERVER[$name] = $value;
+            }
+
+            $loadedVars[$name] = true;
+        }
+
+        if ($loadedVars) {
+            $loadedVars = implode(',', array_keys($loadedVars));
+            putenv("SYMFONY_DOTENV_VARS=$loadedVars");
+            $_ENV['SYMFONY_DOTENV_VARS'] = $loadedVars;
+            $_SERVER['SYMFONY_DOTENV_VARS'] = $loadedVars;
         }
     }
 
@@ -88,7 +104,7 @@ final class Dotenv
      *
      * @throws FormatException when a file has a syntax error
      */
-    public function parse($data, $path = '.env')
+    public function parse(string $data, string $path = '.env'): array
     {
         $this->path = $path;
         $this->data = str_replace(array("\r\n", "\r"), "\n", $data);
@@ -352,7 +368,15 @@ final class Dotenv
             }
 
             $name = $matches[3];
-            $value = isset($this->values[$name]) ? $this->values[$name] : (isset($_ENV[$name]) ? $_ENV[$name] : (string) getenv($name));
+            if (isset($this->values[$name])) {
+                $value = $this->values[$name];
+            } elseif (isset($_SERVER[$name]) && 0 !== strpos($name, 'HTTP_')) {
+                $value = $_SERVER[$name];
+            } elseif (isset($_ENV[$name])) {
+                $value = $_ENV[$name];
+            } else {
+                $value = (string) getenv($name);
+            }
 
             if (!$matches[2] && isset($matches[4])) {
                 $value .= '}';

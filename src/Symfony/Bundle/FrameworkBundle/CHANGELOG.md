@@ -24,6 +24,8 @@ CHANGELOG
 3.4.0
 -----
 
+ * Deprecated `profiler.matcher` option
+ * Added support for `EventSubscriberInterface` on `MicroKernelTrait`
  * Removed `doctrine/cache` from the list of required dependencies in `composer.json`
  * Deprecated `validator.mapping.cache.doctrine.apc` service
  * The `symfony/stopwatch` dependency has been removed, require it via `composer
@@ -42,6 +44,36 @@ CHANGELOG
    name as value, using it makes the command lazy
  * Added `cache:pool:prune` command to allow manual stale cache item pruning of supported PSR-6 and PSR-16 cache pool
    implementations
+ * Deprecated `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`, use 
+   `Symfony\Component\Translation\Reader\TranslationReader` instead
+ * Deprecated `translation.loader` service, use `translation.reader` instead
+ * `AssetsInstallCommand::__construct()` now takes an instance of
+   `Symfony\Component\Filesystem\Filesystem` as first argument
+ * `CacheClearCommand::__construct()` now takes an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\CacheClearerInterface` as
+    first argument
+ * `CachePoolClearCommand::__construct()` now takes an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\Psr6CacheClearer` as
+    first argument
+ * `EventDispatcherDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\EventDispatcher\EventDispatcherInterface` as
+    first argument
+ * `RouterDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument
+ * `RouterMatchCommand::__construct()` now takes an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument
+ * `TranslationDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument
+ * `TranslationUpdateCommand::__construct()` now takes an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument
+ * `AssetsInstallCommand`, `CacheClearCommand`, `CachePoolClearCommand`,
+   `EventDispatcherDebugCommand`, `RouterDebugCommand`, `RouterMatchCommand`,
+   `TranslationDebugCommand`, `TranslationUpdateCommand`, `XliffLintCommand`
+    and `YamlLintCommand` classes have been marked as final
 
 3.3.0
 -----
@@ -56,7 +88,6 @@ CHANGELOG
    the same helpers as the `Controller` class, but does not allow accessing the dependency
    injection container, in order to encourage explicit dependency declarations.
  * Added support for the `controller.service_arguments` tag, for injecting services into controllers' actions
- * Deprecated `cache:clear` with warmup (always call it with `--no-warmup`)
  * Changed default configuration for
    assets/forms/validation/translation/serialization/csrf from `canBeEnabled()` to
    `canBeDisabled()` when Flex is used

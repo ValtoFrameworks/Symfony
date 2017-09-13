@@ -15,6 +15,8 @@ namespace Symfony\Component\Yaml;
  * Dumper dumps PHP variables to YAML strings.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final since version 3.4
  */
 class Dumper
 {
@@ -25,10 +27,7 @@ class Dumper
      */
     protected $indentation;
 
-    /**
-     * @param int $indentation
-     */
-    public function __construct($indentation = 4)
+    public function __construct(int $indentation = 4)
     {
         if ($indentation < 1) {
             throw new \InvalidArgumentException('The indentation must be greater than zero.');
@@ -47,7 +46,7 @@ class Dumper
      *
      * @return string The YAML representation of the PHP value
      */
-    public function dump($input, $inline = 0, $indent = 0, $flags = 0)
+    public function dump($input, int $inline = 0, int $indent = 0, int $flags = 0): string
     {
         $output = '';
         $prefix = $indent ? str_repeat(' ', $indent) : '';

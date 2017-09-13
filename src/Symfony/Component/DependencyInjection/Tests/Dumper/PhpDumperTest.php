@@ -21,6 +21,7 @@ use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface as SymfonyContainerInterface;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
+use Symfony\Component\DependencyInjection\EnvVarProcessorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\StubbedTranslator;
@@ -159,6 +160,18 @@ class PhpDumperTest extends TestCase
             $this->assertInstanceOf('\Symfony\Component\DependencyInjection\Exception\RuntimeException', $e, '->dump() throws a RuntimeException if the container to be dumped has reference to objects or resources');
             $this->assertEquals('Unable to dump a service container if a parameter is an object or a resource.', $e->getMessage(), '->dump() throws a RuntimeException if the container to be dumped has reference to objects or resources');
         }
+    }
+
+    public function testDumpAsFiles()
+    {
+        $container = include self::$fixturesPath.'/containers/container9.php';
+        $container->compile();
+        $dumper = new PhpDumper($container);
+        $dump = print_r($dumper->dump(array('as_files' => true, 'file' => __DIR__)), true);
+        if ('\\' === DIRECTORY_SEPARATOR) {
+            $dump = str_replace('\\\\Fixtures\\\\includes\\\\foo.php', '/Fixtures/includes/foo.php', $dump);
+        }
+        $this->assertStringMatchesFormatFile(self::$fixturesPath.'/php/services9_as_files.txt', $dump);
     }
 
     public function testServicesWithAnonymousFactories()
@@ -306,13 +319,82 @@ class PhpDumperTest extends TestCase
 
     public function testEnvParameter()
     {
+        $rand = mt_rand();
+        putenv('Baz='.$rand);
         $container = new ContainerBuilder();
         $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
         $loader->load('services26.yml');
+        $container->setParameter('env(json_file)', self::$fixturesPath.'/array.json');
         $container->compile();
         $dumper = new PhpDumper($container);
 
-        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services26.php', $dumper->dump(), '->dump() dumps inline definitions which reference service_container');
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services26.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_EnvParameters', 'file' => self::$fixturesPath.'/php/services26.php')));
+
+        require self::$fixturesPath.'/php/services26.php';
+        $container = new \Symfony_DI_PhpDumper_Test_EnvParameters();
+        $this->assertSame($rand, $container->getParameter('baz'));
+        $this->assertSame(array(123, 'abc'), $container->getParameter('json'));
+        $this->assertSame('sqlite:///foo/bar/var/data.db', $container->getParameter('db_dsn'));
+        putenv('Baz');
+    }
+
+    public function testResolvedBase64EnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', base64_encode('world'));
+        $container->setParameter('hello', '%env(base64:foo)%');
+        $container->compile(true);
+
+        $expected = array(
+          'env(foo)' => 'd29ybGQ=',
+          'hello' => 'world',
+        );
+        $this->assertSame($expected, $container->getParameterBag()->all());
+    }
+
+    public function testDumpedBase64EnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', base64_encode('world'));
+        $container->setParameter('hello', '%env(base64:foo)%');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_base64_env.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Base64Parameters')));
+
+        require self::$fixturesPath.'/php/services_base64_env.php';
+        $container = new \Symfony_DI_PhpDumper_Test_Base64Parameters();
+        $this->assertSame('world', $container->getParameter('hello'));
+    }
+
+    public function testCustomEnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', str_rot13('world'));
+        $container->setParameter('hello', '%env(rot13:foo)%');
+        $container->register(Rot13EnvVarProcessor::class)->addTag('container.env_var_processor');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_rot13_env.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Rot13Parameters')));
+
+        require self::$fixturesPath.'/php/services_rot13_env.php';
+        $container = new \Symfony_DI_PhpDumper_Test_Rot13Parameters();
+        $this->assertSame('world', $container->getParameter('hello'));
+    }
+
+    public function testFileEnvProcessor()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', __FILE__);
+        $container->setParameter('random', '%env(file:foo)%');
+        $container->compile(true);
+
+        $this->assertStringEqualsFile(__FILE__, $container->getParameter('random'));
     }
 
     /**
@@ -326,6 +408,31 @@ class PhpDumperTest extends TestCase
         $container->compile();
         $dumper = new PhpDumper($container);
         $dumper->dump();
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\ParameterCircularReferenceException
+     * @expectedExceptionMessage Circular reference detected for parameter "env(resolve:DUMMY_ENV_VAR)" ("env(resolve:DUMMY_ENV_VAR)" > "env(resolve:DUMMY_ENV_VAR)").
+     */
+    public function testCircularDynamicEnv()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('foo', '%bar%');
+        $container->setParameter('bar', '%env(resolve:DUMMY_ENV_VAR)%');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dump = $dumper->dump(array('class' => $class = __FUNCTION__));
+
+        eval('?>'.$dump);
+        $container = new $class();
+
+        putenv('DUMMY_ENV_VAR=%foo%');
+        try {
+            $container->getParameter('bar');
+        } finally {
+            putenv('DUMMY_ENV_VAR');
+        }
     }
 
     public function testInlinedDefinitionReferencingServiceContainer()
@@ -575,7 +682,7 @@ class PhpDumperTest extends TestCase
         $container->setParameter('array_1', array(123));
         $container->setParameter('array_2', array(__DIR__));
         $container->register('bar', 'BarClass')
-            ->addMethodCall('setBaz', array('%array_1%', '%array_2%', '%%array_1%%'));
+            ->addMethodCall('setBaz', array('%array_1%', '%array_2%', '%%array_1%%', array(123)));
         $container->compile();
 
         $dumper = new PhpDumper($container);
@@ -597,6 +704,44 @@ class PhpDumperTest extends TestCase
         $dumper = new PhpDumper($container);
 
         $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_private_in_expression.php', $dumper->dump());
+    }
+
+    public function testUninitializedReference()
+    {
+        $container = include self::$fixturesPath.'/containers/container_uninitialized_ref.php';
+        $container->compile();
+        $dumper = new PhpDumper($container);
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_uninitialized_ref.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Uninitialized_Reference')));
+
+        require self::$fixturesPath.'/php/services_uninitialized_ref.php';
+
+        $container = new \Symfony_DI_PhpDumper_Test_Uninitialized_Reference();
+
+        $bar = $container->get('bar');
+
+        $this->assertNull($bar->foo1);
+        $this->assertNull($bar->foo2);
+        $this->assertNull($bar->foo3);
+        $this->assertNull($bar->closures[0]());
+        $this->assertNull($bar->closures[1]());
+        $this->assertNull($bar->closures[2]());
+        $this->assertSame(array(), iterator_to_array($bar->iter));
+
+        $container = new \Symfony_DI_PhpDumper_Test_Uninitialized_Reference();
+
+        $container->get('foo1');
+        $container->get('baz');
+
+        $bar = $container->get('bar');
+
+        $this->assertEquals(new \stdClass(), $bar->foo1);
+        $this->assertNull($bar->foo2);
+        $this->assertEquals(new \stdClass(), $bar->foo3);
+        $this->assertEquals(new \stdClass(), $bar->closures[0]());
+        $this->assertNull($bar->closures[1]());
+        $this->assertEquals(new \stdClass(), $bar->closures[2]());
+        $this->assertEquals(array('foo1' => new \stdClass(), 'foo3' => new \stdClass()), iterator_to_array($bar->iter));
     }
 
     public function testDumpHandlesLiteralClassWithRootNamespace()
@@ -637,5 +782,32 @@ class PhpDumperTest extends TestCase
         $container = new \Symfony_DI_PhpDumper_Test_Private_Service_Triggers_Deprecation();
 
         $container->get('bar');
+    }
+
+    public function testParameterWithMixedCase()
+    {
+        $container = new ContainerBuilder(new ParameterBag(array('Foo' => 'bar', 'BAR' => 'foo')));
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        eval('?>'.$dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Parameter_With_Mixed_Case')));
+
+        $container = new \Symfony_DI_PhpDumper_Test_Parameter_With_Mixed_Case();
+
+        $this->assertSame('bar', $container->getParameter('Foo'));
+        $this->assertSame('foo', $container->getParameter('BAR'));
+    }
+}
+
+class Rot13EnvVarProcessor implements EnvVarProcessorInterface
+{
+    public function getEnv($prefix, $name, \Closure $getEnv)
+    {
+        return str_rot13($getEnv($name));
+    }
+
+    public static function getProvidedTypes()
+    {
+        return array('rot13' => 'string');
     }
 }

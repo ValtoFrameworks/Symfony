@@ -11,6 +11,9 @@
 
 namespace Symfony\Bundle\SecurityBundle\DependencyInjection;
 
+use Symfony\Bundle\SecurityBundle\Command\InitAclCommand;
+use Symfony\Bundle\SecurityBundle\Command\SetAclCommand;
+use Symfony\Bundle\SecurityBundle\Command\UserPasswordEncoderCommand;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\Factory\SecurityFactoryInterface;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\UserProvider\UserProviderFactoryInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -85,7 +88,7 @@ class SecurityExtension extends Extension
         $container->setParameter('security.authentication.session_strategy.strategy', $config['session_fixation_strategy']);
 
         if (isset($config['access_decision_manager']['service'])) {
-            $container->setAlias('security.access.decision_manager', $config['access_decision_manager']['service']);
+            $container->setAlias('security.access.decision_manager', $config['access_decision_manager']['service'])->setPrivate(true);
         } else {
             $container
                 ->getDefinition('security.access.decision_manager')
@@ -107,12 +110,15 @@ class SecurityExtension extends Extension
 
         if (class_exists(Application::class)) {
             $loader->load('console.xml');
-            $container->getDefinition('security.console.user_password_encoder_command')->replaceArgument(1, array_keys($config['encoders']));
+            $container->getDefinition(UserPasswordEncoderCommand::class)->replaceArgument(1, array_keys($config['encoders']));
         }
 
         // load ACL
         if (isset($config['acl'])) {
             $this->aclLoad($config['acl'], $container);
+        } else {
+            $container->removeDefinition(InitAclCommand::class);
+            $container->removeDefinition(SetAclCommand::class);
         }
 
         $container->registerForAutoconfiguration(VoterInterface::class)
@@ -129,13 +135,13 @@ class SecurityExtension extends Extension
         $loader->load('security_acl.xml');
 
         if (isset($config['cache']['id'])) {
-            $container->setAlias('security.acl.cache', $config['cache']['id']);
+            $container->setAlias('security.acl.cache', $config['cache']['id'])->setPrivate(true);
         }
         $container->getDefinition('security.acl.voter.basic_permissions')->addArgument($config['voter']['allow_if_object_identity_unavailable']);
 
         // custom ACL provider
         if (isset($config['provider'])) {
-            $container->setAlias('security.acl.provider', $config['provider']);
+            $container->setAlias('security.acl.provider', $config['provider'])->setPrivate(true);
 
             return;
         }
@@ -303,7 +309,10 @@ class SecurityExtension extends Extension
 
         // Provider id (take the first registered provider if none defined)
         if (isset($firewall['provider'])) {
-            $defaultProvider = $this->getUserProviderId($firewall['provider']);
+            if (!isset($providerIds[$normalizedName = str_replace('-', '_', $firewall['provider'])])) {
+                throw new InvalidConfigurationException(sprintf('Invalid firewall "%s": user provider "%s" not found.', $id, $firewall['provider']));
+            }
+            $defaultProvider = $providerIds[$normalizedName];
         } else {
             $defaultProvider = reset($providerIds);
         }
@@ -394,7 +403,7 @@ class SecurityExtension extends Extension
         $configuredEntryPoint = isset($firewall['entry_point']) ? $firewall['entry_point'] : null;
 
         // Authentication listeners
-        list($authListeners, $defaultEntryPoint) = $this->createAuthenticationListeners($container, $id, $firewall, $authenticationProviders, $defaultProvider, $configuredEntryPoint);
+        list($authListeners, $defaultEntryPoint) = $this->createAuthenticationListeners($container, $id, $firewall, $authenticationProviders, $defaultProvider, $providerIds, $configuredEntryPoint);
 
         $config->replaceArgument(7, $configuredEntryPoint ?: $defaultEntryPoint);
 
@@ -449,7 +458,7 @@ class SecurityExtension extends Extension
         return $this->contextListeners[$contextKey] = $listenerId;
     }
 
-    private function createAuthenticationListeners($container, $id, $firewall, &$authenticationProviders, $defaultProvider, $defaultEntryPoint)
+    private function createAuthenticationListeners($container, $id, $firewall, &$authenticationProviders, $defaultProvider, array $providerIds, $defaultEntryPoint)
     {
         $listeners = array();
         $hasListeners = false;
@@ -459,7 +468,14 @@ class SecurityExtension extends Extension
                 $key = str_replace('-', '_', $factory->getKey());
 
                 if (isset($firewall[$key])) {
-                    $userProvider = isset($firewall[$key]['provider']) ? $this->getUserProviderId($firewall[$key]['provider']) : $defaultProvider;
+                    if (isset($firewall[$key]['provider'])) {
+                        if (!isset($providerIds[$normalizedName = str_replace('-', '_', $firewall[$key]['provider'])])) {
+                            throw new InvalidConfigurationException(sprintf('Invalid firewall "%s": user provider "%s" not found.', $id, $firewall[$key]['provider']));
+                        }
+                        $userProvider = $providerIds[$normalizedName];
+                    } else {
+                        $userProvider = $defaultProvider;
+                    }
 
                     list($provider, $listenerId, $defaultEntryPoint) = $factory->create($container, $id, $firewall[$key], $userProvider, $defaultEntryPoint);
 
@@ -558,7 +574,7 @@ class SecurityExtension extends Extension
         $providerIds = array();
         foreach ($config['providers'] as $name => $provider) {
             $id = $this->createUserDaoProvider($name, $provider, $container);
-            $providerIds[] = $id;
+            $providerIds[str_replace('-', '_', $name)] = $id;
         }
 
         return $providerIds;

@@ -34,6 +34,14 @@ CHANGELOG
 3.4.0
 -----
 
+ * the `Dumper`, `Parser`, and `Yaml` classes are marked as final
+
+ * Deprecated the `!php/object:` tag which will be replaced by the
+   `!php/object` tag (without the colon) in 4.0.
+
+ * Deprecated the `!php/const:` tag which will be replaced by the
+   `!php/const` tag (without the colon) in 4.0.
+
  * Support for the `!str` tag is deprecated, use the `!!str` tag instead.
 
  * Deprecated using the non-specific tag `!` as its behavior will change in 4.0.

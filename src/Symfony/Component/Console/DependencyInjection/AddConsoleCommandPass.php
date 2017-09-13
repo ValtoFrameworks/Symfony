@@ -41,21 +41,27 @@ class AddConsoleCommandPass implements CompilerPassInterface
         $lazyCommandMap = array();
         $lazyCommandRefs = array();
         $serviceIds = array();
+        $lazyServiceIds = array();
 
         foreach ($commandServices as $id => $tags) {
             $definition = $container->getDefinition($id);
             $class = $container->getParameterBag()->resolveValue($definition->getClass());
 
-            if (!$r = $container->getReflectionClass($class)) {
-                throw new InvalidArgumentException(sprintf('Class "%s" used for service "%s" cannot be found.', $class, $id));
-            }
-            if (!$r->isSubclassOf(Command::class)) {
-                throw new InvalidArgumentException(sprintf('The service "%s" tagged "%s" must be a subclass of "%s".', $id, $this->commandTag, Command::class));
-            }
-
             $commandId = 'console.command.'.strtolower(str_replace('\\', '_', $class));
 
-            if (!isset($tags[0]['command'])) {
+            if (isset($tags[0]['command'])) {
+                $commandName = $tags[0]['command'];
+            } else {
+                if (!$r = $container->getReflectionClass($class)) {
+                    throw new InvalidArgumentException(sprintf('Class "%s" used for service "%s" cannot be found.', $class, $id));
+                }
+                if (!$r->isSubclassOf(Command::class)) {
+                    throw new InvalidArgumentException(sprintf('The service "%s" tagged "%s" must be a subclass of "%s".', $id, $this->commandTag, Command::class));
+                }
+                $commandName = $class::getDefaultName();
+            }
+
+            if (null === $commandName) {
                 if (isset($serviceIds[$commandId]) || $container->hasAlias($commandId)) {
                     $commandId = $commandId.'_'.$id;
                 }
@@ -68,8 +74,8 @@ class AddConsoleCommandPass implements CompilerPassInterface
                 continue;
             }
 
-            $serviceIds[$commandId] = false;
-            $commandName = $tags[0]['command'];
+            $serviceIds[$commandId] = $id;
+            $lazyServiceIds[$id] = true;
             unset($tags[0]);
             $lazyCommandMap[$commandName] = $id;
             $lazyCommandRefs[$id] = new TypedReference($id, $class);
@@ -94,5 +100,6 @@ class AddConsoleCommandPass implements CompilerPassInterface
             ->setArguments(array(ServiceLocatorTagPass::register($container, $lazyCommandRefs), $lazyCommandMap));
 
         $container->setParameter('console.command.ids', $serviceIds);
+        $container->setParameter('console.lazy_command.ids', $lazyServiceIds);
     }
 }

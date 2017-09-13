@@ -14,6 +14,7 @@ namespace Symfony\Component\HttpKernel\DependencyInjection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\Compiler\ResolveBindingsPass;
 use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
 use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -50,6 +51,7 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
 
         foreach ($container->findTaggedServiceIds($this->controllerTag, true) as $id => $tags) {
             $def = $container->getDefinition($id);
+            $def->setPublic(true);
             $class = $def->getClass();
             $autowire = $def->isAutowired();
 
@@ -109,6 +111,9 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                 }
             }
 
+            // not validated, they are later in ResolveBindingsPass
+            $bindings = $def->getBindings();
+
             foreach ($methods as list($r, $parameters)) {
                 /** @var \ReflectionMethod $r */
 
@@ -128,6 +133,14 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                         } elseif ($p->allowsNull() && !$p->isOptional()) {
                             $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE;
                         }
+                    } elseif (isset($bindings[$bindingName = '$'.$p->name]) || isset($bindings[$bindingName = $type])) {
+                        $binding = $bindings[$bindingName];
+
+                        list($bindingValue, $bindingId) = $binding->getValues();
+                        $binding->setValues(array($bindingValue, $bindingId, true));
+                        $args[$p->name] = $bindingValue;
+
+                        continue;
                     } elseif (!$type || !$autowire) {
                         continue;
                     }

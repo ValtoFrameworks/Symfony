@@ -13,6 +13,7 @@ namespace Symfony\Component\Lock\Store;
 
 use Symfony\Component\Lock\Exception\InvalidArgumentException;
 use Symfony\Component\Lock\Exception\LockConflictedException;
+use Symfony\Component\Lock\Exception\LockExpiredException;
 use Symfony\Component\Lock\Key;
 use Symfony\Component\Lock\StoreInterface;
 
@@ -57,9 +58,13 @@ class RedisStore implements StoreInterface
             end
         ';
 
-        $expire = (int) ceil($this->initialTtl * 1000);
-        if (!$this->evaluate($script, (string) $key, array($this->getToken($key), $expire))) {
+        $key->reduceLifetime($this->initialTtl);
+        if (!$this->evaluate($script, (string) $key, array($this->getToken($key), (int) ceil($this->initialTtl * 1000)))) {
             throw new LockConflictedException();
+        }
+
+        if ($key->isExpired()) {
+            throw new LockExpiredException(sprintf('Failed to store the "%s" lock.', $key));
         }
     }
 
@@ -81,9 +86,13 @@ class RedisStore implements StoreInterface
             end
         ';
 
-        $expire = (int) ceil($ttl * 1000);
-        if (!$this->evaluate($script, (string) $key, array($this->getToken($key), $expire))) {
+        $key->reduceLifetime($ttl);
+        if (!$this->evaluate($script, (string) $key, array($this->getToken($key), (int) ceil($ttl * 1000)))) {
             throw new LockConflictedException();
+        }
+
+        if ($key->isExpired()) {
+            throw new LockExpiredException(sprintf('Failed to put off the expiration of the "%s" lock within the specified time.', $key));
         }
     }
 

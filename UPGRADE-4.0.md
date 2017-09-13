@@ -146,7 +146,7 @@ DependencyInjection
    <service id="Doctrine\Common\Annotations\Reader" alias="annotations.reader" public="false" />
    ```
 
- * Service identifiers are now case sensitive.
+ * Service identifiers and parameter names are now case sensitive.
 
  * The `Reference` and `Alias` classes do not make service identifiers lowercase anymore.
 
@@ -159,13 +159,16 @@ DependencyInjection
  * The `DefinitionDecorator` class has been removed. Use the `ChildDefinition`
    class instead.
 
+ * The `ResolveDefinitionTemplatesPass` class has been removed.
+   Use the `ResolveChildDefinitionsPass` class instead.
+
  * Using unsupported configuration keys in YAML configuration files raises an
    exception.
 
  * Using unsupported options to configure service aliases raises an exception.
 
- * Setting or unsetting a private service with the `Container::set()` method is
-   no longer supported. Only public services can be set or unset.
+ * Setting or unsetting a service with the `Container::set()` method is
+   no longer supported. Only synthetic services can be set or unset.
 
  * Checking the existence of a private service with the `Container::has()`
    method is no longer supported and will return `false`.
@@ -283,9 +286,6 @@ FrameworkBundle
 ---------------
 
  * The `validator.mapping.cache.doctrine.apc` service has been removed.
-
- * The `cache:clear` command does not warmup the cache anymore. Warmup should
-   be done via the `cache:warmup` command.
 
  * The "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter have been removed. Use the `Request::setTrustedProxies()` method in your front controller instead.
 
@@ -420,6 +420,44 @@ FrameworkBundle
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\TranslatorPass`
    class has been removed. Use the
    `Symfony\Component\Translation\DependencyInjection\TranslatorPass` class instead.
+ 
+ * The `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`
+   class has been deprecated and will be removed in 4.0. Use the
+   `Symfony\Component\Translation\Reader\TranslationReader` class instead.
+
+ * The `translation.loader` service has been removed.
+   Use the `translation.reader` service instead.
+ 
+ * `AssetsInstallCommand::__construct()` now requires an instance of
+   `Symfony\Component\Filesystem\Filesystem` as first argument.
+
+ * `CacheClearCommand::__construct()` now requires an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\CacheClearerInterface` as
+    first argument.
+
+ * `CachePoolClearCommand::__construct()` now requires an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\Psr6CacheClearer` as
+    first argument.
+
+ * `EventDispatcherDebugCommand::__construct()` now requires an instance of
+   `Symfony\Component\EventDispatcher\EventDispatcherInterface` as
+    first argument.
+
+ * `RouterDebugCommand::__construct()` now requires an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument.
+
+ * `RouterMatchCommand::__construct()` now requires an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument.
+
+ * `TranslationDebugCommand::__construct()` now requires an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument.
+
+ * `TranslationUpdateCommand::__construct()` now requires an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument.
 
 HttpFoundation
 --------------
@@ -454,6 +492,32 @@ HttpFoundation
 
 HttpKernel
 ----------
+
+ * Relying on convention-based commands discovery is not supported anymore.
+   Use PSR-4 based service discovery instead.
+
+   Before:
+
+   ```yml
+   # app/config/services.yml
+   services:
+       # ...
+
+       # implicit registration of all commands in the `Command` folder
+   ```
+
+   After:
+
+   ```yml
+   # app/config/services.yml
+   services:
+       # ...
+
+       # explicit commands registration
+       AppBundle\Command:
+           resource: '../../src/AppBundle/Command/*'
+           tags: ['console.command']
+   ```
 
  * Removed the `kernel.root_dir` parameter. Use the `kernel.project_dir` parameter
    instead.
@@ -490,6 +554,11 @@ HttpKernel
    by Symfony. Use the `%env()%` syntax to get the value of any environment
    variable from configuration files instead.
 
+ * The `getCacheDir()` method of your kernel should not be called while building the container.
+   Use the `%kernel.cache_dir%` parameter instead. Not doing so may break the `cache:clear` command.
+
+ * The `Symfony\Component\HttpKernel\Config\EnvParametersResource` class has been removed.
+
 Ldap
 ----
 
@@ -513,6 +582,11 @@ Process
    not supported anymore.
    
  * The `getEnhanceWindowsCompatibility()` and `setEnhanceWindowsCompatibility()` methods of the `Process` class have been removed.
+
+Profiler
+--------
+
+ * The `profiler.matcher` option has been removed.
 
 ProxyManager
 ------------
@@ -543,6 +617,13 @@ SecurityBundle
 
  * `UserPasswordEncoderCommand` does not extend `ContainerAwareCommand` nor implement `ContainerAwareInterface` anymore.
 
+ * `InitAclCommand::__construct()` now requires an instance of
+   `Doctrine\DBAL\Connection`  as first argument.
+
+ * `SetAclCommand::__construct()` now requires an instance of
+   `Symfony\Component\Security\Acl\Model\MutableAclProviderInterfaceConnection`
+    as first argument.
+
 Serializer
 ----------
 
@@ -561,6 +642,14 @@ Translation
 -----------
 
  * Removed the backup feature from the file dumper classes.
+ 
+ * The default value of the `$readerServiceId` argument of `TranslatorPass::__construct()` has been changed to `"translation.reader"`.
+ 
+ * Removed `Symfony\Component\Translation\Writer\TranslationWriter::writeTranslations`, 
+   use `Symfony\Component\Translation\Writer\TranslationWriter::write` instead. 
+
+ * Removed support for passing `Symfony\Component\Translation\MessageSelector` as a second argument to the
+   `Translator::__construct()`. You should pass an instance of `Symfony\Component\Translation\Formatter\MessageFormatterInterface` instead.
 
 TwigBundle
 ----------
@@ -612,11 +701,12 @@ TwigBridge
  * The `TwigRendererEngine::setEnvironment()` method has been removed.
    Pass the Twig Environment as second argument of the constructor instead.
 
- * Removed `Symfony\Bridge\Twig\Command\DebugCommand::set/getTwigEnvironment` and the ability
-   to pass a command name as first argument.
+ * Removed `DebugCommand::set/getTwigEnvironment`. Pass an instance of
+   `Twig\Environment` as first argument of the constructor instead.
 
- * Removed `Symfony\Bridge\Twig\Command\LintCommand::set/getTwigEnvironment` and the ability
-   to pass a command name as first argument.
+ * Removed `LintCommand::set/getTwigEnvironment`. Pass an instance of
+   `Twig\Environment` as first argument of the constructor instead.
+
 
 Validator
 ---------
@@ -871,3 +961,21 @@ Yaml
 
  * The behavior of the non-specific tag `!` is changed and now forces
    non-evaluating your values.
+
+ * The `!php/object:` tag was removed in favor of the `!php/object` tag (without
+   the colon).
+
+ * The `!php/const:` tag was removed in favor of the `!php/const` tag (without
+   the colon).
+
+   Before:
+
+   ```yml
+   !php/const:PHP_INT_MAX
+   ```
+
+   After:
+
+   ```yml
+   !php/const PHP_INT_MAX
+   ```

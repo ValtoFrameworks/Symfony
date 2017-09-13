@@ -14,8 +14,8 @@ namespace Symfony\Component\HttpKernel\Tests;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
-use Symfony\Component\HttpKernel\Config\EnvParametersResource;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,6 +26,12 @@ use Symfony\Component\HttpKernel\Tests\Fixtures\KernelWithoutBundles;
 
 class KernelTest extends TestCase
 {
+    public static function tearDownAfterClass()
+    {
+        $fs = new Filesystem();
+        $fs->remove(__DIR__.'/Fixtures/cache');
+    }
+
     public function testConstructor()
     {
         $env = 'test_env';
@@ -95,42 +101,6 @@ class KernelTest extends TestCase
             ->method('doLoadClassCache');
 
         $kernel->boot();
-    }
-
-    public function testEnvParametersResourceIsAdded()
-    {
-        $container = new ContainerBuilder();
-        $kernel = $this->getMockBuilder('Symfony\Component\HttpKernel\Tests\Fixtures\KernelForTest')
-            ->disableOriginalConstructor()
-            ->setMethods(array('getContainerBuilder', 'prepareContainer', 'getCacheDir', 'getLogDir'))
-            ->getMock();
-        $kernel->expects($this->any())
-            ->method('getContainerBuilder')
-            ->will($this->returnValue($container));
-        $kernel->expects($this->any())
-            ->method('prepareContainer')
-            ->will($this->returnValue(null));
-        $kernel->expects($this->any())
-            ->method('getCacheDir')
-            ->will($this->returnValue(sys_get_temp_dir()));
-        $kernel->expects($this->any())
-            ->method('getLogDir')
-            ->will($this->returnValue(sys_get_temp_dir()));
-
-        $reflection = new \ReflectionClass(get_class($kernel));
-        $method = $reflection->getMethod('buildContainer');
-        $method->setAccessible(true);
-        $method->invoke($kernel);
-
-        $found = false;
-        foreach ($container->getResources() as $resource) {
-            if ($resource instanceof EnvParametersResource) {
-                $found = true;
-                break;
-            }
-        }
-
-        $this->assertTrue($found);
     }
 
     public function testBootKernelSeveralTimesOnlyInitializesBundlesOnce()
@@ -718,6 +688,40 @@ EOF;
         $this->assertEquals('_123', $kernel->getName());
     }
 
+    public function testProjectDirExtension()
+    {
+        $kernel = new CustomProjectDirKernel();
+        $kernel->boot();
+
+        $this->assertSame('foo', $kernel->getProjectDir());
+        $this->assertSame('foo', $kernel->getContainer()->getParameter('kernel.project_dir'));
+    }
+
+    public function testKernelReset()
+    {
+        (new Filesystem())->remove(__DIR__.'/Fixtures/cache');
+
+        $kernel = new CustomProjectDirKernel();
+        $kernel->boot();
+
+        $containerClass = get_class($kernel->getContainer());
+        $containerFile = (new \ReflectionClass($kernel->getContainer()))->getFileName();
+        unlink(__DIR__.'/Fixtures/cache/custom/FixturesCustomDebugProjectContainer.php.meta');
+
+        $kernel = new CustomProjectDirKernel();
+        $kernel->boot();
+
+        $this->assertSame($containerClass, get_class($kernel->getContainer()));
+        $this->assertFileExists($containerFile);
+        unlink(__DIR__.'/Fixtures/cache/custom/FixturesCustomDebugProjectContainer.php.meta');
+
+        $kernel = new CustomProjectDirKernel(function ($container) { $container->register('foo', 'stdClass'); });
+        $kernel->boot();
+
+        $this->assertTrue(get_class($kernel->getContainer()) !== $containerClass);
+        $this->assertFileNotExists($containerFile);
+    }
+
     /**
      * Returns a mock for the BundleInterface.
      *
@@ -818,12 +822,14 @@ class TestKernel implements HttpKernelInterface
 class CustomProjectDirKernel extends Kernel
 {
     private $baseDir;
+    private $buildContainer;
 
-    public function __construct()
+    public function __construct(\Closure $buildContainer = null)
     {
-        parent::__construct('test', false);
+        parent::__construct('custom', true);
 
         $this->baseDir = 'foo';
+        $this->buildContainer = $buildContainer;
     }
 
     public function registerBundles()
@@ -843,5 +849,12 @@ class CustomProjectDirKernel extends Kernel
     public function getRootDir()
     {
         return __DIR__.'/Fixtures';
+    }
+
+    protected function build(ContainerBuilder $container)
+    {
+        if ($build = $this->buildContainer) {
+            $build($container);
+        }
     }
 }

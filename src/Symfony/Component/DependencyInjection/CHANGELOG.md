@@ -21,13 +21,18 @@ CHANGELOG
  * removed silent behavior for unused attributes and elements
  * removed support for setting and accessing private services in `Container`
  * removed support for setting pre-defined services in `Container`
+ * removed support for case insensitivity of parameter names
 
 3.4.0
 -----
 
+ * added `EnvVarProcessorInterface` and corresponding "container.env_var_processor" tag for processing env vars
+ * added support for ignore-on-uninitialized references
  * deprecated service auto-registration while autowiring
  * deprecated the ability to check for the initialization of a private service with the `Container::initialized()` method
  * deprecated support for top-level anonymous services in XML
+ * deprecated case insensitivity of parameter names
+ * deprecated the `ResolveDefinitionTemplatesPass` class in favor of `ResolveChildDefinitionsPass`
 
 3.3.0
 -----

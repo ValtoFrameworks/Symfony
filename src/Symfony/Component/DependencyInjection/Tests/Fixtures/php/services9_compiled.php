@@ -276,7 +276,7 @@ class ProjectServiceContainer extends Container
      */
     protected function getFooBarService()
     {
-        return new \Bar\FooClass();
+        return new \Bar\FooClass(($this->services['deprecated_service'] ?? $this->getDeprecatedServiceService()));
     }
 
     /**
@@ -379,7 +379,7 @@ class ProjectServiceContainer extends Container
      *
      * @deprecated The "factory_simple" service is deprecated. You should stop using it, as it will soon be removed.
      */
-    private function getFactorySimpleService()
+    protected function getFactorySimpleService()
     {
         @trigger_error('The "factory_simple" service is deprecated. You should stop using it, as it will soon be removed.', E_USER_DEPRECATED);
 
@@ -391,12 +391,10 @@ class ProjectServiceContainer extends Container
      */
     public function getParameter($name)
     {
-        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
-            $name = strtolower($name);
+        $name = (string) $name;
 
-            if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
-                throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
-            }
+        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
+            throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
         }
         if (isset($this->loadedDynamicParameters[$name])) {
             return $this->loadedDynamicParameters[$name] ? $this->dynamicParameters[$name] : $this->getDynamicParameter($name);
@@ -410,7 +408,7 @@ class ProjectServiceContainer extends Container
      */
     public function hasParameter($name)
     {
-        $name = strtolower($name);
+        $name = (string) $name;
 
         return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
     }

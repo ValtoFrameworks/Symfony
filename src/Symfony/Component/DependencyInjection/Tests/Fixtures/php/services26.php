@@ -9,14 +9,14 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
 
 /**
- * ProjectServiceContainer.
+ * Symfony_DI_PhpDumper_Test_EnvParameters.
  *
  * This class has been auto-generated
  * by the Symfony Dependency Injection Component.
  *
  * @final since Symfony 3.3
  */
-class ProjectServiceContainer extends Container
+class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
 {
     private $parameters;
     private $targetDirs = array();
@@ -27,6 +27,10 @@ class ProjectServiceContainer extends Container
      */
     public function __construct()
     {
+        $dir = __DIR__;
+        for ($i = 1; $i <= 5; ++$i) {
+            $this->targetDirs[$i] = $dir = dirname($dir);
+        }
         $this->parameters = $this->getDefaultParameters();
 
         $this->services = $this->privates = array();
@@ -71,7 +75,7 @@ class ProjectServiceContainer extends Container
     {
         $class = $this->getEnv('FOO');
 
-        return $this->services['test'] = new $class($this->getEnv('Bar'), 'foo'.$this->getEnv('FOO').'baz');
+        return $this->services['test'] = new $class($this->getEnv('Bar'), 'foo'.$this->getEnv('string:FOO').'baz', $this->getEnv('int:Baz'));
     }
 
     /**
@@ -79,12 +83,10 @@ class ProjectServiceContainer extends Container
      */
     public function getParameter($name)
     {
-        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
-            $name = strtolower($name);
+        $name = (string) $name;
 
-            if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
-                throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
-            }
+        if (!(isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters))) {
+            throw new InvalidArgumentException(sprintf('The parameter "%s" must be defined.', $name));
         }
         if (isset($this->loadedDynamicParameters[$name])) {
             return $this->loadedDynamicParameters[$name] ? $this->dynamicParameters[$name] : $this->getDynamicParameter($name);
@@ -98,7 +100,7 @@ class ProjectServiceContainer extends Container
      */
     public function hasParameter($name)
     {
-        $name = strtolower($name);
+        $name = (string) $name;
 
         return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
     }
@@ -129,6 +131,10 @@ class ProjectServiceContainer extends Container
 
     private $loadedDynamicParameters = array(
         'bar' => false,
+        'baz' => false,
+        'json' => false,
+        'db_dsn' => false,
+        'env(json_file)' => false,
     );
     private $dynamicParameters = array();
 
@@ -145,6 +151,10 @@ class ProjectServiceContainer extends Container
     {
         switch ($name) {
             case 'bar': $value = $this->getEnv('FOO'); break;
+            case 'baz': $value = $this->getEnv('int:Baz'); break;
+            case 'json': $value = $this->getEnv('json:file:json_file'); break;
+            case 'db_dsn': $value = $this->getEnv('resolve:DB'); break;
+            case 'env(json_file)': $value = ($this->targetDirs[1].'/array.json'); break;
             default: throw new InvalidArgumentException(sprintf('The dynamic parameter "%s" must be defined.', $name));
         }
         $this->loadedDynamicParameters[$name] = true;
@@ -160,7 +170,9 @@ class ProjectServiceContainer extends Container
     protected function getDefaultParameters()
     {
         return array(
-            'env(foo)' => 'foo',
+            'project_dir' => '/foo/bar',
+            'env(FOO)' => 'foo',
+            'env(DB)' => 'sqlite://%project_dir%/var/data.db',
         );
     }
 }

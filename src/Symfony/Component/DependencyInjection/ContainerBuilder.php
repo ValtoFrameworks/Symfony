@@ -18,6 +18,7 @@ use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Compiler\Compiler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
+use Symfony\Component\DependencyInjection\Compiler\ResolveEnvPlaceholdersPass;
 use Symfony\Component\DependencyInjection\Exception\BadMethodCallException;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
@@ -390,9 +391,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return $exists;
         }
 
-        if ($trackContents && is_dir($path)) {
-            $this->addResource(new DirectoryResource($path, is_string($trackContents) ? $trackContents : null));
-        } elseif ($trackContents || is_dir($path)) {
+        if (is_dir($path)) {
+            if ($trackContents) {
+                $this->addResource(new DirectoryResource($path, is_string($trackContents) ? $trackContents : null));
+            } else {
+                $this->addResource(new GlobResource($path, '/*', false));
+            }
+        } elseif ($trackContents) {
             $this->addResource(new FileResource($path));
         }
 
@@ -524,6 +529,9 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      */
     public function get($id, $invalidBehavior = ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE)
     {
+        if (ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE === $invalidBehavior) {
+            return parent::get($id, $invalidBehavior);
+        }
         if ($service = parent::get($id, ContainerInterface::NULL_ON_INVALID_REFERENCE)) {
             return $service;
         }
@@ -600,10 +608,16 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         if ($this->getParameterBag() instanceof EnvPlaceholderParameterBag && $container->getParameterBag() instanceof EnvPlaceholderParameterBag) {
+            $envPlaceholders = $container->getParameterBag()->getEnvPlaceholders();
             $this->getParameterBag()->mergeEnvPlaceholders($container->getParameterBag());
+        } else {
+            $envPlaceholders = array();
         }
 
         foreach ($container->envCounters as $env => $count) {
+            if (!$count && !isset($envPlaceholders[$env])) {
+                continue;
+            }
             if (!isset($this->envCounters[$env])) {
                 $this->envCounters[$env] = $count;
             } else {
@@ -682,9 +696,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         $bag = $this->getParameterBag();
 
         if ($resolveEnvPlaceholders && $bag instanceof EnvPlaceholderParameterBag) {
-            $this->parameterBag = new ParameterBag($this->resolveEnvPlaceholders($bag->all(), true));
-            $this->envPlaceholders = $bag->getEnvPlaceholders();
-            $this->parameterBag = $bag = new ParameterBag($this->resolveEnvPlaceholders($this->parameterBag->all()));
+            $compiler->addPass(new ResolveEnvPlaceholdersPass(), PassConfig::TYPE_AFTER_REMOVING, -1000);
         }
 
         $compiler->compile($this);
@@ -697,9 +709,15 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
         $this->extensionConfigs = array();
 
-        parent::compile();
+        if ($bag instanceof EnvPlaceholderParameterBag) {
+            if ($resolveEnvPlaceholders) {
+                $this->parameterBag = new ParameterBag($this->resolveEnvPlaceholders($bag->all(), true));
+            }
 
-        $this->envPlaceholders = $bag instanceof EnvPlaceholderParameterBag ? $bag->getEnvPlaceholders() : array();
+            $this->envPlaceholders = $bag->getEnvPlaceholders();
+        }
+
+        parent::compile();
     }
 
     /**
@@ -741,6 +759,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @param string       $alias The alias to create
      * @param string|Alias $id    The service to alias
      *
+     * @return Alias
+     *
      * @throws InvalidArgumentException if the id is not a string or an Alias
      * @throws InvalidArgumentException if the alias is for itself
      */
@@ -758,7 +778,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
         unset($this->definitions[$alias]);
 
-        $this->aliasDefinitions[$alias] = $id;
+        return $this->aliasDefinitions[$alias] = $id;
     }
 
     /**
@@ -817,8 +837,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * This methods allows for simple registration of service definition
      * with a fluid interface.
      *
-     * @param string $id    The service identifier
-     * @param string $class The service class
+     * @param string $id         The service identifier
+     * @param string $class|null The service class
      *
      * @return Definition A Definition instance
      */
@@ -1085,6 +1105,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                             continue 2;
                         }
                     }
+                    foreach (self::getInitializedConditionals($v) as $s) {
+                        if (!$this->get($s, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE)) {
+                            continue 2;
+                        }
+                    }
 
                     yield $k => $this->resolveServices($v);
                 }
@@ -1093,6 +1118,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 foreach ($value->getValues() as $v) {
                     foreach (self::getServiceConditionals($v) as $s) {
                         if (!$this->has($s)) {
+                            continue 2;
+                        }
+                    }
+                    foreach (self::getInitializedConditionals($v) as $s) {
+                        if (!$this->get($s, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE)) {
                             continue 2;
                         }
                     }
@@ -1256,7 +1286,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                     } else {
                         $resolved = sprintf($format, $env);
                     }
-                    $value = str_ireplace($placeholder, $resolved, $value);
+                    if ($placeholder === $value) {
+                        $value = $resolved;
+                    } else {
+                        if (!is_string($resolved) && !is_numeric($resolved)) {
+                            throw new RuntimeException(sprintf('A string value must be composed of strings and/or numbers, but found parameter "env(%s)" of type %s inside string value "%s".', $env, gettype($resolved), $value));
+                        }
+                        $value = str_ireplace($placeholder, $resolved, $value);
+                    }
                     $usedEnvs[$env] = $env;
                     $this->envCounters[$env] = isset($this->envCounters[$env]) ? 1 + $this->envCounters[$env] : 1;
                 }
@@ -1299,6 +1336,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * @param mixed $value An array of conditionals to return
      *
      * @return array An array of Service conditionals
+     *
+     * @internal since version 3.4
      */
     public static function getServiceConditionals($value)
     {
@@ -1316,6 +1355,30 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     }
 
     /**
+     * Returns the initialized conditionals.
+     *
+     * @param mixed $value An array of conditionals to return
+     *
+     * @return array An array of uninitialized conditionals
+     *
+     * @internal
+     */
+    public static function getInitializedConditionals($value)
+    {
+        $services = array();
+
+        if (is_array($value)) {
+            foreach ($value as $v) {
+                $services = array_unique(array_merge($services, self::getInitializedConditionals($v)));
+            }
+        } elseif ($value instanceof Reference && $value->getInvalidBehavior() === ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE) {
+            $services[] = (string) $value;
+        }
+
+        return $services;
+    }
+
+    /**
      * Computes a reasonably unique hash of a value.
      *
      * @param mixed $value A serializable value
@@ -1326,7 +1389,35 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         $hash = substr(base64_encode(hash('sha256', serialize($value), true)), 0, 7);
 
-        return str_replace(array('/', '+'), array('.', '_'), strtolower($hash));
+        return str_replace(array('/', '+'), array('.', '_'), $hash);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getEnv($name)
+    {
+        $value = parent::getEnv($name);
+        $bag = $this->getParameterBag();
+
+        if (!is_string($value) || !$bag instanceof EnvPlaceholderParameterBag) {
+            return $value;
+        }
+
+        foreach ($bag->getEnvPlaceholders() as $env => $placeholders) {
+            if (isset($placeholders[$value])) {
+                $bag = new ParameterBag($bag->all());
+
+                return $bag->unescapeValue($bag->get("env($name)"));
+            }
+        }
+
+        $this->resolving["env($name)"] = true;
+        try {
+            return $bag->unescapeValue($this->resolveEnvPlaceholders($bag->escapeValue($value), true));
+        } finally {
+            unset($this->resolving["env($name)"]);
+        }
     }
 
     /**
@@ -1345,10 +1436,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
     private function callMethod($service, $call)
     {
-        $services = self::getServiceConditionals($call[1]);
-
-        foreach ($services as $s) {
+        foreach (self::getServiceConditionals($call[1]) as $s) {
             if (!$this->has($s)) {
+                return;
+            }
+        }
+        foreach (self::getInitializedConditionals($call[1]) as $s) {
+            if (!$this->get($s, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE)) {
                 return;
             }
         }

@@ -12,6 +12,7 @@
 namespace Symfony\Component\Cache\Tests\Adapter;
 
 use Cache\IntegrationTests\CachePoolTest;
+use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\PruneableInterface;
 
 abstract class AdapterTestCase extends CachePoolTest
@@ -44,6 +45,26 @@ abstract class AdapterTestCase extends CachePoolTest
         sleep(2);
         $item = $cache->getItem('key.dlt');
         $this->assertFalse($item->isHit());
+    }
+
+    public function testExpiration()
+    {
+        if (isset($this->skippedTests[__FUNCTION__])) {
+            $this->markTestSkipped($this->skippedTests[__FUNCTION__]);
+        }
+
+        $cache = $this->createCachePool();
+        $cache->save($cache->getItem('k1')->set('v1')->expiresAfter(2));
+        $cache->save($cache->getItem('k2')->set('v2')->expiresAfter(366 * 86400));
+
+        sleep(3);
+        $item = $cache->getItem('k1');
+        $this->assertFalse($item->isHit());
+        $this->assertNull($item->get(), "Item's value must be null when isHit() is false.");
+
+        $item = $cache->getItem('k2');
+        $this->assertTrue($item->isHit());
+        $this->assertSame('v2', $item->get());
     }
 
     public function testNotUnserializable()
@@ -79,6 +100,7 @@ abstract class AdapterTestCase extends CachePoolTest
             $this->fail('Test classes for pruneable caches must implement `isPruned($cache, $name)` method.');
         }
 
+        /** @var PruneableInterface|CacheItemPoolInterface $cache */
         $cache = $this->createCachePool();
 
         $doSet = function ($name, $value, \DateInterval $expiresAfter = null) use ($cache) {
@@ -91,6 +113,18 @@ abstract class AdapterTestCase extends CachePoolTest
 
             $cache->save($item);
         };
+
+        $doSet('foo', 'foo-val', new \DateInterval('PT05S'));
+        $doSet('bar', 'bar-val', new \DateInterval('PT10S'));
+        $doSet('baz', 'baz-val', new \DateInterval('PT15S'));
+        $doSet('qux', 'qux-val', new \DateInterval('PT20S'));
+
+        sleep(30);
+        $cache->prune();
+        $this->assertTrue($this->isPruned($cache, 'foo'));
+        $this->assertTrue($this->isPruned($cache, 'bar'));
+        $this->assertTrue($this->isPruned($cache, 'baz'));
+        $this->assertTrue($this->isPruned($cache, 'qux'));
 
         $doSet('foo', 'foo-val');
         $doSet('bar', 'bar-val', new \DateInterval('PT20S'));

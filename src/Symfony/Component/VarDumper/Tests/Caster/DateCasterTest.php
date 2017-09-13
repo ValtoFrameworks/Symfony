@@ -27,42 +27,41 @@ class DateCasterTest extends TestCase
     /**
      * @dataProvider provideDateTimes
      */
-    public function testDumpDateTime($time, $timezone, $expected)
+    public function testDumpDateTime($time, $timezone, $xDate, $xTimestamp)
     {
         $date = new \DateTime($time, new \DateTimeZone($timezone));
 
         $xDump = <<<EODUMP
-DateTime @1493503200 {
-  date: $expected
+DateTime @$xTimestamp {
+  date: $xDate
 }
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $date);
+        $this->assertDumpEquals($xDump, $date);
     }
 
-    public function testCastDateTime()
+    /**
+     * @dataProvider provideDateTimes
+     */
+    public function testCastDateTime($time, $timezone, $xDate, $xTimestamp, $xInfos)
     {
         $stub = new Stub();
-        $date = new \DateTime('2017-08-30 00:00:00.000000', new \DateTimeZone('Europe/Zurich'));
+        $date = new \DateTime($time, new \DateTimeZone($timezone));
         $cast = DateCaster::castDateTime($date, array('foo' => 'bar'), $stub, false, 0);
 
-        $xDump = <<<'EODUMP'
+        $xDump = <<<EODUMP
 array:1 [
-  "\x00~\x00date" => 2017-08-30 00:00:00.000000 Europe/Zurich (+02:00)
+  "\\x00~\\x00date" => $xDate
 ]
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $cast);
+        $this->assertDumpEquals($xDump, $cast);
 
-        $xDump = <<<'EODUMP'
+        $xDump = <<<EODUMP
 Symfony\Component\VarDumper\Caster\ConstStub {
   +type: 1
-  +class: "2017-08-30 00:00:00.000000 Europe/Zurich (+02:00)"
-  +value: """
-    Wednesday, August 30, 2017\n
-    +%a from now\n
-    DST On
-    """
+  +class: "$xDate"
+  +value: "%A$xInfos%A"
   +cut: 0
   +handle: 0
   +refCount: 0
@@ -77,18 +76,25 @@ EODUMP;
     public function provideDateTimes()
     {
         return array(
-            array('2017-04-30 00:00:00.000000', 'Europe/Zurich', '2017-04-30 00:00:00.000000 Europe/Zurich (+02:00)'),
-            array('2017-04-30 00:00:00.000000', '+02:00', '2017-04-30 00:00:00.000000 +02:00'),
+            array('2017-04-30 00:00:00.000000', 'Europe/Zurich', '2017-04-30 00:00:00.0 Europe/Zurich (+02:00)', 1493503200, 'Sunday, April 30, 2017%Afrom now%ADST On'),
+            array('2017-12-31 00:00:00.000000', 'Europe/Zurich', '2017-12-31 00:00:00.0 Europe/Zurich (+01:00)', 1514674800, 'Sunday, December 31, 2017%Afrom now%ADST Off'),
+            array('2017-04-30 00:00:00.000000', '+02:00', '2017-04-30 00:00:00.0 +02:00', 1493503200, 'Sunday, April 30, 2017%Afrom now'),
+
+            array('2017-04-30 00:00:00.100000', '+00:00', '2017-04-30 00:00:00.100 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
+            array('2017-04-30 00:00:00.120000', '+00:00', '2017-04-30 00:00:00.120 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
+            array('2017-04-30 00:00:00.123000', '+00:00', '2017-04-30 00:00:00.123 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
+            array('2017-04-30 00:00:00.123400', '+00:00', '2017-04-30 00:00:00.123400 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
+            array('2017-04-30 00:00:00.123450', '+00:00', '2017-04-30 00:00:00.123450 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
+            array('2017-04-30 00:00:00.123456', '+00:00', '2017-04-30 00:00:00.123456 +00:00', 1493510400, 'Sunday, April 30, 2017%Afrom now'),
         );
     }
 
     /**
      * @dataProvider provideIntervals
      */
-    public function testDumpInterval($intervalSpec, $invert, $expected)
+    public function testDumpInterval($intervalSpec, $ms, $invert, $expected)
     {
-        $interval = new \DateInterval($intervalSpec);
-        $interval->invert = $invert;
+        $interval = $this->createInterval($intervalSpec, $ms, $invert);
 
         $xDump = <<<EODUMP
 DateInterval {
@@ -102,10 +108,9 @@ EODUMP;
     /**
      * @dataProvider provideIntervals
      */
-    public function testDumpIntervalExcludingVerbosity($intervalSpec, $invert, $expected)
+    public function testDumpIntervalExcludingVerbosity($intervalSpec, $ms, $invert, $expected)
     {
-        $interval = new \DateInterval($intervalSpec);
-        $interval->invert = $invert;
+        $interval = $this->createInterval($intervalSpec, $ms, $invert);
 
         $xDump = <<<EODUMP
 DateInterval {
@@ -113,16 +118,15 @@ DateInterval {
 }
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $interval, Caster::EXCLUDE_VERBOSE);
+        $this->assertDumpEquals($xDump, $interval, Caster::EXCLUDE_VERBOSE);
     }
 
     /**
      * @dataProvider provideIntervals
      */
-    public function testCastInterval($intervalSpec, $invert, $xInterval, $xSeconds)
+    public function testCastInterval($intervalSpec, $ms, $invert, $xInterval, $xSeconds)
     {
-        $interval = new \DateInterval($intervalSpec);
-        $interval->invert = $invert;
+        $interval = $this->createInterval($intervalSpec, $ms, $invert);
         $stub = new Stub();
 
         $cast = DateCaster::castInterval($interval, array('foo' => 'bar'), $stub, false, Caster::EXCLUDE_VERBOSE);
@@ -133,7 +137,7 @@ array:1 [
 ]
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $cast);
+        $this->assertDumpEquals($xDump, $cast);
 
         if (null === $xSeconds) {
             return;
@@ -158,23 +162,33 @@ EODUMP;
     public function provideIntervals()
     {
         return array(
-            array('PT0S', 0, '0s', '0s'),
-            array('PT1S', 0, '+ 00:00:01.000000', '1s'),
-            array('PT2M', 0, '+ 00:02:00.000000', '120s'),
-            array('PT3H', 0, '+ 03:00:00.000000', '10 800s'),
-            array('P4D', 0, '+ 4d', '345 600s'),
-            array('P5M', 0, '+ 5m', null),
-            array('P6Y', 0, '+ 6y', null),
-            array('P1Y2M3DT4H5M6S', 0, '+ 1y 2m 3d 04:05:06.000000', null),
+            array('PT0S', 0, 0, '0s', '0s'),
+            array('PT0S', 0.1, 0, '+ 00:00:00.100', '%is'),
+            array('PT1S', 0, 0, '+ 00:00:01.0', '1s'),
+            array('PT2M', 0, 0, '+ 00:02:00.0', '120s'),
+            array('PT3H', 0, 0, '+ 03:00:00.0', '10 800s'),
+            array('P4D', 0, 0, '+ 4d', '345 600s'),
+            array('P5M', 0, 0, '+ 5m', null),
+            array('P6Y', 0, 0, '+ 6y', null),
+            array('P1Y2M3DT4H5M6S', 0, 0, '+ 1y 2m 3d 04:05:06.0', null),
+            array('PT1M60S', 0, 0, '+ 00:02:00.0', null),
+            array('PT1H60M', 0, 0, '+ 02:00:00.0', null),
+            array('P1DT24H', 0, 0, '+ 2d', null),
+            array('P1M32D', 0, 0, '+ 1m 32d', null),
 
-            array('PT0S', 1, '0s', '0s'),
-            array('PT1S', 1, '- 00:00:01.000000', '-1s'),
-            array('PT2M', 1, '- 00:02:00.000000', '-120s'),
-            array('PT3H', 1, '- 03:00:00.000000', '-10 800s'),
-            array('P4D', 1, '- 4d', '-345 600s'),
-            array('P5M', 1, '- 5m', null),
-            array('P6Y', 1, '- 6y', null),
-            array('P1Y2M3DT4H5M6S', 1, '- 1y 2m 3d 04:05:06.000000', null),
+            array('PT0S', 0, 1, '0s', '0s'),
+            array('PT0S', 0.1, 1, '- 00:00:00.100', '%is'),
+            array('PT1S', 0, 1, '- 00:00:01.0', '-1s'),
+            array('PT2M', 0, 1, '- 00:02:00.0', '-120s'),
+            array('PT3H', 0, 1, '- 03:00:00.0', '-10 800s'),
+            array('P4D', 0, 1, '- 4d', '-345 600s'),
+            array('P5M', 0, 1, '- 5m', null),
+            array('P6Y', 0, 1, '- 6y', null),
+            array('P1Y2M3DT4H5M6S', 0, 1, '- 1y 2m 3d 04:05:06.0', null),
+            array('PT1M60S', 0, 1, '- 00:02:00.0', null),
+            array('PT1H60M', 0, 1, '- 02:00:00.0', null),
+            array('P1DT24H', 0, 1, '- 2d', null),
+            array('P1M32D', 0, 1, '- 1m 32d', null),
         );
     }
 
@@ -207,7 +221,7 @@ DateTimeZone {
 }
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $timezone, Caster::EXCLUDE_VERBOSE);
+        $this->assertDumpEquals($xDump, $timezone, Caster::EXCLUDE_VERBOSE);
     }
 
     /**
@@ -226,7 +240,7 @@ array:1 [
 ]
 EODUMP;
 
-        $this->assertDumpMatchesFormat($xDump, $cast);
+        $this->assertDumpEquals($xDump, $cast);
 
         $xDump = <<<EODUMP
 Symfony\Component\VarDumper\Caster\ConstStub {
@@ -269,5 +283,96 @@ EODUMP;
             array('Europe/Zurich', 'Europe/Zurich (+02:00)', $xRegion),
             array('Pacific/Tahiti', 'Pacific/Tahiti (-10:00)', $xRegion),
         );
+    }
+
+    /**
+     * @dataProvider providePeriods
+     */
+    public function testDumpPeriod($start, $interval, $end, $options, $expected)
+    {
+        $p = new \DatePeriod(new \DateTime($start), new \DateInterval($interval), is_int($end) ? $end : new \DateTime($end), $options);
+
+        $xDump = <<<EODUMP
+DatePeriod {
+  period: $expected
+%A}
+EODUMP;
+
+        $this->assertDumpMatchesFormat($xDump, $p);
+    }
+
+    /**
+     * @dataProvider providePeriods
+     */
+    public function testCastPeriod($start, $interval, $end, $options, $xPeriod, $xDates)
+    {
+        $p = new \DatePeriod(new \DateTime($start), new \DateInterval($interval), is_int($end) ? $end : new \DateTime($end), $options);
+        $stub = new Stub();
+
+        $cast = DateCaster::castPeriod($p, array(), $stub, false, 0);
+
+        $xDump = <<<EODUMP
+array:1 [
+  "\\x00~\\x00period" => $xPeriod
+]
+EODUMP;
+
+        $this->assertDumpEquals($xDump, $cast);
+
+        $xDump = <<<EODUMP
+Symfony\Component\VarDumper\Caster\ConstStub {
+  +type: 1
+  +class: "$xPeriod"
+  +value: "%A$xDates%A"
+  +cut: 0
+  +handle: 0
+  +refCount: 0
+  +position: 0
+  +attr: []
+}
+EODUMP;
+
+        $this->assertDumpMatchesFormat($xDump, $cast["\0~\0period"]);
+    }
+
+    public function providePeriods()
+    {
+        $periods = array(
+            array('2017-01-01', 'P1D', '2017-01-03', 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) to 2017-01-03 00:00:00.0', '1) 2017-01-01%a2) 2017-01-02'),
+            array('2017-01-01', 'P1D', 1, 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) recurring 2 time/s', '1) 2017-01-01%a2) 2017-01-02'),
+
+            array('2017-01-01', 'P1D', '2017-01-04', 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) to 2017-01-04 00:00:00.0', '1) 2017-01-01%a2) 2017-01-02%a3) 2017-01-03'),
+            array('2017-01-01', 'P1D', 2, 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) recurring 3 time/s', '1) 2017-01-01%a2) 2017-01-02%a3) 2017-01-03'),
+
+            array('2017-01-01', 'P1D', '2017-01-05', 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) to 2017-01-05 00:00:00.0', '1) 2017-01-01%a2) 2017-01-02%a1 more'),
+            array('2017-01-01', 'P1D', 3, 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) recurring 4 time/s', '1) 2017-01-01%a2) 2017-01-02%a3) 2017-01-03%a1 more'),
+
+            array('2017-01-01', 'P1D', '2017-01-21', 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) to 2017-01-21 00:00:00.0', '1) 2017-01-01%a17 more'),
+            array('2017-01-01', 'P1D', 19, 0, 'every + 1d, from 2017-01-01 00:00:00.0 (included) recurring 20 time/s', '1) 2017-01-01%a17 more'),
+
+            array('2017-01-01 01:00:00', 'P1D', '2017-01-03 01:00:00', 0, 'every + 1d, from 2017-01-01 01:00:00.0 (included) to 2017-01-03 01:00:00.0', '1) 2017-01-01 01:00:00.0%a2) 2017-01-02 01:00:00.0'),
+            array('2017-01-01 01:00:00', 'P1D', 1, 0, 'every + 1d, from 2017-01-01 01:00:00.0 (included) recurring 2 time/s', '1) 2017-01-01 01:00:00.0%a2) 2017-01-02 01:00:00.0'),
+
+            array('2017-01-01', 'P1DT1H', '2017-01-03', 0, 'every + 1d 01:00:00.0, from 2017-01-01 00:00:00.0 (included) to 2017-01-03 00:00:00.0', '1) 2017-01-01 00:00:00.0%a2) 2017-01-02 01:00:00.0'),
+            array('2017-01-01', 'P1DT1H', 1, 0, 'every + 1d 01:00:00.0, from 2017-01-01 00:00:00.0 (included) recurring 2 time/s', '1) 2017-01-01 00:00:00.0%a2) 2017-01-02 01:00:00.0'),
+
+            array('2017-01-01', 'P1D', '2017-01-04', \DatePeriod::EXCLUDE_START_DATE, 'every + 1d, from 2017-01-01 00:00:00.0 (excluded) to 2017-01-04 00:00:00.0', '1) 2017-01-02%a2) 2017-01-03'),
+            array('2017-01-01', 'P1D', 2, \DatePeriod::EXCLUDE_START_DATE, 'every + 1d, from 2017-01-01 00:00:00.0 (excluded) recurring 2 time/s', '1) 2017-01-02%a2) 2017-01-03'),
+        );
+
+        if (\PHP_VERSION_ID < 70107) {
+            array_walk($periods, function (&$i) { $i[5] = ''; });
+        }
+
+        return $periods;
+    }
+
+    private function createInterval($intervalSpec, $ms, $invert)
+    {
+        $interval = new \DateInterval($intervalSpec);
+        $interval->f = $ms;
+        $interval->invert = $invert;
+
+        return $interval;
     }
 }

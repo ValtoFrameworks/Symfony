@@ -50,6 +50,11 @@ DependencyInjection
 
  * Top-level anonymous services in XML are deprecated and will throw an exception in Symfony 4.0.
 
+ * Case insensitivity of parameter names is deprecated and will be removed in 4.0.
+
+ * The `ResolveDefinitionTemplatesPass` class is deprecated and will be removed in 4.0.
+   Use the `ResolveChildDefinitionsPass` class instead.
+
 Debug
 -----
 
@@ -114,11 +119,101 @@ FrameworkBundle
    class has been deprecated and will be removed in 4.0. Use the
    `Symfony\Component\Translation\DependencyInjection\TranslatorPass` class instead.
 
+ * The `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`
+   class has been deprecated and will be removed in 4.0. Use the
+   `Symfony\Component\Translation\Reader\TranslationReader` class instead.
+   
+ * The `translation.loader` service has been deprecated and will be removed in 4.0.
+   Use the `translation.reader` service instead..
+
+ * `AssetsInstallCommand::__construct()` now takes an instance of
+   `Symfony\Component\Filesystem\Filesystem` as first argument.
+   Not passing it is deprecated and will throw a `TypeError` in 4.0.
+
+ * `CacheClearCommand::__construct()` now takes an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\CacheClearerInterface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `CachePoolClearCommand::__construct()` now takes an instance of
+   `Symfony\Component\HttpKernel\CacheClearer\Psr6CacheClearer` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `EventDispatcherDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\EventDispatcher\EventDispatcherInterface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `RouterDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `RouterMatchCommand::__construct()` now takes an instance of
+   `Symfony\Component\Routing\RouterInteface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `TranslationDebugCommand::__construct()` now takes an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `TranslationUpdateCommand::__construct()` now takes an instance of
+   `Symfony\Component\Translation\TranslatorInterface` as
+    first argument. Not passing it is deprecated and will throw
+    a `TypeError` in 4.0.
+
+ * `AssetsInstallCommand`, `CacheClearCommand`, `CachePoolClearCommand`,
+   `EventDispatcherDebugCommand`, `RouterDebugCommand`, `RouterMatchCommand`,
+   `TranslationDebugCommand`, `TranslationUpdateCommand`, `XliffLintCommand`
+    and `YamlLintCommand` classes have been marked as final
+
+HttpKernel
+----------
+
+ * Relying on convention-based commands discovery has been deprecated and
+   won't be supported in 4.0. Use PSR-4 based service discovery instead.
+
+   Before:
+
+   ```yml
+   # app/config/services.yml
+   services:
+       # ...
+
+       # implicit registration of all commands in the `Command` folder
+   ```
+
+   After:
+
+   ```yml
+   # app/config/services.yml
+   services:
+       # ...
+
+       # explicit commands registration
+       AppBundle\Command:
+           resource: '../../src/AppBundle/Command/*'
+           tags: ['console.command']
+   ```
+
+ * The `getCacheDir()` method of your kernel should not be called while building the container.
+   Use the `%kernel.cache_dir%` parameter instead. Not doing so may break the `cache:clear` command.
+
+ * The `Symfony\Component\HttpKernel\Config\EnvParametersResource` class has been deprecated and will be removed in 4.0.
+
 Process
 -------
 
  * The `Symfony\Component\Process\ProcessBuilder` class has been deprecated,
    use the `Symfony\Component\Process\Process` class directly instead.
+
+Profiler
+--------
+
+ * The `profiler.matcher` option has been deprecated.
 
 SecurityBundle
 --------------
@@ -127,6 +222,43 @@ SecurityBundle
    the `AccessDecisionManager` and this functionality will be removed in 4.0.
 
  * `FirewallContext::getListeners()` now returns `\Traversable|array`
+
+ * `InitAclCommand::__construct()` now takes an instance of
+   `Doctrine\DBAL\Connection`  as first argument. Not passing it is
+    deprecated and will throw a `TypeError` in 4.0.
+
+ * `SetAclCommand::__construct()` now takes an instance of
+   `Symfony\Component\Security\Acl\Model\MutableAclProviderInterfaceConnection`
+    as first argument. Not passing it is deprecated and will throw a `TypeError`
+    in 4.0.
+
+Translation
+-----------
+
+ * `Symfony\Component\Translation\Writer\TranslationWriter::writeTranslations` has been deprecated 
+   and will be removed in 4.0, use `Symfony\Component\Translation\Writer\TranslationWriter::write` 
+   instead. 
+
+ * Passing a `Symfony\Component\Translation\MessageSelector` to `Translator` has been
+   deprecated. You should pass a message formatter instead
+
+   Before:
+
+   ```php
+   use Symfony\Component\Translation\Translator;
+   use Symfony\Component\Translation\MessageSelector;
+
+   $translator = new Translator('fr_FR', new MessageSelector());
+   ```
+
+   After:
+
+   ```php
+   use Symfony\Component\Translation\Translator;
+   use Symfony\Component\Translation\Formatter\MessageFormatter;
+
+   $translator = new Translator('fr_FR', new MessageFormatter());
+   ```
 
 TwigBridge
 ----------
@@ -157,6 +289,26 @@ Validator
 
 Yaml
 ----
+
+ * the `Dumper`, `Parser`, and `Yaml` classes are marked as final
+
+ * using the `!php/object:` tag is deprecated and won't be supported in 4.0. Use
+   the `!php/object` tag (without the colon) instead.
+
+ * using the `!php/const:` tag is deprecated and won't be supported in 4.0. Use
+   the `!php/const` tag (without the colon) instead.
+
+   Before:
+
+   ```yml
+   !php/const:PHP_INT_MAX
+   ```
+
+   After:
+
+   ```yml
+   !php/const PHP_INT_MAX
+   ```
 
  * Support for the `!str` tag is deprecated, use the `!!str` tag instead.
 
