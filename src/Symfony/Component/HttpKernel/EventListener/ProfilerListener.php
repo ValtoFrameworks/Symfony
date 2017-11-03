@@ -37,8 +37,6 @@ class ProfilerListener implements EventSubscriberInterface
     protected $parents;
 
     /**
-     * Constructor.
-     *
      * @param Profiler                     $profiler           A Profiler instance
      * @param RequestStack                 $requestStack       A RequestStack instance
      * @param RequestMatcherInterface|null $matcher            A RequestMatcher instance
@@ -58,8 +56,6 @@ class ProfilerListener implements EventSubscriberInterface
 
     /**
      * Handles the onKernelException event.
-     *
-     * @param GetResponseForExceptionEvent $event A GetResponseForExceptionEvent instance
      */
     public function onKernelException(GetResponseForExceptionEvent $event)
     {
@@ -72,8 +68,6 @@ class ProfilerListener implements EventSubscriberInterface
 
     /**
      * Handles the onKernelResponse event.
-     *
-     * @param FilterResponseEvent $event A FilterResponseEvent instance
      */
     public function onKernelResponse(FilterResponseEvent $event)
     {

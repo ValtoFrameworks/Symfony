@@ -24,6 +24,12 @@ use Symfony\Component\Lock\StoreInterface;
  */
 class MemcachedStore implements StoreInterface
 {
+    private static $defaultClientOptions = array(
+        'persistent_id' => null,
+        'username' => null,
+        'password' => null,
+    );
+
     private $memcached;
     private $initialTtl;
     /** @var bool */
@@ -172,7 +178,7 @@ class MemcachedStore implements StoreInterface
 
         if ($this->useExtendedReturn) {
             $extendedReturn = $this->memcached->get((string) $key, null, \Memcached::GET_EXTENDED);
-            if ($extendedReturn === \Memcached::GET_ERROR_RETURN_VALUE) {
+            if (\Memcached::GET_ERROR_RETURN_VALUE === $extendedReturn) {
                 return array($extendedReturn, 0.0);
             }
 

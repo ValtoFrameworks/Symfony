@@ -126,6 +126,7 @@ class Response
         100 => 'Continue',
         101 => 'Switching Protocols',
         102 => 'Processing',            // RFC2518
+        103 => 'Early Hints',
         200 => 'OK',
         201 => 'Created',
         202 => 'Accepted',
@@ -187,8 +188,6 @@ class Response
     );
 
     /**
-     * Constructor.
-     *
      * @param mixed $content The response content, see setContent()
      * @param int   $status  The response status code
      * @param array $headers An array of response headers
@@ -255,8 +254,6 @@ class Response
      * This method tweaks the Response to ensure that it is
      * compliant with RFC 2616. Most of the changes are based on
      * the Request that is "associated" with this Response.
-     *
-     * @param Request $request A Request instance
      *
      * @return $this
      */
@@ -616,6 +613,8 @@ class Response
      * @param bool $immutable enables or disables the immutable directive
      *
      * @return $this
+     *
+     * @final
      */
     public function setImmutable($immutable = true)
     {
@@ -632,6 +631,8 @@ class Response
      * Returns true if the response is marked as "immutable".
      *
      * @return bool returns true if the response is marked as "immutable"; otherwise false
+     *
+     * @final
      */
     public function isImmutable()
     {
@@ -672,15 +673,17 @@ class Response
     /**
      * Sets the Date header.
      *
-     * @param \DateTime $date A \DateTime instance
-     *
      * @return $this
      *
      * @final since version 3.2
      */
-    public function setDate(\DateTime $date)
+    public function setDate(\DateTimeInterface $date)
     {
-        $date->setTimezone(new \DateTimeZone('UTC'));
+        if ($date instanceof \DateTime) {
+            $date = \DateTimeImmutable::createFromMutable($date);
+        }
+
+        $date = $date->setTimezone(new \DateTimeZone('UTC'));
         $this->headers->set('Date', $date->format('D, d M Y H:i:s').' GMT');
 
         return $this;
@@ -738,21 +741,26 @@ class Response
      *
      * Passing null as value will remove the header.
      *
-     * @param \DateTime|null $date A \DateTime instance or null to remove the header
+     * @param \DateTimeInterface|null $date A \DateTime instance or null to remove the header
      *
      * @return $this
      *
      * @final since version 3.2
      */
-    public function setExpires(\DateTime $date = null)
+    public function setExpires(\DateTimeInterface $date = null)
     {
         if (null === $date) {
             $this->headers->remove('Expires');
-        } else {
-            $date = clone $date;
-            $date->setTimezone(new \DateTimeZone('UTC'));
-            $this->headers->set('Expires', $date->format('D, d M Y H:i:s').' GMT');
+
+            return $this;
         }
+
+        if ($date instanceof \DateTime) {
+            $date = \DateTimeImmutable::createFromMutable($date);
+        }
+
+        $date = $date->setTimezone(new \DateTimeZone('UTC'));
+        $this->headers->set('Expires', $date->format('D, d M Y H:i:s').' GMT');
 
         return $this;
     }
@@ -894,21 +902,26 @@ class Response
      *
      * Passing null as value will remove the header.
      *
-     * @param \DateTime|null $date A \DateTime instance or null to remove the header
+     * @param \DateTimeInterface|null $date A \DateTime instance or null to remove the header
      *
      * @return $this
      *
      * @final since version 3.2
      */
-    public function setLastModified(\DateTime $date = null)
+    public function setLastModified(\DateTimeInterface $date = null)
     {
         if (null === $date) {
             $this->headers->remove('Last-Modified');
-        } else {
-            $date = clone $date;
-            $date->setTimezone(new \DateTimeZone('UTC'));
-            $this->headers->set('Last-Modified', $date->format('D, d M Y H:i:s').' GMT');
+
+            return $this;
         }
+
+        if ($date instanceof \DateTime) {
+            $date = \DateTimeImmutable::createFromMutable($date);
+        }
+
+        $date = $date->setTimezone(new \DateTimeZone('UTC'));
+        $this->headers->set('Last-Modified', $date->format('D, d M Y H:i:s').' GMT');
 
         return $this;
     }
@@ -1089,8 +1102,6 @@ class Response
      *
      * If the Response is not modified, it sets the status code to 304 and
      * removes the actual content by calling the setNotModified() method.
-     *
-     * @param Request $request A Request instance
      *
      * @return bool true if the Response validators match the Request, false otherwise
      *
@@ -1273,7 +1284,7 @@ class Response
         $level = count($status);
         $flags = PHP_OUTPUT_HANDLER_REMOVABLE | ($flush ? PHP_OUTPUT_HANDLER_FLUSHABLE : PHP_OUTPUT_HANDLER_CLEANABLE);
 
-        while ($level-- > $targetLevel && ($s = $status[$level]) && (!isset($s['del']) ? !isset($s['flags']) || $flags === ($s['flags'] & $flags) : $s['del'])) {
+        while ($level-- > $targetLevel && ($s = $status[$level]) && (!isset($s['del']) ? !isset($s['flags']) || ($s['flags'] & $flags) === $flags : $s['del'])) {
             if ($flush) {
                 ob_end_flush();
             } else {
@@ -1291,7 +1302,7 @@ class Response
      */
     protected function ensureIEOverSSLCompatibility(Request $request)
     {
-        if (false !== stripos($this->headers->get('Content-Disposition'), 'attachment') && preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) == 1 && true === $request->isSecure()) {
+        if (false !== stripos($this->headers->get('Content-Disposition'), 'attachment') && 1 == preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) && true === $request->isSecure()) {
             if ((int) preg_replace('/(MSIE )(.*?);/', '$2', $match[0]) < 9) {
                 $this->headers->remove('Cache-Control');
             }

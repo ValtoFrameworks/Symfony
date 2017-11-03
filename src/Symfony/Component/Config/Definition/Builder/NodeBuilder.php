@@ -21,9 +21,6 @@ class NodeBuilder implements NodeParentInterface
     protected $parent;
     protected $nodeMapping;
 
-    /**
-     * Constructor.
-     */
     public function __construct()
     {
         $this->nodeMapping = array(
@@ -39,8 +36,6 @@ class NodeBuilder implements NodeParentInterface
 
     /**
      * Set the parent node.
-     *
-     * @param ParentNodeDefinitionInterface $parent The parent node
      *
      * @return $this
      */
@@ -179,8 +174,6 @@ class NodeBuilder implements NodeParentInterface
      *             ->append($this->getBarNodeDefinition())
      *         ->end()
      *     ;
-     *
-     * @param NodeDefinition $node
      *
      * @return $this
      */

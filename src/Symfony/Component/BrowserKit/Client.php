@@ -46,8 +46,6 @@ abstract class Client
     private $isMainRequest = true;
 
     /**
-     * Constructor.
-     *
      * @param array     $server    The server parameters (equivalent of $_SERVER)
      * @param History   $history   A History instance to store the browser history
      * @param CookieJar $cookieJar A CookieJar instance to store the cookies
@@ -235,8 +233,6 @@ abstract class Client
     /**
      * Clicks on a given link.
      *
-     * @param Link $link A Link instance
-     *
      * @return Crawler
      */
     public function click(Link $link)
@@ -348,8 +344,22 @@ abstract class Client
      */
     protected function doRequestInProcess($request)
     {
+        $deprecationsFile = tempnam(sys_get_temp_dir(), 'deprec');
+        putenv('SYMFONY_DEPRECATIONS_SERIALIZE='.$deprecationsFile);
         $process = new PhpProcess($this->getScript($request), null, null);
         $process->run();
+
+        if (file_exists($deprecationsFile)) {
+            $deprecations = file_get_contents($deprecationsFile);
+            unlink($deprecationsFile);
+            foreach ($deprecations ? unserialize($deprecations) : array() as $deprecation) {
+                if ($deprecation[0]) {
+                    trigger_error($deprecation[1], E_USER_DEPRECATED);
+                } else {
+                    @trigger_error($deprecation[1], E_USER_DEPRECATED);
+                }
+            }
+        }
 
         if (!$process->isSuccessful() || !preg_match('/^O\:\d+\:/', $process->getOutput())) {
             throw new \RuntimeException(sprintf('OUTPUT: %s ERROR OUTPUT: %s', $process->getOutput(), $process->getErrorOutput()));

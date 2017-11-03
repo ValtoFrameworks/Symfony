@@ -90,8 +90,6 @@ class PhpDumper extends Dumper
 
     /**
      * Sets the dumper to be used when dumping proxies in the generated container.
-     *
-     * @param ProxyDumper $proxyDumper
      */
     public function setProxyDumper(ProxyDumper $proxyDumper)
     {
@@ -107,8 +105,6 @@ class PhpDumper extends Dumper
      *  * base_class: The base class name
      *  * namespace:  The class namespace
      *  * as_files:   To split the container in several files
-     *
-     * @param array $options An array of options
      *
      * @return string|array A PHP class representing the service container or an array of PHP files if the "as_files" option is set
      *
@@ -173,6 +169,22 @@ use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 
 EOF;
             $files = array();
+
+            $ids = $this->container->getRemovedIds();
+            foreach ($this->container->getDefinitions() as $id => $definition) {
+                if (!$definition->isPublic()) {
+                    $ids[$id] = true;
+                }
+            }
+            if ($ids = array_keys($ids)) {
+                sort($ids);
+                $c = "<?php\n\nreturn array(\n";
+                foreach ($ids as $id) {
+                    $c .= '    '.$this->export($id)." => true,\n";
+                }
+                $files['removed-ids.php'] = $c .= ");\n";
+            }
+
             foreach ($this->generateServiceFiles() as $file => $c) {
                 $files[$file] = $fileStart.$c;
             }
@@ -316,9 +328,6 @@ EOF;
 
     /**
      * Generates the require_once statement for service includes.
-     *
-     * @param Definition $definition
-     * @param array      $inlinedDefinitions
      *
      * @return string
      */
@@ -852,8 +861,6 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
 
 /*{$this->docStar}
- * $class.
- *
  * This class has been auto-generated
  * by the Symfony Dependency Injection Component.
  *
@@ -865,9 +872,6 @@ class $class extends $baseClass
     private \$targetDirs = array();
     private \$privates = array();
 
-    /*{$this->docStar}
-     * Constructor.
-     */
     public function __construct()
     {
 
@@ -888,45 +892,35 @@ EOF;
         }
         $code .= "        \$this->services = \$this->privates = array();\n";
 
+        $code .= $this->addSyntheticIds();
         $code .= $this->addMethodMap();
         $code .= $this->asFiles ? $this->addFileMap() : '';
         $code .= $this->addAliases();
         $code .= <<<EOF
     }
 
-    /*{$this->docStar}
-     * {@inheritdoc}
-     */
     public function reset()
     {
         \$this->privates = array();
         parent::reset();
     }
 
-    /*{$this->docStar}
-     * {@inheritdoc}
-     */
     public function compile()
     {
         throw new LogicException('You cannot compile a dumped container that was already compiled.');
     }
 
-    /*{$this->docStar}
-     * {@inheritdoc}
-     */
     public function isCompiled()
     {
         return true;
     }
 
 EOF;
+        $code .= $this->addRemovedIds();
 
         if ($this->asFiles) {
             $code .= <<<EOF
 
-    /*{$this->docStar}
-     * {@inheritdoc}
-     */
     protected function load(\$file, \$lazyLoad = true)
     {
         return require \$file;
@@ -962,6 +956,64 @@ EOF;
         }
 
         return $code;
+    }
+
+    /**
+     * Adds the syntheticIds definition.
+     *
+     * @return string
+     */
+    private function addSyntheticIds()
+    {
+        $code = '';
+        $definitions = $this->container->getDefinitions();
+        ksort($definitions);
+        foreach ($definitions as $id => $definition) {
+            if ($definition->isSynthetic() && 'service_container' !== $id) {
+                $code .= '            '.$this->export($id)." => true,\n";
+            }
+        }
+
+        return $code ? "        \$this->syntheticIds = array(\n{$code}        );\n" : '';
+    }
+
+    /**
+     * Adds the removedIds definition.
+     *
+     * @return string
+     */
+    private function addRemovedIds()
+    {
+        $ids = $this->container->getRemovedIds();
+        foreach ($this->container->getDefinitions() as $id => $definition) {
+            if (!$definition->isPublic()) {
+                $ids[$id] = true;
+            }
+        }
+        if (!$ids) {
+            return '';
+        }
+        if ($this->asFiles) {
+            $code = "require __DIR__.'/removed-ids.php'";
+        } else {
+            $code = '';
+            $ids = array_keys($ids);
+            sort($ids);
+            foreach ($ids as $id) {
+                $code .= '            '.$this->export($id)." => true,\n";
+            }
+
+            $code = "array(\n{$code}        )";
+        }
+
+        return <<<EOF
+
+    public function getRemovedIds()
+    {
+        return {$code};
+    }
+
+EOF;
     }
 
     /**
@@ -1057,9 +1109,6 @@ EOF;
 
         $code = <<<'EOF'
 
-    /**
-     * {@inheritdoc}
-     */
     public function getParameter($name)
     {
         $name = (string) $name;
@@ -1074,9 +1123,6 @@ EOF;
         return $this->parameters[$name];
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function hasParameter($name)
     {
         $name = (string) $name;
@@ -1084,17 +1130,11 @@ EOF;
         return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function setParameter($name, $value)
     {
         throw new LogicException('Impossible to call set() on a frozen ParameterBag.');
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getParameterBag()
     {
         if (null === $this->parameterBag) {
@@ -1109,9 +1149,6 @@ EOF;
     }
 
 EOF;
-        if ('' === $this->docStar) {
-            $code = str_replace('/**', '/*', $code);
-        }
 
         if ($dynamicPhp) {
             $loadedDynamicParameters = $this->exportParameters(array_combine(array_keys($dynamicPhp), array_fill(0, count($dynamicPhp), false)), '', 8);
@@ -1267,10 +1304,6 @@ EOF;
 
     /**
      * Builds service calls from arguments.
-     *
-     * @param array $arguments
-     * @param array &$calls    By reference
-     * @param array &$behavior By reference
      */
     private function getServiceCallsFromArguments(array $arguments, array &$calls, array &$behavior)
     {
@@ -1297,8 +1330,6 @@ EOF;
     /**
      * Returns the inline definition.
      *
-     * @param Definition $definition
-     *
      * @return array
      */
     private function getInlinedDefinitions(Definition $definition)
@@ -1322,8 +1353,6 @@ EOF;
 
     /**
      * Gets the definition from arguments.
-     *
-     * @param array $arguments
      *
      * @return array
      */
@@ -1788,7 +1817,13 @@ EOF;
 
     private function doExport($value)
     {
-        $export = var_export($value, true);
+        if (is_string($value) && false !== strpos($value, "\n")) {
+            $cleanParts = explode("\n", $value);
+            $cleanParts = array_map(function ($part) { return var_export($part, true); }, $cleanParts);
+            $export = implode('."\n".', $cleanParts);
+        } else {
+            $export = var_export($value, true);
+        }
 
         if ("'" === $export[0] && $export !== $resolvedExport = $this->container->resolveEnvPlaceholders($export, "'.\$this->getEnv('string:%s').'")) {
             $export = $resolvedExport;

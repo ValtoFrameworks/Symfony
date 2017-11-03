@@ -13,6 +13,8 @@ namespace Symfony\Component\HttpKernel;
 
 use Symfony\Bridge\ProxyManager\LazyProxy\Instantiator\RuntimeInstantiator;
 use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
@@ -48,7 +50,6 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
      */
     protected $bundles = array();
 
-    protected $bundleMap;
     protected $container;
     protected $rootDir;
     protected $environment;
@@ -59,6 +60,8 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
 
     private $projectDir;
     private $warmupDir;
+    private $requestStackSize = 0;
+    private $resetServices = false;
 
     const VERSION = '4.0.0-DEV';
     const VERSION_ID = 40000;
@@ -71,8 +74,6 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
     const END_OF_LIFE = '01/2019';
 
     /**
-     * Constructor.
-     *
      * @param string $environment The environment
      * @param bool   $debug       Whether to enable debugging or not
      */
@@ -96,6 +97,8 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
 
         $this->booted = false;
         $this->container = null;
+        $this->requestStackSize = 0;
+        $this->resetServices = false;
     }
 
     /**
@@ -104,7 +107,19 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
     public function boot()
     {
         if (true === $this->booted) {
+            if (!$this->requestStackSize && $this->resetServices) {
+                if ($this->container->has('services_resetter')) {
+                    $this->container->get('services_resetter')->reset();
+                }
+                $this->resetServices = false;
+            }
+
             return;
+        }
+        if ($this->debug && !isset($_SERVER['SHELL_VERBOSITY'])) {
+            putenv('SHELL_VERBOSITY=3');
+            $_ENV['SHELL_VERBOSITY'] = 3;
+            $_SERVER['SHELL_VERBOSITY'] = 3;
         }
 
         // init bundles
@@ -162,6 +177,8 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         }
 
         $this->container = null;
+        $this->requestStackSize = 0;
+        $this->resetServices = false;
     }
 
     /**
@@ -169,11 +186,15 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
      */
     public function handle(Request $request, $type = HttpKernelInterface::MASTER_REQUEST, $catch = true)
     {
-        if (false === $this->booted) {
-            $this->boot();
-        }
+        $this->boot();
+        ++$this->requestStackSize;
+        $this->resetServices = true;
 
-        return $this->getHttpKernel()->handle($request, $type, $catch);
+        try {
+            return $this->getHttpKernel()->handle($request, $type, $catch);
+        } finally {
+            --$this->requestStackSize;
+        }
     }
 
     /**
@@ -197,17 +218,13 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
     /**
      * {@inheritdoc}
      */
-    public function getBundle($name, $first = true)
+    public function getBundle($name)
     {
-        if (!isset($this->bundleMap[$name])) {
+        if (!isset($this->bundles[$name])) {
             throw new \InvalidArgumentException(sprintf('Bundle "%s" does not exist or it is not enabled. Maybe you forgot to add it in the registerBundles() method of your %s.php file?', $name, get_class($this)));
         }
 
-        if (true === $first) {
-            return $this->bundleMap[$name][0];
-        }
-
-        return $this->bundleMap[$name];
+        return $this->bundles[$name];
     }
 
     /**
@@ -234,32 +251,27 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         $isResource = 0 === strpos($path, 'Resources') && null !== $dir;
         $overridePath = substr($path, 9);
         $resourceBundle = null;
-        $bundles = $this->getBundle($bundleName, false);
+        $bundle = $this->getBundle($bundleName);
         $files = array();
 
-        foreach ($bundles as $bundle) {
-            if ($isResource && file_exists($file = $dir.'/'.$bundle->getName().$overridePath)) {
-                if (null !== $resourceBundle) {
-                    throw new \RuntimeException(sprintf('"%s" resource is hidden by a resource from the "%s" derived bundle. Create a "%s" file to override the bundle resource.',
-                        $file,
-                        $resourceBundle,
-                        $dir.'/'.$bundles[0]->getName().$overridePath
-                    ));
-                }
-
-                if ($first) {
-                    return $file;
-                }
-                $files[] = $file;
+        if ($isResource && file_exists($file = $dir.'/'.$bundle->getName().$overridePath)) {
+            if (null !== $resourceBundle) {
+                throw new \RuntimeException(sprintf('"%s" resource is hidden by a resource from the "%s" derived bundle. Create a "%s" file to override the bundle resource.',
+                    $file,
+                    $resourceBundle,
+                    $dir.'/'.$bundles[0]->getName().$overridePath
+                ));
             }
 
-            if (file_exists($file = $bundle->getPath().'/'.$path)) {
-                if ($first && !$isResource) {
-                    return $file;
-                }
-                $files[] = $file;
-                $resourceBundle = $bundle->getName();
+            $files[] = $file;
+        }
+
+        if (file_exists($file = $bundle->getPath().'/'.$path)) {
+            if ($first && !$isResource) {
+                return $file;
             }
+            $files[] = $file;
+            $resourceBundle = $bundle->getName();
         }
 
         if (count($files) > 0) {
@@ -384,66 +396,20 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
     }
 
     /**
-     * Initializes the data structures related to the bundle management.
-     *
-     *  - the bundles property maps a bundle name to the bundle instance,
-     *  - the bundleMap property maps a bundle name to the bundle inheritance hierarchy (most derived bundle first).
+     * Initializes bundles.
      *
      * @throws \LogicException if two bundles share a common name
-     * @throws \LogicException if a bundle tries to extend a non-registered bundle
-     * @throws \LogicException if a bundle tries to extend itself
-     * @throws \LogicException if two bundles extend the same ancestor
      */
     protected function initializeBundles()
     {
         // init bundles
         $this->bundles = array();
-        $topMostBundles = array();
-        $directChildren = array();
-
         foreach ($this->registerBundles() as $bundle) {
             $name = $bundle->getName();
             if (isset($this->bundles[$name])) {
                 throw new \LogicException(sprintf('Trying to register two bundles with the same name "%s"', $name));
             }
             $this->bundles[$name] = $bundle;
-
-            if ($parentName = $bundle->getParent()) {
-                if (isset($directChildren[$parentName])) {
-                    throw new \LogicException(sprintf('Bundle "%s" is directly extended by two bundles "%s" and "%s".', $parentName, $name, $directChildren[$parentName]));
-                }
-                if ($parentName == $name) {
-                    throw new \LogicException(sprintf('Bundle "%s" can not extend itself.', $name));
-                }
-                $directChildren[$parentName] = $name;
-            } else {
-                $topMostBundles[$name] = $bundle;
-            }
-        }
-
-        // look for orphans
-        if (!empty($directChildren) && count($diff = array_diff_key($directChildren, $this->bundles))) {
-            $diff = array_keys($diff);
-
-            throw new \LogicException(sprintf('Bundle "%s" extends bundle "%s", which is not registered.', $directChildren[$diff[0]], $diff[0]));
-        }
-
-        // inheritance
-        $this->bundleMap = array();
-        foreach ($topMostBundles as $name => $bundle) {
-            $bundleMap = array($bundle);
-            $hierarchy = array($name);
-
-            while (isset($directChildren[$name])) {
-                $name = $directChildren[$name];
-                array_unshift($bundleMap, $this->bundles[$name]);
-                $hierarchy[] = $name;
-            }
-
-            foreach ($hierarchy as $hierarchyBundle) {
-                $this->bundleMap[$hierarchyBundle] = $bundleMap;
-                array_pop($bundleMap);
-            }
         }
     }
 
@@ -575,7 +541,6 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         foreach ($this->bundles as $name => $bundle) {
             $bundles[$name] = get_class($bundle);
             $bundlesMetadata[$name] = array(
-                'parent' => $bundle->getParent(),
                 'path' => $bundle->getPath(),
                 'namespace' => $bundle->getNamespace(),
             );
@@ -630,8 +595,6 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
 
     /**
      * Prepares the ContainerBuilder before it is compiled.
-     *
-     * @param ContainerBuilder $container A ContainerBuilder instance
      */
     protected function prepareContainer(ContainerBuilder $container)
     {
@@ -667,6 +630,9 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         $container = new ContainerBuilder();
         $container->getParameterBag()->add($this->getKernelParameters());
 
+        if ($this instanceof CompilerPassInterface) {
+            $container->addCompilerPass($this, PassConfig::TYPE_BEFORE_OPTIMIZATION, -10000);
+        }
         if (class_exists('ProxyManager\Configuration') && class_exists('Symfony\Bridge\ProxyManager\LazyProxy\Instantiator\RuntimeInstantiator')) {
             $container->setProxyInstantiator(new RuntimeInstantiator());
         }
@@ -713,8 +679,6 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
 
     /**
      * Returns a loader for the container.
-     *
-     * @param ContainerInterface $container The service container
      *
      * @return DelegatingLoader The loader
      */
@@ -763,7 +727,7 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
                 do {
                     $token = $tokens[++$i];
                     $output .= isset($token[1]) && 'b"' !== $token ? $token[1] : $token;
-                } while ($token[0] !== T_END_HEREDOC);
+                } while (T_END_HEREDOC !== $token[0]);
                 $rawChunk = '';
             } elseif (T_WHITESPACE === $token[0]) {
                 if ($ignoreSpace) {

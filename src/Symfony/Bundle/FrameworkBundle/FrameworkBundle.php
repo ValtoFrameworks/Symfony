@@ -25,14 +25,13 @@ use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddExpressionLan
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\ContainerBuilderDebugDumpPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\UnusedTagsPass;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\WorkflowGuardListenerPass;
-use Symfony\Component\Config\DependencyInjection\ConfigCachePass;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\DependencyInjection\AddConsoleCommandPass;
-use Symfony\Component\HttpKernel\DependencyInjection\AddCacheClearerPass;
-use Symfony\Component\HttpKernel\DependencyInjection\AddCacheWarmerPass;
 use Symfony\Component\HttpKernel\DependencyInjection\ControllerArgumentValueResolverPass;
+use Symfony\Component\HttpKernel\DependencyInjection\LoggerPass;
 use Symfony\Component\HttpKernel\DependencyInjection\RegisterControllerArgumentLocatorsPass;
 use Symfony\Component\HttpKernel\DependencyInjection\RemoveEmptyControllerArgumentLocatorsPass;
+use Symfony\Component\HttpKernel\DependencyInjection\ResettableServicePass;
 use Symfony\Component\PropertyInfo\DependencyInjection\PropertyInfoPass;
 use Symfony\Component\Routing\DependencyInjection\RoutingResolverPass;
 use Symfony\Component\Serializer\DependencyInjection\SerializerPass;
@@ -76,6 +75,7 @@ class FrameworkBundle extends Bundle
     {
         parent::build($container);
 
+        $container->addCompilerPass(new LoggerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, -32);
         $container->addCompilerPass(new RegisterControllerArgumentLocatorsPass());
         $container->addCompilerPass(new RemoveEmptyControllerArgumentLocatorsPass(), PassConfig::TYPE_BEFORE_REMOVING);
         $container->addCompilerPass(new RoutingResolverPass());
@@ -90,8 +90,6 @@ class FrameworkBundle extends Bundle
         $this->addCompilerPassIfExists($container, AddConsoleCommandPass::class);
         $this->addCompilerPassIfExists($container, TranslatorPass::class);
         $container->addCompilerPass(new LoggingTranslatorPass());
-        $container->addCompilerPass(new AddCacheWarmerPass());
-        $container->addCompilerPass(new AddCacheClearerPass());
         $container->addCompilerPass(new AddExpressionLanguageProvidersPass());
         $this->addCompilerPassIfExists($container, TranslationExtractorPass::class);
         $this->addCompilerPassIfExists($container, TranslationDumperPass::class);
@@ -106,12 +104,12 @@ class FrameworkBundle extends Bundle
         $container->addCompilerPass(new CachePoolPrunerPass(), PassConfig::TYPE_AFTER_REMOVING);
         $this->addCompilerPassIfExists($container, FormPass::class);
         $container->addCompilerPass(new WorkflowGuardListenerPass());
+        $container->addCompilerPass(new ResettableServicePass());
 
         if ($container->getParameter('kernel.debug')) {
             $container->addCompilerPass(new AddDebugLogProcessorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, -32);
             $container->addCompilerPass(new UnusedTagsPass(), PassConfig::TYPE_AFTER_REMOVING);
             $container->addCompilerPass(new ContainerBuilderDebugDumpPass(), PassConfig::TYPE_BEFORE_REMOVING, -255);
-            $this->addCompilerPassIfExists($container, ConfigCachePass::class);
             $container->addCompilerPass(new CacheCollectorPass(), PassConfig::TYPE_BEFORE_REMOVING);
         }
     }

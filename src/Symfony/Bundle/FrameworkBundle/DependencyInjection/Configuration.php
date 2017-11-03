@@ -12,12 +12,15 @@
 namespace Symfony\Bundle\FrameworkBundle\DependencyInjection;
 
 use Doctrine\Common\Annotations\Annotation;
+use Doctrine\Common\Cache\Cache;
 use Symfony\Bundle\FullStack;
 use Symfony\Component\Asset\Package;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Form\Form;
+use Symfony\Component\Lock\Lock;
+use Symfony\Component\Lock\Store\SemaphoreStore;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Translation\Translator;
 use Symfony\Component\Validator\Validation;
@@ -52,7 +55,7 @@ class Configuration implements ConfigurationInterface
 
         $rootNode
             ->beforeNormalization()
-                ->ifTrue(function ($v) { return !isset($v['assets']) && isset($v['templating']); })
+                ->ifTrue(function ($v) { return !isset($v['assets']) && isset($v['templating']) && class_exists(Package::class); })
                 ->then(function ($v) {
                     $v['assets'] = array();
 
@@ -96,6 +99,7 @@ class Configuration implements ConfigurationInterface
         $this->addCacheSection($rootNode);
         $this->addPhpErrorsSection($rootNode);
         $this->addWebLinkSection($rootNode);
+        $this->addLockSection($rootNode);
 
         return $treeBuilder;
     }
@@ -185,23 +189,6 @@ class Configuration implements ConfigurationInterface
                         ->booleanNode('only_exceptions')->defaultFalse()->end()
                         ->booleanNode('only_master_requests')->defaultFalse()->end()
                         ->scalarNode('dsn')->defaultValue('file:%kernel.cache_dir%/profiler')->end()
-                        ->arrayNode('matcher')
-                            ->setDeprecated('The "profiler.matcher" configuration key has been deprecated in Symfony 3.4 and it will be removed in 4.0.')
-                            ->canBeEnabled()
-                            ->performNoDeepMerging()
-                            ->fixXmlConfig('ip')
-                            ->children()
-                                ->scalarNode('path')
-                                    ->info('use the urldecoded format')
-                                    ->example('^/path to resource/')
-                                ->end()
-                                ->scalarNode('service')->end()
-                                ->arrayNode('ips')
-                                    ->beforeNormalization()->ifString()->then(function ($v) { return array($v); })->end()
-                                    ->prototype('scalar')->end()
-                                ->end()
-                            ->end()
-                        ->end()
                     ->end()
                 ->end()
             ->end()
@@ -427,11 +414,10 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('gc_divisor')->end()
                         ->scalarNode('gc_probability')->defaultValue(1)->end()
                         ->scalarNode('gc_maxlifetime')->end()
-                        ->booleanNode('use_strict_mode')->end()
                         ->scalarNode('save_path')->defaultValue('%kernel.cache_dir%/sessions')->end()
                         ->integerNode('metadata_update_threshold')
                             ->defaultValue('0')
-                            ->info('seconds to wait between 2 session metadata updates, it will also prevent the session handler to write if the session has not changed')
+                            ->info('seconds to wait between 2 session metadata updates')
                         ->end()
                     ->end()
                 ->end()
@@ -691,7 +677,7 @@ class Configuration implements ConfigurationInterface
                     ->info('annotation configuration')
                     ->{class_exists(Annotation::class) ? 'canBeDisabled' : 'canBeEnabled'}()
                     ->children()
-                        ->scalarNode('cache')->defaultValue('php_array')->end()
+                        ->scalarNode('cache')->defaultValue(interface_exists(Cache::class) ? 'php_array' : 'none')->end()
                         ->scalarNode('file_cache_dir')->defaultValue('%kernel.cache_dir%/annotations')->end()
                         ->booleanNode('debug')->defaultValue($this->debug)->end()
                     ->end()
@@ -709,9 +695,6 @@ class Configuration implements ConfigurationInterface
                     ->{!class_exists(FullStack::class) && class_exists(Serializer::class) ? 'canBeDisabled' : 'canBeEnabled'}()
                     ->children()
                         ->booleanNode('enable_annotations')->{!class_exists(FullStack::class) && class_exists(Annotation::class) ? 'defaultTrue' : 'defaultFalse'}()->end()
-                        ->scalarNode('cache')
-                            ->setDeprecated('The "%path%.%node%" option is deprecated since Symfony 3.1 and will be removed in 4.0. Configure the "cache.serializer" service under "framework.cache.pools" instead.')
-                        ->end()
                         ->scalarNode('name_converter')->end()
                         ->scalarNode('circular_reference_handler')->end()
                         ->arrayNode('mapping')
@@ -824,6 +807,49 @@ class Configuration implements ConfigurationInterface
                             ->info('Throw PHP errors as \ErrorException instances.')
                             ->defaultValue($this->debug)
                             ->treatNullLike($this->debug)
+                        ->end()
+                    ->end()
+                ->end()
+            ->end()
+        ;
+    }
+
+    private function addLockSection(ArrayNodeDefinition $rootNode)
+    {
+        $rootNode
+            ->children()
+                ->arrayNode('lock')
+                    ->info('Lock configuration')
+                    ->{!class_exists(FullStack::class) && class_exists(Lock::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                    ->beforeNormalization()
+                        ->ifString()->then(function ($v) { return array('enabled' => true, 'resources' => $v); })
+                    ->end()
+                    ->beforeNormalization()
+                        ->ifTrue(function ($v) { return is_array($v) && !isset($v['resources']); })
+                        ->then(function ($v) {
+                            $e = $v['enabled'];
+                            unset($v['enabled']);
+
+                            return array('enabled' => $e, 'resources' => $v);
+                        })
+                    ->end()
+                    ->addDefaultsIfNotSet()
+                    ->fixXmlConfig('resource')
+                    ->children()
+                        ->arrayNode('resources')
+                            ->requiresAtLeastOneElement()
+                            ->defaultValue(array('default' => array(class_exists(SemaphoreStore::class) && SemaphoreStore::isSupported() ? 'semaphore' : 'flock')))
+                            ->beforeNormalization()
+                                ->ifString()->then(function ($v) { return array('default' => $v); })
+                            ->end()
+                            ->beforeNormalization()
+                                ->ifTrue(function ($v) { return is_array($v) && array_keys($v) === range(0, count($v) - 1); })
+                                ->then(function ($v) { return array('default' => $v); })
+                            ->end()
+                            ->prototype('array')
+                                ->beforeNormalization()->ifString()->then(function ($v) { return array($v); })->end()
+                                ->prototype('scalar')->end()
+                            ->end()
                         ->end()
                     ->end()
                 ->end()

@@ -30,6 +30,8 @@ class ParserTest extends TestCase
     protected function tearDown()
     {
         $this->parser = null;
+
+        chmod(__DIR__.'/Fixtures/not_readable.yml', 0644);
     }
 
     /**
@@ -1420,6 +1422,17 @@ EOT;
         $this->assertSame(array('foo' => 'bar baz foobar foo', 'bar' => 'baz'), $this->parser->parse($yaml));
     }
 
+    public function testMultiLineQuotedStringWithTrailingBackslash()
+    {
+        $yaml = <<<YAML
+foobar:
+    "foo\
+    bar"
+YAML;
+
+        $this->assertSame(array('foobar' => 'foobar'), $this->parser->parse($yaml));
+    }
+
     public function testParseMultiLineUnquotedString()
     {
         $yaml = <<<EOT
@@ -1594,7 +1607,7 @@ YAML
 
     /**
      * @expectedException \Symfony\Component\Yaml\Exception\ParseException
-     * @expectedExceptionMessage The built-in tag "!!foo" is not implemented.
+     * @expectedExceptionMessage The built-in tag "!!foo" is not implemented at line 1 (near "!!foo").
      */
     public function testExceptionWhenUsingUnsuportedBuiltInTags()
     {
@@ -1667,7 +1680,7 @@ INI;
         $parser = new Parser();
 
         $tests = array();
-        $files = $parser->parse(file_get_contents(__DIR__.'/Fixtures/'.$testsFile));
+        $files = $parser->parseFile(__DIR__.'/Fixtures/'.$testsFile);
         foreach ($files as $file) {
             $yamls = file_get_contents(__DIR__.'/Fixtures/'.$file.'.yml');
 
@@ -1744,6 +1757,136 @@ YAML;
         );
 
         $this->assertSame($expected, $this->parser->parse($yaml, Yaml::PARSE_CONSTANT));
+    }
+
+    public function testMergeKeysWhenMappingsAreParsedAsObjects()
+    {
+        $yaml = <<<YAML
+foo: &FOO
+    bar: 1
+bar: &BAR
+    baz: 2
+    <<: *FOO
+baz:
+    baz_foo: 3
+    <<:
+        baz_bar: 4
+foobar:
+    bar: ~
+    <<: [*FOO, *BAR]
+YAML;
+        $expected = (object) array(
+            'foo' => (object) array(
+                'bar' => 1,
+            ),
+            'bar' => (object) array(
+                'baz' => 2,
+                'bar' => 1,
+            ),
+            'baz' => (object) array(
+                'baz_foo' => 3,
+                'baz_bar' => 4,
+            ),
+            'foobar' => (object) array(
+                'bar' => null,
+                'baz' => 2,
+            ),
+        );
+
+        $this->assertEquals($expected, $this->parser->parse($yaml, Yaml::PARSE_OBJECT_FOR_MAP));
+    }
+
+    public function testFilenamesAreParsedAsStringsWithoutFlag()
+    {
+        $file = __DIR__.'/Fixtures/index.yml';
+
+        $this->assertSame($file, $this->parser->parse($file));
+    }
+
+    public function testParseFile()
+    {
+        $this->assertInternalType('array', $this->parser->parseFile(__DIR__.'/Fixtures/index.yml'));
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Yaml\Exception\ParseException
+     * @expectedExceptionMessageRegExp #^File ".+/Fixtures/nonexistent.yml" does not exist\.$#
+     */
+    public function testParsingNonExistentFilesThrowsException()
+    {
+        $this->parser->parseFile(__DIR__.'/Fixtures/nonexistent.yml');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Yaml\Exception\ParseException
+     * @expectedExceptionMessageRegExp #^File ".+/Fixtures/not_readable.yml" cannot be read\.$#
+     */
+    public function testParsingNotReadableFilesThrowsException()
+    {
+        if ('\\' === DIRECTORY_SEPARATOR) {
+            $this->markTestSkipped('chmod is not supported on Windows');
+        }
+
+        $file = __DIR__.'/Fixtures/not_readable.yml';
+        chmod($file, 0200);
+
+        $this->parser->parseFile($file);
+    }
+
+    public function testParseReferencesOnMergeKeys()
+    {
+        $yaml = <<<YAML
+mergekeyrefdef:
+    a: foo
+    <<: &quux
+        b: bar
+        c: baz
+mergekeyderef:
+    d: quux
+    <<: *quux
+YAML;
+        $expected = array(
+            'mergekeyrefdef' => array(
+                'a' => 'foo',
+                'b' => 'bar',
+                'c' => 'baz',
+            ),
+            'mergekeyderef' => array(
+                'd' => 'quux',
+                'b' => 'bar',
+                'c' => 'baz',
+            ),
+        );
+
+        $this->assertSame($expected, $this->parser->parse($yaml));
+    }
+
+    public function testParseReferencesOnMergeKeysWithMappingsParsedAsObjects()
+    {
+        $yaml = <<<YAML
+mergekeyrefdef:
+    a: foo
+    <<: &quux
+        b: bar
+        c: baz
+mergekeyderef:
+    d: quux
+    <<: *quux
+YAML;
+        $expected = (object) array(
+            'mergekeyrefdef' => (object) array(
+                'a' => 'foo',
+                'b' => 'bar',
+                'c' => 'baz',
+            ),
+            'mergekeyderef' => (object) array(
+                'd' => 'quux',
+                'b' => 'bar',
+                'c' => 'baz',
+            ),
+        );
+
+        $this->assertEquals($expected, $this->parser->parse($yaml, Yaml::PARSE_OBJECT_FOR_MAP));
     }
 }
 

@@ -19,11 +19,10 @@ use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
+use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
 
 abstract class CompleteConfigurationTest extends TestCase
 {
-    private static $containerCache = array();
-
     abstract protected function getLoader(ContainerBuilder $container);
 
     abstract protected function getFileExtension();
@@ -111,13 +110,13 @@ abstract class CompleteConfigurationTest extends TestCase
                     'remote_user',
                     'form_login',
                     'http_basic',
-                    'http_digest',
                     'remember_me',
                     'anonymous',
                 ),
                 array(
                     'parameter' => '_switch_user',
                     'role' => 'ROLE_ALLOWED_TO_SWITCH',
+                    'stateless' => true,
                 ),
             ),
             array(
@@ -165,7 +164,6 @@ abstract class CompleteConfigurationTest extends TestCase
                 'security.authentication.listener.remote_user.secure',
                 'security.authentication.listener.form.secure',
                 'security.authentication.listener.basic.secure',
-                'security.authentication.listener.digest.secure',
                 'security.authentication.listener.rememberme.secure',
                 'security.authentication.listener.anonymous.secure',
                 'security.authentication.switchuser_listener.secure',
@@ -230,7 +228,7 @@ abstract class CompleteConfigurationTest extends TestCase
 
         $rules = array();
         foreach ($container->getDefinition('security.access_map')->getMethodCalls() as $call) {
-            if ($call[0] == 'add') {
+            if ('add' == $call[0]) {
                 $rules[] = array((string) $call[1][0], $call[1][1], $call[1][2]);
             }
         }
@@ -314,20 +312,16 @@ abstract class CompleteConfigurationTest extends TestCase
         )), $container->getDefinition('security.encoder_factory.generic')->getArguments());
     }
 
-    public function testAcl()
+    public function testArgon2iEncoder()
     {
-        $container = $this->getContainer('container1');
+        if (!Argon2iPasswordEncoder::isSupported()) {
+            $this->markTestSkipped('Argon2i algorithm is not supported.');
+        }
 
-        $this->assertTrue($container->hasDefinition('security.acl.dbal.provider'));
-        $this->assertEquals('security.acl.dbal.provider', (string) $container->getAlias('security.acl.provider'));
-    }
-
-    public function testCustomAclProvider()
-    {
-        $container = $this->getContainer('custom_acl_provider');
-
-        $this->assertFalse($container->hasDefinition('security.acl.dbal.provider'));
-        $this->assertEquals('foo', (string) $container->getAlias('security.acl.provider'));
+        $this->assertSame(array(array('JMS\FooBundle\Entity\User7' => array(
+            'class' => 'Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder',
+            'arguments' => array(),
+        ))), $this->getContainer('argon2i_encoder')->getDefinition('security.encoder_factory.generic')->getArguments());
     }
 
     public function testRememberMeThrowExceptionsDefault()
@@ -421,9 +415,6 @@ abstract class CompleteConfigurationTest extends TestCase
     {
         $file = $file.'.'.$this->getFileExtension();
 
-        if (isset(self::$containerCache[$file])) {
-            return self::$containerCache[$file];
-        }
         $container = new ContainerBuilder();
         $security = new SecurityExtension();
         $container->registerExtension($security);
@@ -436,6 +427,6 @@ abstract class CompleteConfigurationTest extends TestCase
         $container->getCompilerPassConfig()->setRemovingPasses(array());
         $container->compile();
 
-        return self::$containerCache[$file] = $container;
+        return $container;
     }
 }

@@ -12,6 +12,7 @@
 namespace Symfony\Component\DependencyInjection\Loader;
 
 use Symfony\Component\Config\Util\XmlUtils;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\BoundArgument;
@@ -203,13 +204,12 @@ class XmlFileLoader extends FileLoader
         if ($alias = $service->getAttribute('alias')) {
             $this->validateAlias($service, $file);
 
-            $public = true;
+            $this->container->setAlias((string) $service->getAttribute('id'), $alias = new Alias($alias));
             if ($publicAttr = $service->getAttribute('public')) {
-                $public = XmlUtils::phpize($publicAttr);
+                $alias->setPublic(XmlUtils::phpize($publicAttr));
             } elseif (isset($defaults['public'])) {
-                $public = $defaults['public'];
+                $alias->setPublic($defaults['public']);
             }
-            $this->container->setAlias((string) $service->getAttribute('id'), new Alias($alias, $public));
 
             return;
         }
@@ -256,11 +256,7 @@ class XmlFileLoader extends FileLoader
             $definition->setChanges(array());
         }
 
-        if ($publicAttr = $service->getAttribute('public')) {
-            $definition->setPublic(XmlUtils::phpize($publicAttr));
-        }
-
-        foreach (array('class', 'shared', 'synthetic', 'lazy', 'abstract') as $key) {
+        foreach (array('class', 'public', 'shared', 'synthetic', 'lazy', 'abstract') as $key) {
             if ($value = $service->getAttribute($key)) {
                 $method = 'set'.$key;
                 $definition->$method(XmlUtils::phpize($value));
@@ -412,7 +408,7 @@ class XmlFileLoader extends FileLoader
             foreach ($nodes as $node) {
                 if ($services = $this->getChildren($node, 'service')) {
                     // give it a unique name
-                    $id = sprintf('%d_%s', ++$count, preg_replace('/^.*\\\\/', '', $node->getAttribute('class')).$suffix);
+                    $id = sprintf('%d_%s', ++$count, preg_replace('/^.*\\\\/', '', $services[0]->getAttribute('class')).'~'.$suffix);
                     $node->setAttribute('id', $id);
                     $node->setAttribute('service', $id);
 
@@ -505,6 +501,12 @@ class XmlFileLoader extends FileLoader
                         throw new InvalidArgumentException(sprintf('Tag "<%s>" with type="iterator" only accepts collections of type="service" references in "%s".', $name, $file));
                     }
                     break;
+                case 'tagged':
+                    if (!$arg->getAttribute('tag')) {
+                        throw new InvalidArgumentException(sprintf('Tag "<%s>" with type="tagged" has no or empty "tag" attribute in "%s".', $name, $file));
+                    }
+                    $arguments[$key] = new TaggedIteratorArgument($arg->getAttribute('tag'));
+                    break;
                 case 'string':
                     $arguments[$key] = $arg->nodeValue;
                     break;
@@ -531,7 +533,7 @@ class XmlFileLoader extends FileLoader
     {
         $children = array();
         foreach ($node->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->localName === $name && $child->namespaceURI === self::NS) {
+            if ($child instanceof \DOMElement && $child->localName === $name && self::NS === $child->namespaceURI) {
                 $children[] = $child;
             }
         }
@@ -628,7 +630,7 @@ EOF
         }
 
         foreach ($alias->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS) {
+            if ($child instanceof \DOMElement && self::NS === $child->namespaceURI) {
                 throw new InvalidArgumentException(sprintf('Invalid child element "%s" defined for alias "%s" in "%s".', $child->localName, $alias->getAttribute('id'), $file));
             }
         }
@@ -671,7 +673,7 @@ EOF
     private function loadFromExtensions(\DOMDocument $xml)
     {
         foreach ($xml->documentElement->childNodes as $node) {
-            if (!$node instanceof \DOMElement || $node->namespaceURI === self::NS) {
+            if (!$node instanceof \DOMElement || self::NS === $node->namespaceURI) {
                 continue;
             }
 

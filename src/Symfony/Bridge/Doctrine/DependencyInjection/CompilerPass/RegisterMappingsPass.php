@@ -97,8 +97,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
     private $aliasMap;
 
     /**
-     * Constructor.
-     *
      * The $managerParameters is an ordered list of container parameters that could provide the
      * name of the manager to register these namespaces and alias on. The first non-empty name
      * is used, the others skipped.
@@ -136,8 +134,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
 
     /**
      * Register mappings and alias with the metadata drivers.
-     *
-     * @param ContainerBuilder $container
      */
     public function process(ContainerBuilder $container)
     {
@@ -169,8 +165,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
      * Get the service name of the metadata chain driver that the mappings
      * should be registered with.
      *
-     * @param ContainerBuilder $container
-     *
      * @return string The name of the chain driver service
      *
      * @throws InvalidArgumentException if non of the managerParameters has a
@@ -197,8 +191,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
     /**
      * Get the service name from the pattern and the configured manager name.
      *
-     * @param ContainerBuilder $container
-     *
      * @return string a service definition name
      *
      * @throws InvalidArgumentException if none of the managerParameters has a
@@ -214,8 +206,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
      *
      * The default implementation loops over the managerParameters and returns
      * the first non-empty parameter.
-     *
-     * @param ContainerBuilder $container
      *
      * @return string The name of the active manager
      *
@@ -244,8 +234,6 @@ abstract class RegisterMappingsPass implements CompilerPassInterface
      *
      * This default implementation checks if the class has the enabledParameter
      * configured and if so if that parameter is present in the container.
-     *
-     * @param ContainerBuilder $container
      *
      * @return bool whether this compiler pass really should register the mappings
      */

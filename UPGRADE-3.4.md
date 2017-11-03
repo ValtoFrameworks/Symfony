@@ -1,8 +1,16 @@
 UPGRADE FROM 3.3 to 3.4
 =======================
 
+Config
+------
+
+ * The protected `TreeBuilder::$builder` property is deprecated and will be removed in 4.0.
+
 DependencyInjection
 -------------------
+
+ * Definitions and aliases will be made private by default in 4.0. You should either use service injection
+   or explicitly define your services as public if you really need to inject the container.
 
  * Relying on service auto-registration while autowiring is deprecated and won't be supported
    in Symfony 4.0. Explicitly inject your dependencies or create services
@@ -60,12 +68,26 @@ Debug
 
  * Support for stacked errors in the `ErrorHandler` is deprecated and will be removed in Symfony 4.0.
 
+DoctrineBridge
+--------------
+
+* Deprecated `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandler` and
+  `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandlerSchema`. Use
+  `Symfony\Component\HttpFoundation\Session\Storage\Handler\PdoSessionHandler` instead.
+
+EventDispatcher
+---------------
+
+ * Implementing `TraceableEventDispatcherInterface` without the `reset()` method
+   is deprecated and will be unsupported in 4.0.
+
 Filesystem
 ----------
 
  * The `Symfony\Component\Filesystem\LockHandler` class has been deprecated,
    use the `Symfony\Component\Lock\Store\FlockStore` class
    or the `Symfony\Component\Lock\Store\FlockStore\SemaphoreStore` class directly instead.
+ * Support for passing relative paths to `Filesystem::makePathRelative()` is deprecated and will be removed in 4.0.
 
 Finder
 ------
@@ -74,8 +96,46 @@ Finder
    deprecated and will be removed in 4.0 as it used to fix a bug which existed
    before version 5.5.23/5.6.7.
 
+Form
+----
+
+ * Deprecated `ChoiceLoaderInterface` implementation in `TimezoneType`. Use the "choice_loader" option instead.
+
+   Before:
+   ```php
+   class MyTimezoneType extends TimezoneType
+   {
+       public function loadChoices()
+       {
+           // override the method
+       }
+   }
+   ```
+
+   After:
+   ```php
+   class MyTimezoneType extends AbstractType
+   {
+       public function. getParent()
+       {
+           return TimezoneType::class;
+       }
+
+       public function configureOptions(OptionsResolver $resolver)
+       {
+           $resolver->setDefault('choice_loader', ...); // override the option instead
+       }
+   }
+   ```
+
 FrameworkBundle
 ---------------
+
+ * The `session.use_strict_mode` option has been deprecated and is enabled by default.
+
+ * The `cache:clear` command doesn't clear "app" PSR-6 cache pools anymore,
+   but still clears "system" ones.
+   Use the `cache:pool:clear` command to clear "app" pools instead.
 
  * The `doctrine/cache` dependency has been removed; require it via `composer
    require doctrine/cache` if you are using Doctrine cache in your project.
@@ -100,12 +160,10 @@ FrameworkBundle
    instead (e.g. `--prefix=""`)
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddCacheClearerPass`
-   class has been deprecated and will be removed in 4.0. Use the
-   `Symfony\Component\HttpKernel\DependencyInjection\AddCacheClearerPass` class instead.
+   class has been deprecated and will be removed in 4.0. Use tagged iterator arguments instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\AddCacheWarmerPass`
-   class has been deprecated and will be removed in 4.0. Use the
-   `Symfony\Component\HttpKernel\DependencyInjection\AddCacheWarmerPass` class instead.
+   class has been deprecated and will be removed in 4.0. Use tagged iterator arguments instead.
 
  * The `Symfony\Bundle\FrameworkBundle\DependencyInjection\Compiler\TranslationDumperPass`
    class has been deprecated and will be removed in 4.0. Use the
@@ -122,7 +180,7 @@ FrameworkBundle
  * The `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`
    class has been deprecated and will be removed in 4.0. Use the
    `Symfony\Component\Translation\Reader\TranslationReader` class instead.
-   
+
  * The `translation.loader` service has been deprecated and will be removed in 4.0.
    Use the `translation.reader` service instead..
 
@@ -170,8 +228,37 @@ FrameworkBundle
    `TranslationDebugCommand`, `TranslationUpdateCommand`, `XliffLintCommand`
     and `YamlLintCommand` classes have been marked as final
 
+ * The `Symfony\Bundle\FrameworkBundle\Translation\PhpExtractor`
+   class has been deprecated and will be removed in 4.0. Use the
+   `Symfony\Component\Translation\Extractor\PhpExtractor` class instead.
+
+ * The `Symfony\Bundle\FrameworkBundle\Translation\PhpStringTokenParser`
+   class has been deprecated and will be removed in 4.0. Use the
+   `Symfony\Component\Translation\Extractor\PhpStringTokenParser` class instead.
+
+HttpFoundation
+--------------
+
+ * The `Symfony\Component\HttpFoundation\Session\Storage\Handler\NativeSessionHandler`
+   class has been deprecated and will be removed in 4.0. Use the `\SessionHandler` class instead.
+
+ * The `Symfony\Component\HttpFoundation\Session\Storage\Handler\WriteCheckSessionHandler` class has been
+   deprecated and will be removed in 4.0. Implement `SessionUpdateTimestampHandlerInterface` or
+   extend `AbstractSessionHandler` instead.
+
+ * The `Symfony\Component\HttpFoundation\Session\Storage\Proxy\NativeProxy` class has been
+   deprecated and will be removed in 4.0. Use your `\SessionHandlerInterface` implementation directly.
+
+ * Using `Symfony\Component\HttpFoundation\Session\Storage\Handler\MongoDbSessionHandler` with the legacy mongo extension
+   has been deprecated and will be removed in 4.0. Use it with the mongodb/mongodb package and ext-mongodb instead.
+
+ * The `Symfony\Component\HttpFoundation\Session\Storage\Handler\MemcacheSessionHandler` class has been deprecated and
+   will be removed in 4.0. Use `Symfony\Component\HttpFoundation\Session\Storage\Handler\MemcachedSessionHandler` instead.
+
 HttpKernel
 ----------
+
+ * Bundle inheritance has been deprecated.
 
  * Relying on convention-based commands discovery has been deprecated and
    won't be supported in 4.0. Use PSR-4 based service discovery instead.
@@ -204,16 +291,40 @@ HttpKernel
 
  * The `Symfony\Component\HttpKernel\Config\EnvParametersResource` class has been deprecated and will be removed in 4.0.
 
+ * Implementing `DataCollectorInterface` without a `reset()` method has been deprecated and will be unsupported in 4.0.
+
+ * Implementing `DebugLoggerInterface` without a `clear()` method has been deprecated and will be unsupported in 4.0.
+
+ * The `ChainCacheClearer::add()` method has been deprecated and will be removed in 4.0,
+   inject the list of clearers as a constructor argument instead.
+
+ * The `CacheWarmerAggregate::add()` and `setWarmers()` methods have been deprecated and will be removed in 4.0,
+   inject the list of clearers as a constructor argument instead.
+
+ * The `CacheWarmerAggregate` and `ChainCacheClearer` classes have been made final.
+
 Process
 -------
 
  * The `Symfony\Component\Process\ProcessBuilder` class has been deprecated,
    use the `Symfony\Component\Process\Process` class directly instead.
 
+ * Calling `Process::start()` without setting a valid working directory (via `setWorkingDirectory()` or constructor) beforehand is deprecated and will throw an exception in 4.0.
+
 Profiler
 --------
 
  * The `profiler.matcher` option has been deprecated.
+
+Security
+--------
+
+ * Deprecated the HTTP digest authentication: `NonceExpiredException`,
+   `DigestAuthenticationListener` and `DigestAuthenticationEntryPoint` will be
+   removed in 4.0. Use another authentication system like `http_basic` instead.
+   
+ * The `GuardAuthenticatorInterface` has been deprecated and will be removed in 4.0.
+   Use `AuthenticatorInterface` instead.
 
 SecurityBundle
 --------------
@@ -227,17 +338,32 @@ SecurityBundle
    `Doctrine\DBAL\Connection`  as first argument. Not passing it is
     deprecated and will throw a `TypeError` in 4.0.
 
- * `SetAclCommand::__construct()` now takes an instance of
-   `Symfony\Component\Security\Acl\Model\MutableAclProviderInterfaceConnection`
-    as first argument. Not passing it is deprecated and will throw a `TypeError`
-    in 4.0.
+ * The `acl:set` command has been deprecated along with the `SetAclCommand` class,
+   both will be removed in 4.0. Install symfony/acl-bundle instead
+
+ * The `init:acl` command has been deprecated along with the `InitAclCommand` class,
+   both will be removed in 4.0. Install symfony/acl-bundle and use `acl:init` instead
+
+ * Added `logout_on_user_change` to the firewall options. This config item will
+   trigger a logout when the user has changed. Should be set to true to avoid
+   deprecations in the configuration.
+
+ * Deprecated the HTTP digest authentication: `HttpDigestFactory` will be removed in 4.0.
+   Use another authentication system like `http_basic` instead.
+
+ * Deprecated setting the `switch_user.stateless` option to false when the firewall is `stateless`.
+   Setting it to false will have no effect in 4.0.
+
+ * Not configuring explicitly the provider on a firewall is ambiguous when there is more than one registered provider.
+   Using the first configured provider is deprecated since 3.4 and will throw an exception on 4.0.
+   Explicitly configure the provider to use on your firewalls.
 
 Translation
 -----------
 
- * `Symfony\Component\Translation\Writer\TranslationWriter::writeTranslations` has been deprecated 
-   and will be removed in 4.0, use `Symfony\Component\Translation\Writer\TranslationWriter::write` 
-   instead. 
+ * `Symfony\Component\Translation\Writer\TranslationWriter::writeTranslations` has been deprecated
+   and will be removed in 4.0, use `Symfony\Component\Translation\Writer\TranslationWriter::write`
+   instead.
 
  * Passing a `Symfony\Component\Translation\MessageSelector` to `Translator` has been
    deprecated. You should pass a message formatter instead

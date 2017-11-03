@@ -43,8 +43,6 @@ class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandle
     );
 
     /**
-     * Constructor.
-     *
      * @param HttpKernelInterface $httpKernel
      * @param HttpUtils           $httpUtils
      * @param array               $options    Options for processing a failed authentication attempt
@@ -68,11 +66,6 @@ class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandle
         return $this->options;
     }
 
-    /**
-     * Sets the options.
-     *
-     * @param array $options An array of options
-     */
     public function setOptions(array $options)
     {
         $this->options = array_merge($this->defaultOptions, $options);

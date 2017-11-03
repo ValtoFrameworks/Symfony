@@ -83,8 +83,6 @@ class Process implements \IteratorAggregate
      * Exit codes translation table.
      *
      * User-defined errors must use exit codes in the 64-113 range.
-     *
-     * @var array
      */
     public static $exitCodes = array(
         0 => 'OK',
@@ -130,8 +128,6 @@ class Process implements \IteratorAggregate
     );
 
     /**
-     * Constructor.
-     *
      * @param string|array   $commandline The command line to run
      * @param string|null    $cwd         The working directory or null to use the working dir of the current PHP process
      * @param array|null     $env         The environment variables or null to use the same environment as the current PHP process
@@ -198,7 +194,7 @@ class Process implements \IteratorAggregate
      *
      * @final since version 3.3
      */
-    public function run($callback = null, array $env = array())
+    public function run(callable $callback = null, array $env = array())
     {
         $this->start($callback, $env);
 
@@ -270,26 +266,21 @@ class Process implements \IteratorAggregate
             }
         }
 
-        if (null === $env) {
-            $env = $this->env;
-        } elseif ($this->env) {
+        if ($this->env) {
             $env += $this->env;
         }
 
         $envBackup = array();
-        if (null !== $env) {
-            foreach ($env as $k => $v) {
-                $envBackup[$k] = getenv($k);
-                putenv(false === $v || null === $v ? $k : "$k=$v");
-            }
-            $env = null;
+        foreach ($env as $k => $v) {
+            $envBackup[$k] = getenv($k);
+            putenv(false === $v || null === $v ? $k : "$k=$v");
         }
 
         $options = array('suppress_errors' => true);
 
         if ('\\' === DIRECTORY_SEPARATOR) {
             $options['bypass_shell'] = true;
-            $commandline = $this->prepareWindowsCommandLine($commandline, $envBackup, $env);
+            $commandline = $this->prepareWindowsCommandLine($commandline, $envBackup);
         } elseif (!$this->useFileHandles && $this->isSigchildEnabled()) {
             // last exit code is output on the fourth pipe and caught to work around --enable-sigchild
             $descriptors[3] = array('pipe', 'w');
@@ -303,7 +294,11 @@ class Process implements \IteratorAggregate
             $ptsWorkaround = fopen(__FILE__, 'r');
         }
 
-        $this->process = proc_open($commandline, $descriptors, $this->processPipes->pipes, $this->cwd, $env, $options);
+        if (!is_dir($this->cwd)) {
+            throw new RuntimeException('The provided cwd does not exist.');
+        }
+
+        $this->process = proc_open($commandline, $descriptors, $this->processPipes->pipes, $this->cwd, null, $options);
 
         foreach ($envBackup as $k => $v) {
             putenv(false === $v ? $k : "$k=$v");
@@ -788,7 +783,7 @@ class Process implements \IteratorAggregate
      */
     public function isStarted()
     {
-        return $this->status != self::STATUS_READY;
+        return self::STATUS_READY != $this->status;
     }
 
     /**
@@ -800,7 +795,7 @@ class Process implements \IteratorAggregate
     {
         $this->updateStatus(false);
 
-        return $this->status == self::STATUS_TERMINATED;
+        return self::STATUS_TERMINATED == $this->status;
     }
 
     /**
@@ -1161,7 +1156,7 @@ class Process implements \IteratorAggregate
      */
     public function checkTimeout()
     {
-        if ($this->status !== self::STATUS_STARTED) {
+        if (self::STATUS_STARTED !== $this->status) {
             return;
         }
 
@@ -1352,7 +1347,7 @@ class Process implements \IteratorAggregate
         $callback = $this->callback;
         foreach ($result as $type => $data) {
             if (3 !== $type) {
-                $callback($type === self::STDOUT ? self::OUT : self::ERR, $data);
+                $callback(self::STDOUT === $type ? self::OUT : self::ERR, $data);
             } elseif (!isset($this->fallbackStatus['signaled'])) {
                 $this->fallbackStatus['exitcode'] = (int) $data;
             }
@@ -1466,7 +1461,7 @@ class Process implements \IteratorAggregate
         return true;
     }
 
-    private function prepareWindowsCommandLine($cmd, array &$envBackup, array &$env = null)
+    private function prepareWindowsCommandLine($cmd, array &$envBackup)
     {
         $uid = uniqid('', true);
         $varCount = 0;
@@ -1479,7 +1474,7 @@ class Process implements \IteratorAggregate
                     [^"%!^]*+
                 )++
             ) | [^"]*+ )"/x',
-            function ($m) use (&$envBackup, &$env, &$varCache, &$varCount, $uid) {
+            function ($m) use (&$envBackup, &$varCache, &$varCount, $uid) {
                 if (!isset($m[1])) {
                     return $m[0];
                 }
@@ -1497,11 +1492,7 @@ class Process implements \IteratorAggregate
                 $value = '"'.preg_replace('/(\\\\*)"/', '$1$1\\"', $value).'"';
                 $var = $uid.++$varCount;
 
-                if (null === $env) {
-                    putenv("$var=$value");
-                } else {
-                    $env[$var] = $value;
-                }
+                putenv("$var=$value");
 
                 $envBackup[$var] = false;
 

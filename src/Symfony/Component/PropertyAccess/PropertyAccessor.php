@@ -13,14 +13,15 @@ namespace Symfony\Component\PropertyAccess;
 
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\ApcuAdapter;
 use Symfony\Component\Cache\Adapter\NullAdapter;
 use Symfony\Component\Inflector\Inflector;
 use Symfony\Component\PropertyAccess\Exception\AccessException;
 use Symfony\Component\PropertyAccess\Exception\InvalidArgumentException;
-use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
 use Symfony\Component\PropertyAccess\Exception\NoSuchIndexException;
+use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
 use Symfony\Component\PropertyAccess\Exception\UnexpectedTypeException;
 
 /**
@@ -54,10 +55,6 @@ class PropertyAccessor implements PropertyAccessorInterface
      * @var bool
      */
     private $magicCall;
-
-    /**
-     * @var bool
-     */
     private $ignoreInvalidIndices;
 
     /**
@@ -65,21 +62,9 @@ class PropertyAccessor implements PropertyAccessorInterface
      */
     private $cacheItemPool;
 
-    /**
-     * @var array
-     */
     private $readPropertyCache = array();
-
-    /**
-     * @var array
-     */
     private $writePropertyCache = array();
     private static $resultProto = array(self::VALUE => null);
-
-    /**
-     * @var array
-     */
-    private $propertyPathCache = array();
 
     /**
      * Should not be used by application code. Use
@@ -385,7 +370,7 @@ class PropertyAccessor implements PropertyAccessorInterface
     private function readProperty($zval, $property)
     {
         if (!is_object($zval[self::VALUE])) {
-            throw new NoSuchPropertyException(sprintf('Cannot read property "%s" from an array. Maybe you intended to write the property path as "[%s]" instead.', $property, $property));
+            throw new NoSuchPropertyException(sprintf('Cannot read property "%s" from an array. Maybe you intended to write the property path as "[%1$s]" instead.', $property));
         }
 
         $result = self::$resultProto;
@@ -536,7 +521,7 @@ class PropertyAccessor implements PropertyAccessorInterface
     private function writeProperty($zval, $property, $value)
     {
         if (!is_object($zval[self::VALUE])) {
-            throw new NoSuchPropertyException(sprintf('Cannot write property "%s" to an array. Maybe you should write the property path as "[%s]" instead?', $property, $property));
+            throw new NoSuchPropertyException(sprintf('Cannot write property "%s" to an array. Maybe you should write the property path as "[%1$s]" instead?', $property));
         }
 
         $object = $zval[self::VALUE];
@@ -838,7 +823,9 @@ class PropertyAccessor implements PropertyAccessorInterface
         }
 
         $apcu = new ApcuAdapter($namespace, $defaultLifetime / 5, $version);
-        if (null !== $logger) {
+        if ('cli' === \PHP_SAPI && !ini_get('apc.enable_cli')) {
+            $apcu->setLogger(new NullLogger());
+        } elseif (null !== $logger) {
             $apcu->setLogger($logger);
         }
 

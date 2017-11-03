@@ -47,6 +47,24 @@ class ProcessTest extends TestCase
         }
     }
 
+    /**
+     * @expectedException \Symfony\Component\Process\Exception\RuntimeException
+     * @expectedExceptionMessage The provided cwd does not exist.
+     */
+    public function testInvalidCwd()
+    {
+        try {
+            // Check that it works fine if the CWD exists
+            $cmd = new Process('echo test', __DIR__);
+            $cmd->run();
+        } catch (\Exception $e) {
+            $this->fail($e);
+        }
+
+        $cmd = new Process('echo test', __DIR__.'/notfound/');
+        $cmd->run();
+    }
+
     public function testThatProcessDoesNotThrowWarningDuringRun()
     {
         if ('\\' === DIRECTORY_SEPARATOR) {
@@ -312,7 +330,7 @@ class ProcessTest extends TestCase
 
         $called = false;
         $p->run(function ($type, $buffer) use (&$called) {
-            $called = $buffer === 'foo';
+            $called = 'foo' === $buffer;
         });
 
         $this->assertTrue($called, 'The callback should be executed with the output');
@@ -325,7 +343,7 @@ class ProcessTest extends TestCase
 
         $called = false;
         $p->run(function ($type, $buffer) use (&$called) {
-            $called = $buffer === 'foo';
+            $called = 'foo' === $buffer;
         });
 
         $this->assertTrue($called, 'The callback should be executed with the output');

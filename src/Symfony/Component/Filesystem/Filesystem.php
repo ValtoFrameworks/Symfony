@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Filesystem;
 
+use Symfony\Component\Filesystem\Exception\InvalidArgumentException;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Exception\FileNotFoundException;
 
@@ -117,9 +118,11 @@ class Filesystem
      */
     public function exists($files)
     {
+        $maxPathLength = PHP_MAXPATHLEN - 2;
+
         foreach ($this->toIterator($files) as $file) {
-            if ('\\' === DIRECTORY_SEPARATOR && strlen($file) > 258) {
-                throw new IOException('Could not check if file exist because path length exceeds 258 characters.', 0, null, $file);
+            if (strlen($file) > $maxPathLength) {
+                throw new IOException(sprintf('Could not check if file exist because path length exceeds %d characters.', $maxPathLength), 0, null, $file);
             }
 
             if (!file_exists($file)) {
@@ -301,8 +304,10 @@ class Filesystem
      */
     private function isReadable($filename)
     {
-        if ('\\' === DIRECTORY_SEPARATOR && strlen($filename) > 258) {
-            throw new IOException('Could not check if file is readable because path length exceeds 258 characters.', 0, null, $filename);
+        $maxPathLength = PHP_MAXPATHLEN - 2;
+
+        if (strlen($filename) > $maxPathLength) {
+            throw new IOException(sprintf('Could not check if file is readable because path length exceeds %d characters.', $maxPathLength), 0, null, $filename);
         }
 
         return is_readable($filename);
@@ -446,31 +451,42 @@ class Filesystem
      */
     public function makePathRelative($endPath, $startPath)
     {
+        if (!$this->isAbsolutePath($startPath)) {
+            throw new InvalidArgumentException(sprintf('The start path "%s" is not absolute.', $startPath));
+        }
+
+        if (!$this->isAbsolutePath($endPath)) {
+            throw new InvalidArgumentException(sprintf('The end path "%s" is not absolute.', $endPath));
+        }
+
         // Normalize separators on Windows
         if ('\\' === DIRECTORY_SEPARATOR) {
             $endPath = str_replace('\\', '/', $endPath);
             $startPath = str_replace('\\', '/', $startPath);
         }
 
+        $stripDriveLetter = function ($path) {
+            if (strlen($path) > 2 && ':' === $path[1] && '/' === $path[2] && ctype_alpha($path[0])) {
+                return substr($path, 2);
+            }
+
+            return $path;
+        };
+
+        $endPath = $stripDriveLetter($endPath);
+        $startPath = $stripDriveLetter($startPath);
+
         // Split the paths into arrays
         $startPathArr = explode('/', trim($startPath, '/'));
         $endPathArr = explode('/', trim($endPath, '/'));
 
-        if ('/' !== $startPath[0]) {
-            array_shift($startPathArr);
-        }
-
-        if ('/' !== $endPath[0]) {
-            array_shift($endPathArr);
-        }
-
-        $normalizePathArray = function ($pathSegments) {
+        $normalizePathArray = function ($pathSegments, $absolute) {
             $result = array();
 
             foreach ($pathSegments as $segment) {
-                if ('..' === $segment) {
+                if ('..' === $segment && ($absolute || count($result))) {
                     array_pop($result);
-                } else {
+                } elseif ('.' !== $segment) {
                     $result[] = $segment;
                 }
             }
@@ -478,8 +494,8 @@ class Filesystem
             return $result;
         };
 
-        $startPathArr = $normalizePathArray($startPathArr);
-        $endPathArr = $normalizePathArray($endPathArr);
+        $startPathArr = $normalizePathArray($startPathArr, static::isAbsolutePath($startPath));
+        $endPathArr = $normalizePathArray($endPathArr, static::isAbsolutePath($endPath));
 
         // Find for which directory the common path stops
         $index = 0;
@@ -488,19 +504,14 @@ class Filesystem
         }
 
         // Determine how deep the start path is relative to the common path (ie, "web/bundles" = 2 levels)
-        if (count($startPathArr) === 1 && $startPathArr[0] === '') {
+        if (1 === count($startPathArr) && '' === $startPathArr[0]) {
             $depth = 0;
         } else {
             $depth = count($startPathArr) - $index;
         }
 
-        // When we need to traverse from the start, and we are starting from a root path, don't add '../'
-        if ('/' === $startPath[0] && 0 === $index && 0 === $depth) {
-            $traverser = '';
-        } else {
-            // Repeated "../" for each level need to reach the common path
-            $traverser = str_repeat('../', $depth);
-        }
+        // Repeated "../" for each level need to reach the common path
+        $traverser = str_repeat('../', $depth);
 
         $endPathRemainder = implode('/', array_slice($endPathArr, $index));
 
@@ -528,6 +539,7 @@ class Filesystem
     {
         $targetDir = rtrim($targetDir, '/\\');
         $originDir = rtrim($originDir, '/\\');
+        $originDirLen = strlen($originDir);
 
         // Iterate in destination folder to remove obsolete entries
         if ($this->exists($targetDir) && isset($options['delete']) && $options['delete']) {
@@ -536,8 +548,9 @@ class Filesystem
                 $flags = \FilesystemIterator::SKIP_DOTS;
                 $deleteIterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($targetDir, $flags), \RecursiveIteratorIterator::CHILD_FIRST);
             }
+            $targetDirLen = strlen($targetDir);
             foreach ($deleteIterator as $file) {
-                $origin = str_replace($targetDir, $originDir, $file->getPathname());
+                $origin = $originDir.substr($file->getPathname(), $targetDirLen);
                 if (!$this->exists($origin)) {
                     $this->remove($file);
                 }
@@ -559,7 +572,7 @@ class Filesystem
         }
 
         foreach ($iterator as $file) {
-            $target = str_replace($originDir, $targetDir, $file->getPathname());
+            $target = $targetDir.substr($file->getPathname(), $originDirLen);
 
             if ($copyOnWindows) {
                 if (is_file($file)) {
@@ -594,7 +607,7 @@ class Filesystem
     {
         return strspn($file, '/\\', 0, 1)
             || (strlen($file) > 3 && ctype_alpha($file[0])
-                && substr($file, 1, 1) === ':'
+                && ':' === $file[1]
                 && strspn($file, '/\\', 2, 1)
             )
             || null !== parse_url($file, PHP_URL_SCHEME)

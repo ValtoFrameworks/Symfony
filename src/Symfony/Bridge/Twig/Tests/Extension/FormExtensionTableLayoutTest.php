@@ -83,7 +83,7 @@ class FormExtensionTableLayoutTest extends AbstractTableLayoutTest
 
     protected function renderLabel(FormView $view, $label = null, array $vars = array())
     {
-        if ($label !== null) {
+        if (null !== $label) {
             $vars += array('label' => $label);
         }
 
@@ -120,8 +120,8 @@ class FormExtensionTableLayoutTest extends AbstractTableLayoutTest
         return (string) $this->renderer->renderBlock($view, 'form_end', $vars);
     }
 
-    protected function setTheme(FormView $view, array $themes)
+    protected function setTheme(FormView $view, array $themes, $useDefaultThemes = true)
     {
-        $this->renderer->setTheme($view, $themes);
+        $this->renderer->setTheme($view, $themes, $useDefaultThemes);
     }
 }

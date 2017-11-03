@@ -28,8 +28,6 @@ class DateTimeToLocalizedStringTransformer extends BaseDateTimeTransformer
     private $calendar;
 
     /**
-     * Constructor.
-     *
      * @see BaseDateTimeTransformer::formats for available format options
      *
      * @param string $inputTimezone  The name of the input timezone
@@ -89,7 +87,7 @@ class DateTimeToLocalizedStringTransformer extends BaseDateTimeTransformer
 
         $value = $this->getIntlDateFormatter()->format($dateTime->getTimestamp());
 
-        if (intl_get_error_code() != 0) {
+        if (0 != intl_get_error_code()) {
             throw new TransformationFailedException(intl_get_error_message());
         }
 
@@ -122,7 +120,7 @@ class DateTimeToLocalizedStringTransformer extends BaseDateTimeTransformer
 
         $timestamp = $this->getIntlDateFormatter($dateOnly)->parse($value);
 
-        if (intl_get_error_code() != 0) {
+        if (0 != intl_get_error_code()) {
             throw new TransformationFailedException(intl_get_error_message());
         }
 

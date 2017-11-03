@@ -9,8 +9,6 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
 
 /**
- * ProjectServiceContainer.
- *
  * This class has been auto-generated
  * by the Symfony Dependency Injection Component.
  *
@@ -22,14 +20,14 @@ class ProjectServiceContainer extends Container
     private $targetDirs = array();
     private $privates = array();
 
-    /**
-     * Constructor.
-     */
     public function __construct()
     {
         $this->parameters = $this->getDefaultParameters();
 
         $this->services = $this->privates = array();
+        $this->syntheticIds = array(
+            'request' => true,
+        );
         $this->methodMap = array(
             'BAR' => 'getBARService',
             'BAR2' => 'getBAR2Service',
@@ -52,6 +50,7 @@ class ProjectServiceContainer extends Container
             'method_call1' => 'getMethodCall1Service',
             'new_factory_service' => 'getNewFactoryServiceService',
             'service_from_static_method' => 'getServiceFromStaticMethodService',
+            'tagged_iterator' => 'getTaggedIteratorService',
         );
         $this->aliases = array(
             'alias_for_alias' => 'foo',
@@ -60,29 +59,36 @@ class ProjectServiceContainer extends Container
         );
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function reset()
     {
         $this->privates = array();
         parent::reset();
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function compile()
     {
         throw new LogicException('You cannot compile a dumped container that was already compiled.');
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function isCompiled()
     {
         return true;
+    }
+
+    public function getRemovedIds()
+    {
+        return array(
+            'Psr\\Container\\ContainerInterface' => true,
+            'Symfony\\Component\\DependencyInjection\\ContainerInterface' => true,
+            'configurator_service' => true,
+            'configurator_service_simple' => true,
+            'decorated.pif-pouf' => true,
+            'decorator_service.inner' => true,
+            'factory_simple' => true,
+            'inlined' => true,
+            'new_factory' => true,
+            'tagged_iterator_foo' => true,
+        );
     }
 
     /**
@@ -373,6 +379,19 @@ class ProjectServiceContainer extends Container
     }
 
     /**
+     * Gets the public 'tagged_iterator' shared service.
+     *
+     * @return \Bar
+     */
+    protected function getTaggedIteratorService()
+    {
+        return $this->services['tagged_iterator'] = new \Bar(new RewindableGenerator(function () {
+            yield 0 => ($this->services['foo'] ?? $this->getFooService());
+            yield 1 => ($this->privates['tagged_iterator_foo'] ?? $this->privates['tagged_iterator_foo'] = new \Bar());
+        }, 2));
+    }
+
+    /**
      * Gets the private 'factory_simple' shared service.
      *
      * @return \SimpleFactoryClass
@@ -386,9 +405,6 @@ class ProjectServiceContainer extends Container
         return $this->privates['factory_simple'] = new \SimpleFactoryClass('foo');
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getParameter($name)
     {
         $name = (string) $name;
@@ -403,9 +419,6 @@ class ProjectServiceContainer extends Container
         return $this->parameters[$name];
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function hasParameter($name)
     {
         $name = (string) $name;
@@ -413,17 +426,11 @@ class ProjectServiceContainer extends Container
         return isset($this->parameters[$name]) || isset($this->loadedDynamicParameters[$name]) || array_key_exists($name, $this->parameters);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function setParameter($name, $value)
     {
         throw new LogicException('Impossible to call set() on a frozen ParameterBag.');
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getParameterBag()
     {
         if (null === $this->parameterBag) {

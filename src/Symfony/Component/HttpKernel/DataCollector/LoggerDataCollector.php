@@ -46,6 +46,17 @@ class LoggerDataCollector extends DataCollector implements LateDataCollectorInte
     /**
      * {@inheritdoc}
      */
+    public function reset()
+    {
+        if ($this->logger instanceof DebugLoggerInterface) {
+            $this->logger->clear();
+        }
+        $this->data = array();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function lateCollect()
     {
         if (null !== $this->logger) {

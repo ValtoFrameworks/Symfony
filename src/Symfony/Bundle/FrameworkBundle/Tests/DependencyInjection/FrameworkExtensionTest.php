@@ -34,8 +34,8 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
+use Symfony\Component\Serializer\Normalizer\DateIntervalNormalizer;
 use Symfony\Component\Serializer\Serializer;
-use Symfony\Component\Serializer\Mapping\Factory\CacheClassMetadataFactory;
 use Symfony\Component\Serializer\Mapping\Loader\XmlFileLoader;
 use Symfony\Component\Serializer\Mapping\Loader\YamlFileLoader;
 use Symfony\Component\Serializer\Normalizer\DataUriNormalizer;
@@ -452,6 +452,13 @@ abstract class FrameworkExtensionTest extends TestCase
         $this->assertEquals('assets.custom_version_strategy', (string) $defaultPackage->getArgument(1));
     }
 
+    public function testAssetsCanBeDisabled()
+    {
+        $container = $this->createContainerFromFile('assets_disabled');
+
+        $this->assertFalse($container->has('templating.helper.assets'), 'The templating.helper.assets helper service is removed when assets are disabled.');
+    }
+
     public function testWebLink()
     {
         $container = $this->createContainerFromFile('web_link');
@@ -604,7 +611,7 @@ abstract class FrameworkExtensionTest extends TestCase
 
         $container = $this->createContainerFromFile('validation_annotations', array(
             'kernel.bundles' => array('TestBundle' => 'Symfony\\Bundle\\FrameworkBundle\\Tests\\TestBundle'),
-            'kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'parent' => null, 'path' => __DIR__.'/Fixtures/TestBundle')),
+            'kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'path' => __DIR__.'/Fixtures/TestBundle')),
         ));
 
         $calls = $container->getDefinition('validator.builder')->getMethodCalls();
@@ -640,7 +647,7 @@ abstract class FrameworkExtensionTest extends TestCase
 
         $container = $this->createContainerFromFile('validation_annotations', array(
             'kernel.bundles' => array('CustomPathBundle' => 'Symfony\\Bundle\\FrameworkBundle\\Tests\\CustomPathBundle'),
-            'kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'parent' => null, 'path' => __DIR__.'/Fixtures/CustomPathBundle')),
+            'kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'path' => __DIR__.'/Fixtures/CustomPathBundle')),
         ));
 
         $calls = $container->getDefinition('validator.builder')->getMethodCalls();
@@ -756,10 +763,6 @@ abstract class FrameworkExtensionTest extends TestCase
 
     public function testDataUriNormalizerRegistered()
     {
-        if (!class_exists('Symfony\Component\Serializer\Normalizer\DataUriNormalizer')) {
-            $this->markTestSkipped('The DataUriNormalizer has been introduced in the Serializer Component version 3.1.');
-        }
-
         $container = $this->createContainerFromFile('full');
 
         $definition = $container->getDefinition('serializer.normalizer.data_uri');
@@ -769,12 +772,23 @@ abstract class FrameworkExtensionTest extends TestCase
         $this->assertEquals(-920, $tag[0]['priority']);
     }
 
-    public function testDateTimeNormalizerRegistered()
+    public function testDateIntervalNormalizerRegistered()
     {
-        if (!class_exists('Symfony\Component\Serializer\Normalizer\DateTimeNormalizer')) {
-            $this->markTestSkipped('The DateTimeNormalizer has been introduced in the Serializer Component version 3.1.');
+        if (!class_exists(DateIntervalNormalizer::class)) {
+            $this->markTestSkipped('The DateIntervalNormalizer has been introduced in the Serializer Component version 3.4.');
         }
 
+        $container = $this->createContainerFromFile('full');
+
+        $definition = $container->getDefinition('serializer.normalizer.dateinterval');
+        $tag = $definition->getTag('serializer.normalizer');
+
+        $this->assertEquals(DateIntervalNormalizer::class, $definition->getClass());
+        $this->assertEquals(-915, $tag[0]['priority']);
+    }
+
+    public function testDateTimeNormalizerRegistered()
+    {
         $container = $this->createContainerFromFile('full');
 
         $definition = $container->getDefinition('serializer.normalizer.datetime');
@@ -786,10 +800,6 @@ abstract class FrameworkExtensionTest extends TestCase
 
     public function testJsonSerializableNormalizerRegistered()
     {
-        if (!class_exists('Symfony\Component\Serializer\Normalizer\JsonSerializableNormalizer')) {
-            $this->markTestSkipped('The JsonSerializableNormalizer has been introduced in the Serializer Component version 3.1.');
-        }
-
         $container = $this->createContainerFromFile('full');
 
         $definition = $container->getDefinition('serializer.normalizer.json_serializable');
@@ -812,10 +822,6 @@ abstract class FrameworkExtensionTest extends TestCase
 
     public function testSerializerCacheActivated()
     {
-        if (!class_exists(CacheClassMetadataFactory::class) || !method_exists(XmlFileLoader::class, 'getMappedClasses') || !method_exists(YamlFileLoader::class, 'getMappedClasses')) {
-            $this->markTestSkipped('The Serializer default cache warmer has been introduced in the Serializer Component version 3.2.');
-        }
-
         $container = $this->createContainerFromFile('serializer_enabled');
 
         $this->assertTrue($container->hasDefinition('serializer.mapping.cache_class_metadata_factory'));
@@ -832,7 +838,7 @@ abstract class FrameworkExtensionTest extends TestCase
 
     public function testSerializerMapping()
     {
-        $container = $this->createContainerFromFile('serializer_mapping', array('kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'path' => __DIR__.'/Fixtures/TestBundle', 'parent' => null))));
+        $container = $this->createContainerFromFile('serializer_mapping', array('kernel.bundles_metadata' => array('TestBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle\\Tests', 'path' => __DIR__.'/Fixtures/TestBundle'))));
         $configDir = __DIR__.'/Fixtures/TestBundle/Resources/config';
         $expectedLoaders = array(
             new Definition(AnnotationLoader::class, array(new Reference('annotation_reader'))),
@@ -915,6 +921,7 @@ abstract class FrameworkExtensionTest extends TestCase
         $this->loadFromFile($container, 'default_config');
         $container
             ->register('foo', \stdClass::class)
+            ->setPublic(true)
             ->setProperty('dispatcher', new Reference('event_dispatcher'));
         $container->compile();
         $this->assertInstanceOf(EventDispatcherInterface::class, $container->get('foo')->dispatcher);
@@ -963,7 +970,7 @@ abstract class FrameworkExtensionTest extends TestCase
     {
         return new ContainerBuilder(new ParameterBag(array_merge(array(
             'kernel.bundles' => array('FrameworkBundle' => 'Symfony\\Bundle\\FrameworkBundle\\FrameworkBundle'),
-            'kernel.bundles_metadata' => array('FrameworkBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle', 'path' => __DIR__.'/../..', 'parent' => null)),
+            'kernel.bundles_metadata' => array('FrameworkBundle' => array('namespace' => 'Symfony\\Bundle\\FrameworkBundle', 'path' => __DIR__.'/../..')),
             'kernel.cache_dir' => __DIR__,
             'kernel.project_dir' => __DIR__,
             'kernel.debug' => false,
@@ -1066,6 +1073,7 @@ abstract class FrameworkExtensionTest extends TestCase
                 if (ChainAdapter::class === $parentDefinition->getClass()) {
                     break;
                 }
+                // no break
             case 'cache.adapter.filesystem':
                 $this->assertSame(FilesystemAdapter::class, $parentDefinition->getClass());
                 break;

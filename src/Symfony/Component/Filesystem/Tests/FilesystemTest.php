@@ -375,15 +375,15 @@ class FilesystemTest extends FilesystemTestCase
     public function testFilesExistsFails()
     {
         if ('\\' !== DIRECTORY_SEPARATOR) {
-            $this->markTestSkipped('Test covers edge case on Windows only.');
+            $this->markTestSkipped('Long file names are an issue on Windows');
         }
-
         $basePath = $this->workspace.'\\directory\\';
+        $maxPathLength = PHP_MAXPATHLEN - 2;
 
         $oldPath = getcwd();
         mkdir($basePath);
         chdir($basePath);
-        $file = str_repeat('T', 259 - strlen($basePath));
+        $file = str_repeat('T', $maxPathLength - strlen($basePath) + 1);
         $path = $basePath.$file;
         exec('TYPE NUL >>'.$file); // equivalent of touch, we can not use the php touch() here because it suffers from the same limitation
         $this->longPathNamesWindows[] = $path; // save this so we can clean up later
@@ -1099,7 +1099,6 @@ class FilesystemTest extends FilesystemTestCase
             array('/var/lib/symfony/src/Symfony/', '/var/lib/symfony/src/Symfony/Component/', '../'),
             array('/var/lib/symfony/src/Symfony', '/var/lib/symfony/src/Symfony/Component', '../'),
             array('/var/lib/symfony/src/Symfony', '/var/lib/symfony/src/Symfony/Component/', '../'),
-            array('var/lib/symfony/', 'var/lib/symfony/src/Symfony/Component', '../../../'),
             array('/usr/lib/symfony/', '/var/lib/symfony/src/Symfony/Component', '../../../../../../usr/lib/symfony/'),
             array('/var/lib/symfony/src/Symfony/', '/var/lib/symfony/', 'src/Symfony/'),
             array('/aa/bb', '/aa/bb', './'),
@@ -1139,6 +1138,24 @@ class FilesystemTest extends FilesystemTestCase
         }
 
         return $paths;
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Filesystem\Exception\InvalidArgumentException
+     * @expectedExceptionMessage The start path "var/lib/symfony/src/Symfony/Component" is not absolute.
+     */
+    public function testMakePathRelativeWithRelativeStartPath()
+    {
+        $this->assertSame('../../../', $this->filesystem->makePathRelative('/var/lib/symfony/', 'var/lib/symfony/src/Symfony/Component'));
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Filesystem\Exception\InvalidArgumentException
+     * @expectedExceptionMessage The end path "var/lib/symfony/" is not absolute.
+     */
+    public function testMakePathRelativeWithRelativeEndPath()
+    {
+        $this->assertSame('../../../', $this->filesystem->makePathRelative('var/lib/symfony/', '/var/lib/symfony/src/Symfony/Component'));
     }
 
     public function testMirrorCopiesFilesAndDirectoriesRecursively()
@@ -1258,6 +1275,53 @@ class FilesystemTest extends FilesystemTestCase
         $this->assertFileEquals($sourcePath.'/nested/file1.txt', $targetPath.'link1/file1.txt');
         $this->assertTrue(is_link($targetPath.DIRECTORY_SEPARATOR.'link1'));
         $this->assertEquals('\\' === DIRECTORY_SEPARATOR ? realpath($sourcePath.'\nested') : 'nested', readlink($targetPath.DIRECTORY_SEPARATOR.'link1'));
+    }
+
+    public function testMirrorContentsWithSameNameAsSourceOrTargetWithoutDeleteOption()
+    {
+        $sourcePath = $this->workspace.DIRECTORY_SEPARATOR.'source'.DIRECTORY_SEPARATOR;
+
+        mkdir($sourcePath);
+        touch($sourcePath.'source');
+        touch($sourcePath.'target');
+
+        $targetPath = $this->workspace.DIRECTORY_SEPARATOR.'target'.DIRECTORY_SEPARATOR;
+
+        $oldPath = getcwd();
+        chdir($this->workspace);
+
+        $this->filesystem->mirror('source', $targetPath);
+
+        chdir($oldPath);
+
+        $this->assertTrue(is_dir($targetPath));
+        $this->assertFileExists($targetPath.'source');
+        $this->assertFileExists($targetPath.'target');
+    }
+
+    public function testMirrorContentsWithSameNameAsSourceOrTargetWithDeleteOption()
+    {
+        $sourcePath = $this->workspace.DIRECTORY_SEPARATOR.'source'.DIRECTORY_SEPARATOR;
+
+        mkdir($sourcePath);
+        touch($sourcePath.'source');
+
+        $targetPath = $this->workspace.DIRECTORY_SEPARATOR.'target'.DIRECTORY_SEPARATOR;
+
+        mkdir($targetPath);
+        touch($targetPath.'source');
+        touch($targetPath.'target');
+
+        $oldPath = getcwd();
+        chdir($this->workspace);
+
+        $this->filesystem->mirror('source', 'target', null, array('delete' => true));
+
+        chdir($oldPath);
+
+        $this->assertTrue(is_dir($targetPath));
+        $this->assertFileExists($targetPath.'source');
+        $this->assertFileNotExists($targetPath.'target');
     }
 
     /**

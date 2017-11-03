@@ -23,8 +23,6 @@ interface FormInterface extends \ArrayAccess, \Traversable, \Countable
     /**
      * Sets the parent form.
      *
-     * @param FormInterface|null $parent The parent form or null if it's the root
-     *
      * @return self
      *
      * @throws Exception\AlreadySubmittedException if the form has already been submitted
@@ -269,10 +267,9 @@ interface FormInterface extends \ArrayAccess, \Traversable, \Countable
     /**
      * Submits data to the form, transforms and validates it.
      *
-     * @param null|string|array $submittedData The submitted data
-     * @param bool              $clearMissing  whether to set fields to NULL
-     *                                         when they are missing in the
-     *                                         submitted data
+     * @param mixed $submittedData The submitted data
+     * @param bool  $clearMissing  whether to set fields to NULL when they
+     *                             are missing in the submitted data
      *
      * @return $this
      *
@@ -296,8 +293,6 @@ interface FormInterface extends \ArrayAccess, \Traversable, \Countable
 
     /**
      * Creates a view.
-     *
-     * @param FormView $parent The parent view
      *
      * @return FormView The view
      */

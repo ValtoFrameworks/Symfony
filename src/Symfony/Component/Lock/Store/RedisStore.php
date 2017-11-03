@@ -24,6 +24,14 @@ use Symfony\Component\Lock\StoreInterface;
  */
 class RedisStore implements StoreInterface
 {
+    private static $defaultConnectionOptions = array(
+        'class' => null,
+        'persistent' => 0,
+        'persistent_id' => null,
+        'timeout' => 30,
+        'read_timeout' => 0,
+        'retry_interval' => 0,
+    );
     private $redis;
     private $initialTtl;
 

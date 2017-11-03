@@ -63,16 +63,11 @@ use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\RequestContext;
 
 /**
- * {$options['class']}.
- *
  * This class has been auto-generated
  * by the Symfony Routing Component.
  */
 class {$options['class']} extends {$options['base_class']}
 {
-    /**
-     * Constructor.
-     */
     public function __construct(RequestContext \$context)
     {
         \$this->context = \$context;
@@ -160,6 +155,12 @@ EOF;
             }
         }
 
+        if ('' === $code) {
+            $code .= "        if ('/' === \$pathinfo) {\n";
+            $code .= "            throw new Symfony\Component\Routing\Exception\NoConfigurationException();\n";
+            $code .= "        }\n";
+        }
+
         return $code;
     }
 
@@ -241,8 +242,8 @@ EOF;
         $supportsTrailingSlash = $supportsRedirections && (!$methods || in_array('HEAD', $methods) || in_array('GET', $methods));
         $regex = $compiledRoute->getRegex();
 
-        if (!count($compiledRoute->getPathVariables()) && false !== preg_match('#^(.)\^(?P<url>.*?)\$\1#'.(substr($regex, -1) === 'u' ? 'u' : ''), $regex, $m)) {
-            if ($supportsTrailingSlash && substr($m['url'], -1) === '/') {
+        if (!count($compiledRoute->getPathVariables()) && false !== preg_match('#^(.)\^(?P<url>.*?)\$\1#'.('u' === substr($regex, -1) ? 'u' : ''), $regex, $m)) {
+            if ($supportsTrailingSlash && '/' === substr($m['url'], -1)) {
                 $conditions[] = sprintf('%s === $trimmedPathinfo', var_export(rtrim(str_replace('\\', '', $m['url']), '/'), true));
                 $hasTrailingSlash = true;
             } else {
@@ -282,7 +283,7 @@ EOF;
 
         if ($methods) {
             if (1 === count($methods)) {
-                if ($methods[0] === 'HEAD') {
+                if ('HEAD' === $methods[0]) {
                     $code .= <<<EOF
             if ('HEAD' !== \$requestMethod) {
                 \$allow[] = 'HEAD';

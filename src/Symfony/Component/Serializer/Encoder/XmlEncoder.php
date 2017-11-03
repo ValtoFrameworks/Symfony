@@ -11,7 +11,7 @@
 
 namespace Symfony\Component\Serializer\Encoder;
 
-use Symfony\Component\Serializer\Exception\UnexpectedValueException;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Serializer\SerializerAwareInterface;
 use Symfony\Component\Serializer\SerializerAwareTrait;
 
@@ -82,7 +82,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
     public function decode($data, $format, array $context = array())
     {
         if ('' === trim($data)) {
-            throw new UnexpectedValueException('Invalid XML data, it can not be empty.');
+            throw new NotEncodableValueException('Invalid XML data, it can not be empty.');
         }
 
         $internalErrors = libxml_use_internal_errors(true);
@@ -98,15 +98,15 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
         if ($error = libxml_get_last_error()) {
             libxml_clear_errors();
 
-            throw new UnexpectedValueException($error->message);
+            throw new NotEncodableValueException($error->message);
         }
 
         $rootNode = null;
         foreach ($dom->childNodes as $child) {
-            if ($child->nodeType === XML_DOCUMENT_TYPE_NODE) {
-                throw new UnexpectedValueException('Document types are not allowed.');
+            if (XML_DOCUMENT_TYPE_NODE === $child->nodeType) {
+                throw new NotEncodableValueException('Document types are not allowed.');
             }
-            if (!$rootNode && $child->nodeType !== XML_PI_NODE) {
+            if (!$rootNode && XML_PI_NODE !== $child->nodeType) {
                 $rootNode = $child;
             }
         }
@@ -349,7 +349,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
         $value = array();
 
         foreach ($node->childNodes as $subnode) {
-            if ($subnode->nodeType === XML_PI_NODE) {
+            if (XML_PI_NODE === $subnode->nodeType) {
                 continue;
             }
 
@@ -384,7 +384,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
      *
      * @return bool
      *
-     * @throws UnexpectedValueException
+     * @throws NotEncodableValueException
      */
     private function buildXml(\DOMNode $parentNode, $data, $xmlRootNodeName = null)
     {
@@ -398,7 +398,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
                         $data = $this->serializer->normalize($data, $this->format, $this->context);
                     }
                     $parentNode->setAttribute($attributeName, $data);
-                } elseif ($key === '#') {
+                } elseif ('#' === $key) {
                     $append = $this->selectNodeType($parentNode, $data);
                 } elseif (is_array($data) && false === is_numeric($key)) {
                     // Is this array fully numeric keys?
@@ -441,7 +441,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
             return $this->appendNode($parentNode, $data, 'data');
         }
 
-        throw new UnexpectedValueException(sprintf('An unexpected value could not be serialized: %s', var_export($data, true)));
+        throw new NotEncodableValueException(sprintf('An unexpected value could not be serialized: %s', var_export($data, true)));
     }
 
     /**
@@ -489,7 +489,7 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
      *
      * @return bool
      *
-     * @throws UnexpectedValueException
+     * @throws NotEncodableValueException
      */
     private function selectNodeType(\DOMNode $node, $val)
     {
@@ -520,8 +520,6 @@ class XmlEncoder implements EncoderInterface, DecoderInterface, NormalizationAwa
 
     /**
      * Get real XML root node name, taking serializer options into account.
-     *
-     * @param array $context
      *
      * @return string
      */

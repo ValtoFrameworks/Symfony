@@ -31,11 +31,6 @@ class CommandTester
     private $inputs = array();
     private $statusCode;
 
-    /**
-     * Constructor.
-     *
-     * @param Command $command A Command instance to test
-     */
     public function __construct(Command $command)
     {
         $this->command = $command;

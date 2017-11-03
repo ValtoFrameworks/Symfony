@@ -75,8 +75,6 @@ class IntlDateFormatter
 
     /**
      * Patterns used to format the date when no pattern is provided.
-     *
-     * @var array
      */
     private $defaultDateFormats = array(
         self::NONE => '',
@@ -88,8 +86,6 @@ class IntlDateFormatter
 
     /**
      * Patterns used to format the time when no pattern is provided.
-     *
-     * @var array
      */
     private $defaultTimeFormats = array(
         self::FULL => 'h:mm:ss a zzzz',
@@ -129,8 +125,6 @@ class IntlDateFormatter
     private $timeZoneId;
 
     /**
-     * Constructor.
-     *
      * @param string $locale   The locale code. The only currently supported locale is "en" (or null using the default locale, i.e. "en")
      * @param int    $datetype Type of date formatting, one of the format type constants
      * @param int    $timetype Type of time formatting, one of the format type constants

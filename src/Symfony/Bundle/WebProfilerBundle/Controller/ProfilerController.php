@@ -23,8 +23,6 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
 
 /**
- * ProfilerController.
- *
  * @author Fabien Potencier <fabien@symfony.com>
  */
 class ProfilerController
@@ -38,8 +36,6 @@ class ProfilerController
     private $baseDir;
 
     /**
-     * Constructor.
-     *
      * @param UrlGeneratorInterface        $generator  The URL Generator
      * @param Profiler                     $profiler   The profiler
      * @param Environment                  $twig       The twig environment
@@ -178,8 +174,6 @@ class ProfilerController
     /**
      * Renders the profiler search bar.
      *
-     * @param Request $request The current HTTP Request
-     *
      * @return Response A Response instance
      *
      * @throws NotFoundHttpException
@@ -283,8 +277,6 @@ class ProfilerController
 
     /**
      * Narrows the search bar.
-     *
-     * @param Request $request The current HTTP Request
      *
      * @return Response A Response instance
      *

@@ -249,11 +249,20 @@ class ContextListenerTest extends TestCase
         $listener->handle($event);
     }
 
-    public function testTryAllUserProvidersUntilASupportingUserProviderIsFound()
+    public function testIfTokenIsDeauthenticated()
     {
         $tokenStorage = new TokenStorage();
         $refreshedUser = new User('foobar', 'baz');
         $this->handleEventWithPreviousSession($tokenStorage, array(new NotSupportingUserProvider(), new SupportingUserProvider($refreshedUser)));
+
+        $this->assertNull($tokenStorage->getToken());
+    }
+
+    public function testTryAllUserProvidersUntilASupportingUserProviderIsFound()
+    {
+        $tokenStorage = new TokenStorage();
+        $refreshedUser = new User('foobar', 'baz');
+        $this->handleEventWithPreviousSession($tokenStorage, array(new NotSupportingUserProvider(), new SupportingUserProvider($refreshedUser)), $refreshedUser);
 
         $this->assertSame($refreshedUser, $tokenStorage->getToken()->getUser());
     }
@@ -262,7 +271,7 @@ class ContextListenerTest extends TestCase
     {
         $tokenStorage = new TokenStorage();
         $refreshedUser = new User('foobar', 'baz');
-        $this->handleEventWithPreviousSession($tokenStorage, array(new SupportingUserProvider(), new SupportingUserProvider($refreshedUser)));
+        $this->handleEventWithPreviousSession($tokenStorage, array(new SupportingUserProvider(), new SupportingUserProvider($refreshedUser)), $refreshedUser);
 
         $this->assertSame($refreshedUser, $tokenStorage->getToken()->getUser());
     }
@@ -287,7 +296,7 @@ class ContextListenerTest extends TestCase
     {
         $tokenStorage = new TokenStorage();
         $refreshedUser = new User('foobar', 'baz');
-        $this->handleEventWithPreviousSession($tokenStorage, new \ArrayObject(array(new NotSupportingUserProvider(), new SupportingUserProvider($refreshedUser))));
+        $this->handleEventWithPreviousSession($tokenStorage, new \ArrayObject(array(new NotSupportingUserProvider(), new SupportingUserProvider($refreshedUser))), $refreshedUser);
 
         $this->assertSame($refreshedUser, $tokenStorage->getToken()->getUser());
     }
@@ -296,7 +305,7 @@ class ContextListenerTest extends TestCase
     {
         $session = new Session(new MockArraySessionStorage());
 
-        if ($original !== null) {
+        if (null !== $original) {
             $session->set('_security_session', $original);
         }
 
@@ -320,10 +329,11 @@ class ContextListenerTest extends TestCase
         return $session;
     }
 
-    private function handleEventWithPreviousSession(TokenStorageInterface $tokenStorage, $userProviders)
+    private function handleEventWithPreviousSession(TokenStorageInterface $tokenStorage, $userProviders, UserInterface $user = null)
     {
+        $user = $user ?: new User('foo', 'bar');
         $session = new Session(new MockArraySessionStorage());
-        $session->set('_security_context_key', serialize(new UsernamePasswordToken(new User('foo', 'bar'), '', 'context_key')));
+        $session->set('_security_context_key', serialize(new UsernamePasswordToken($user, '', 'context_key', array('ROLE_USER'))));
 
         $request = new Request();
         $request->setSession($session);

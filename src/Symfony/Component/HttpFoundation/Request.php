@@ -116,7 +116,7 @@ class Request
     public $headers;
 
     /**
-     * @var string
+     * @var string|resource
      */
     protected $content;
 
@@ -193,7 +193,6 @@ class Request
     protected static $requestFactory;
 
     private $isHostValid = true;
-    private $isClientIpsValid = true;
     private $isForwardedValid = true;
 
     private static $trustedHeaderSet = -1;
@@ -223,8 +222,6 @@ class Request
     );
 
     /**
-     * Constructor.
-     *
      * @param array           $query      The GET parameters
      * @param array           $request    The POST parameters
      * @param array           $attributes The request attributes (parameters parsed from the PATH_INFO, ...)
@@ -430,22 +427,22 @@ class Request
     public function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
     {
         $dup = clone $this;
-        if ($query !== null) {
+        if (null !== $query) {
             $dup->query = new ParameterBag($query);
         }
-        if ($request !== null) {
+        if (null !== $request) {
             $dup->request = new ParameterBag($request);
         }
-        if ($attributes !== null) {
+        if (null !== $attributes) {
             $dup->attributes = new ParameterBag($attributes);
         }
-        if ($cookies !== null) {
+        if (null !== $cookies) {
             $dup->cookies = new ParameterBag($cookies);
         }
-        if ($files !== null) {
+        if (null !== $files) {
             $dup->files = new FileBag($files);
         }
-        if ($server !== null) {
+        if (null !== $server) {
             $dup->server = new ServerBag($server);
             $dup->headers = new HeaderBag($dup->server->getHeaders());
         }
@@ -898,7 +895,7 @@ class Request
             return $this->server->get('SERVER_PORT');
         }
 
-        if ($host[0] === '[') {
+        if ('[' === $host[0]) {
             $pos = strpos($host, ':', strrpos($host, ']'));
         } else {
             $pos = strrpos($host, ':');
@@ -960,7 +957,7 @@ class Request
         $scheme = $this->getScheme();
         $port = $this->getPort();
 
-        if (('http' == $scheme && $port == 80) || ('https' == $scheme && $port == 443)) {
+        if (('http' == $scheme && 80 == $port) || ('https' == $scheme && 443 == $port)) {
             return $this->getHost();
         }
 
@@ -1595,7 +1592,7 @@ class Request
                     }
                 } else {
                     for ($i = 0, $max = count($codes); $i < $max; ++$i) {
-                        if ($i === 0) {
+                        if (0 === $i) {
                             $lang = strtolower($codes[0]);
                         } else {
                             $lang .= '_'.strtoupper($codes[$i]);
@@ -1690,7 +1687,7 @@ class Request
             // IIS with ISAPI_Rewrite
             $requestUri = $this->headers->get('X_REWRITE_URL');
             $this->headers->remove('X_REWRITE_URL');
-        } elseif ($this->server->get('IIS_WasUrlRewritten') == '1' && $this->server->get('UNENCODED_URL') != '') {
+        } elseif ('1' == $this->server->get('IIS_WasUrlRewritten') && '' != $this->server->get('UNENCODED_URL')) {
             // IIS7 with URL Rewrite: make sure we get the unencoded URL (double slash problem)
             $requestUri = $this->server->get('UNENCODED_URL');
             $this->server->remove('UNENCODED_URL');
@@ -1699,7 +1696,7 @@ class Request
             $requestUri = $this->server->get('REQUEST_URI');
             // HTTP proxy reqs setup request URI with scheme and host [and port] + the URL path, only use URL path
             $schemeAndHttpHost = $this->getSchemeAndHttpHost();
-            if (strpos($requestUri, $schemeAndHttpHost) === 0) {
+            if (0 === strpos($requestUri, $schemeAndHttpHost)) {
                 $requestUri = substr($requestUri, strlen($schemeAndHttpHost));
             }
         } elseif ($this->server->has('ORIG_PATH_INFO')) {
@@ -1751,6 +1748,9 @@ class Request
 
         // Does the baseUrl have anything in common with the request_uri?
         $requestUri = $this->getRequestUri();
+        if ($requestUri !== '' && $requestUri[0] !== '/') {
+            $requestUri = '/'.$requestUri;
+        }
 
         if ($baseUrl && false !== $prefix = $this->getUrlencodedPrefix($requestUri, $baseUrl)) {
             // full $baseUrl matches
@@ -1776,7 +1776,7 @@ class Request
         // If using mod_rewrite or ISAPI_Rewrite strip the script filename
         // out of baseUrl. $pos !== 0 makes sure it is not matching a value
         // from PATH_INFO or QUERY_STRING
-        if (strlen($requestUri) >= strlen($baseUrl) && (false !== $pos = strpos($requestUri, $baseUrl)) && $pos !== 0) {
+        if (strlen($requestUri) >= strlen($baseUrl) && (false !== $pos = strpos($requestUri, $baseUrl)) && 0 !== $pos) {
             $baseUrl = substr($requestUri, 0, $pos + strlen($baseUrl));
         }
 
@@ -1823,8 +1823,11 @@ class Request
         }
 
         // Remove the query string from REQUEST_URI
-        if ($pos = strpos($requestUri, '?')) {
+        if (false !== $pos = strpos($requestUri, '?')) {
             $requestUri = substr($requestUri, 0, $pos);
+        }
+        if ($requestUri !== '' && $requestUri[0] !== '/') {
+            $requestUri = '/'.$requestUri;
         }
 
         $pathInfo = substr($requestUri, strlen($baseUrl));

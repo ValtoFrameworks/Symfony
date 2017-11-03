@@ -11,8 +11,6 @@
 
 namespace Symfony\Bundle\SecurityBundle\DependencyInjection;
 
-use Symfony\Bundle\SecurityBundle\Command\InitAclCommand;
-use Symfony\Bundle\SecurityBundle\Command\SetAclCommand;
 use Symfony\Bundle\SecurityBundle\Command\UserPasswordEncoderCommand;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\Factory\SecurityFactoryInterface;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\UserProvider\UserProviderFactoryInterface;
@@ -29,6 +27,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Security\Core\Authorization\ExpressionLanguage;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
 
 /**
  * SecurityExtension.
@@ -113,75 +112,11 @@ class SecurityExtension extends Extension
             $container->getDefinition(UserPasswordEncoderCommand::class)->replaceArgument(1, array_keys($config['encoders']));
         }
 
-        // load ACL
-        if (isset($config['acl'])) {
-            $this->aclLoad($config['acl'], $container);
-        } else {
-            $container->removeDefinition(InitAclCommand::class);
-            $container->removeDefinition(SetAclCommand::class);
-        }
-
         $container->registerForAutoconfiguration(VoterInterface::class)
             ->addTag('security.voter');
     }
 
-    private function aclLoad($config, ContainerBuilder $container)
-    {
-        if (!interface_exists('Symfony\Component\Security\Acl\Model\AclInterface')) {
-            throw new \LogicException('You must install symfony/security-acl in order to use the ACL functionality.');
-        }
-
-        $loader = new XmlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
-        $loader->load('security_acl.xml');
-
-        if (isset($config['cache']['id'])) {
-            $container->setAlias('security.acl.cache', $config['cache']['id'])->setPrivate(true);
-        }
-        $container->getDefinition('security.acl.voter.basic_permissions')->addArgument($config['voter']['allow_if_object_identity_unavailable']);
-
-        // custom ACL provider
-        if (isset($config['provider'])) {
-            $container->setAlias('security.acl.provider', $config['provider'])->setPrivate(true);
-
-            return;
-        }
-
-        $this->configureDbalAclProvider($config, $container, $loader);
-    }
-
-    private function configureDbalAclProvider(array $config, ContainerBuilder $container, $loader)
-    {
-        $loader->load('security_acl_dbal.xml');
-
-        if (null !== $config['connection']) {
-            $container->setAlias('security.acl.dbal.connection', sprintf('doctrine.dbal.%s_connection', $config['connection']));
-        }
-
-        $container
-            ->getDefinition('security.acl.dbal.schema_listener')
-            ->addTag('doctrine.event_listener', array(
-                'connection' => $config['connection'],
-                'event' => 'postGenerateSchema',
-                'lazy' => true,
-            ))
-        ;
-
-        $container->getDefinition('security.acl.cache.doctrine')->addArgument($config['cache']['prefix']);
-
-        $container->setParameter('security.acl.dbal.class_table_name', $config['tables']['class']);
-        $container->setParameter('security.acl.dbal.entry_table_name', $config['tables']['entry']);
-        $container->setParameter('security.acl.dbal.oid_table_name', $config['tables']['object_identity']);
-        $container->setParameter('security.acl.dbal.oid_ancestors_table_name', $config['tables']['object_identity_ancestors']);
-        $container->setParameter('security.acl.dbal.sid_table_name', $config['tables']['security_identity']);
-    }
-
-    /**
-     * Loads the web configuration.
-     *
-     * @param array            $config    An array of configuration settings
-     * @param ContainerBuilder $container A ContainerBuilder instance
-     */
-    private function createRoleHierarchy($config, ContainerBuilder $container)
+    private function createRoleHierarchy(array $config, ContainerBuilder $container)
     {
         if (!isset($config['role_hierarchy']) || 0 === count($config['role_hierarchy'])) {
             $container->removeDefinition('security.access.role_hierarchy_voter');
@@ -228,14 +163,14 @@ class SecurityExtension extends Extension
         $providerIds = $this->createUserProviders($config, $container);
 
         // make the ContextListener aware of the configured user providers
-        $definition = $container->getDefinition('security.context_listener');
-        $arguments = $definition->getArguments();
+        $contextListenerDefinition = $container->getDefinition('security.context_listener');
+        $arguments = $contextListenerDefinition->getArguments();
         $userProviders = array();
         foreach ($providerIds as $userProviderId) {
             $userProviders[] = new Reference($userProviderId);
         }
         $arguments[1] = new IteratorArgument($userProviders);
-        $definition->setArguments($arguments);
+        $contextListenerDefinition->setArguments($arguments);
 
         $customUserChecker = false;
 
@@ -246,6 +181,8 @@ class SecurityExtension extends Extension
             if (isset($firewall['user_checker']) && 'security.user_checker' !== $firewall['user_checker']) {
                 $customUserChecker = true;
             }
+
+            $contextListenerDefinition->addMethodCall('setLogoutOnUserChange', array($firewall['logout_on_user_change']));
 
             $configId = 'security.firewall.map.config.'.$name;
 
@@ -314,6 +251,10 @@ class SecurityExtension extends Extension
             }
             $defaultProvider = $providerIds[$normalizedName];
         } else {
+            if (count($providerIds) > 1) {
+                throw new InvalidConfigurationException(sprintf('Not configuring explicitly the provider on "%s" firewall is ambiguous as there is more than one registered provider.', $id));
+            }
+
             $defaultProvider = reset($providerIds);
         }
 
@@ -412,7 +353,7 @@ class SecurityExtension extends Extension
         // Switch user listener
         if (isset($firewall['switch_user'])) {
             $listenerKeys[] = 'switch_user';
-            $listeners[] = new Reference($this->createSwitchUserListener($container, $id, $firewall['switch_user'], $defaultProvider));
+            $listeners[] = new Reference($this->createSwitchUserListener($container, $id, $firewall['switch_user'], $defaultProvider, $firewall['stateless']));
         }
 
         // Access listener
@@ -564,6 +505,18 @@ class SecurityExtension extends Extension
             );
         }
 
+        // Argon2i encoder
+        if ('argon2i' === $config['algorithm']) {
+            if (!Argon2iPasswordEncoder::isSupported()) {
+                throw new InvalidConfigurationException('Argon2i algorithm is not supported. Please install the libsodium extension or upgrade to PHP 7.2+.');
+            }
+
+            return array(
+                'class' => 'Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder',
+                'arguments' => array(),
+            );
+        }
+
         // run-time configured encoder
         return $config;
     }
@@ -643,7 +596,7 @@ class SecurityExtension extends Extension
         return $exceptionListenerId;
     }
 
-    private function createSwitchUserListener($container, $id, $config, $defaultProvider)
+    private function createSwitchUserListener($container, $id, $config, $defaultProvider, $stateless)
     {
         $userProvider = isset($config['provider']) ? $this->getUserProviderId($config['provider']) : $defaultProvider;
 
@@ -654,6 +607,7 @@ class SecurityExtension extends Extension
         $listener->replaceArgument(3, $id);
         $listener->replaceArgument(6, $config['parameter']);
         $listener->replaceArgument(7, $config['role']);
+        $listener->replaceArgument(9, $stateless ?: $config['stateless']);
 
         return $switchUserListenerId;
     }

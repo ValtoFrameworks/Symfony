@@ -63,8 +63,6 @@ class TemplateManager
     /**
      * Gets template names of templates that are present in the viewed profile.
      *
-     * @param Profile $profile
-     *
      * @return array
      *
      * @throws \UnexpectedValueException
@@ -107,7 +105,7 @@ class TemplateManager
         }
 
         try {
-            if ($loader instanceof SourceContextLoaderInterface) {
+            if ($loader instanceof SourceContextLoaderInterface || method_exists($loader, 'getSourceContext')) {
                 $loader->getSourceContext($template);
             } else {
                 $loader->getSource($template);
