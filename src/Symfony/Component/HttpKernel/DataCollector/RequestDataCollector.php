@@ -20,13 +20,10 @@ use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * RequestDataCollector.
- *
  * @author Fabien Potencier <fabien@symfony.com>
  */
 class RequestDataCollector extends DataCollector implements EventSubscriberInterface, LateDataCollectorInterface
 {
-    /** @var \SplObjectStorage */
     protected $controllers;
 
     public function __construct()
@@ -81,6 +78,13 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
             $responseCookies[$cookie->getName()] = $cookie;
         }
 
+        $dotenvVars = array();
+        foreach (explode(',', getenv('SYMFONY_DOTENV_VARS')) as $name) {
+            if ('' !== $name && false !== $value = getenv($name)) {
+                $dotenvVars[$name] = $value;
+            }
+        }
+
         $this->data = array(
             'method' => $request->getMethod(),
             'format' => $request->getRequestFormat(),
@@ -103,6 +107,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
             'path_info' => $request->getPathInfo(),
             'controller' => 'n/a',
             'locale' => $request->getLocale(),
+            'dotenv_vars' => $dotenvVars,
         );
 
         if (isset($this->data['request_headers']['php-auth-pw'])) {
@@ -131,7 +136,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
             unset($this->controllers[$request]);
         }
 
-        if (null !== $session && $session->isStarted()) {
+        if (null !== $session) {
             if ($request->attributes->has('_redirected')) {
                 $this->data['redirect'] = $session->remove('sf_redirect');
             }
@@ -257,6 +262,11 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
         return $this->data['locale'];
     }
 
+    public function getDotenvVars()
+    {
+        return new ParameterBag($this->data['dotenv_vars']->getValue());
+    }
+
     /**
      * Gets the route name.
      *
@@ -315,7 +325,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
 
     public function onKernelResponse(FilterResponseEvent $event)
     {
-        if (!$event->isMasterRequest() || !$event->getRequest()->hasSession() || !$event->getRequest()->getSession()->isStarted()) {
+        if (!$event->isMasterRequest() || !$event->getRequest()->hasSession()) {
             return;
         }
 

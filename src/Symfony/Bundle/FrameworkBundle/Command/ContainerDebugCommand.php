@@ -221,9 +221,8 @@ EOF
     {
         $serviceIds = $builder->getServiceIds();
         $foundServiceIds = array();
-        $name = strtolower($name);
         foreach ($serviceIds as $serviceId) {
-            if (false === strpos($serviceId, $name)) {
+            if (false === stripos($serviceId, $name)) {
                 continue;
             }
             $foundServiceIds[] = $serviceId;
@@ -248,7 +247,7 @@ EOF
         }
 
         try {
-            $r = new \ReflectionClass($serviceId);
+            new \ReflectionClass($serviceId);
 
             return true;
         } catch (\ReflectionException $e) {

@@ -22,19 +22,12 @@ use Symfony\Component\Form\Exception\TransformationFailedException;
  */
 class BooleanToStringTransformer implements DataTransformerInterface
 {
-    /**
-     * The value emitted upon transform if the input is true.
-     *
-     * @var string
-     */
     private $trueValue;
 
     /**
-     * Sets the value emitted upon transform if the input is true.
-     *
-     * @param string $trueValue
+     * @param string $trueValue The value emitted upon transform if the input is true
      */
-    public function __construct($trueValue)
+    public function __construct(string $trueValue)
     {
         $this->trueValue = $trueValue;
     }

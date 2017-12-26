@@ -39,6 +39,7 @@ use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Exception\LogicException;
+use Symfony\Component\Debug\ErrorHandler;
 use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -79,7 +80,7 @@ class Application
      * @param string $name    The name of the application
      * @param string $version The version of the application
      */
-    public function __construct($name = 'UNKNOWN', $version = 'UNKNOWN')
+    public function __construct(string $name = 'UNKNOWN', string $version = 'UNKNOWN')
     {
         $this->name = $name;
         $this->version = $version;
@@ -117,27 +118,35 @@ class Application
             $output = new ConsoleOutput();
         }
 
-        $this->configureIO($input, $output);
-
-        try {
-            $e = null;
-            $exitCode = $this->doRun($input, $output);
-        } catch (\Exception $x) {
-            $e = $x;
-        } catch (\Throwable $x) {
-            $e = new FatalThrowableError($x);
-        }
-
-        if (null !== $e) {
-            if (!$this->catchExceptions || !$x instanceof \Exception) {
-                throw $x;
+        $renderException = function ($e) use ($output) {
+            if (!$e instanceof \Exception) {
+                $e = class_exists(FatalThrowableError::class) ? new FatalThrowableError($e) : new \ErrorException($e->getMessage(), $e->getCode(), E_ERROR, $e->getFile(), $e->getLine());
             }
-
             if ($output instanceof ConsoleOutputInterface) {
                 $this->renderException($e, $output->getErrorOutput());
             } else {
                 $this->renderException($e, $output);
             }
+        };
+        if ($phpHandler = set_exception_handler($renderException)) {
+            restore_exception_handler();
+            if (!is_array($phpHandler) || !$phpHandler[0] instanceof ErrorHandler) {
+                $debugHandler = true;
+            } elseif ($debugHandler = $phpHandler[0]->setExceptionHandler($renderException)) {
+                $phpHandler[0]->setExceptionHandler($debugHandler);
+            }
+        }
+
+        $this->configureIO($input, $output);
+
+        try {
+            $exitCode = $this->doRun($input, $output);
+        } catch (\Exception $e) {
+            if (!$this->catchExceptions) {
+                throw $e;
+            }
+
+            $renderException($e);
 
             $exitCode = $e->getCode();
             if (is_numeric($exitCode)) {
@@ -147,6 +156,12 @@ class Application
                 }
             } else {
                 $exitCode = 1;
+            }
+        } finally {
+            if (!$phpHandler) {
+                restore_exception_handler();
+            } elseif (!$debugHandler) {
+                $phpHandler[0]->setExceptionHandler(null);
             }
         }
 
@@ -203,11 +218,12 @@ class Application
             if (null !== $this->dispatcher) {
                 $event = new ConsoleErrorEvent($input, $output, $e);
                 $this->dispatcher->dispatch(ConsoleEvents::ERROR, $event);
-                $e = $event->getError();
 
                 if (0 === $event->getExitCode()) {
                     return 0;
                 }
+
+                $e = $event->getError();
             }
 
             throw $e;
@@ -449,14 +465,11 @@ class Application
     {
         $this->init();
 
-        if (isset($this->commands[$name])) {
-            $command = $this->commands[$name];
-        } elseif ($this->commandLoader && $this->commandLoader->has($name)) {
-            $command = $this->commandLoader->get($name);
-            $this->add($command);
-        } else {
+        if (!$this->has($name)) {
             throw new CommandNotFoundException(sprintf('The command "%s" does not exist.', $name));
         }
+
+        $command = $this->commands[$name];
 
         if ($this->wantHelps) {
             $this->wantHelps = false;
@@ -481,7 +494,7 @@ class Application
     {
         $this->init();
 
-        return isset($this->commands[$name]) || ($this->commandLoader && $this->commandLoader->has($name));
+        return isset($this->commands[$name]) || ($this->commandLoader && $this->commandLoader->has($name) && $this->add($this->commandLoader->get($name)));
     }
 
     /**
@@ -643,7 +656,7 @@ class Application
 
             $commands = $this->commands;
             foreach ($this->commandLoader->getNames() as $name) {
-                if (!isset($commands[$name])) {
+                if (!isset($commands[$name]) && $this->has($name)) {
                     $commands[$name] = $this->get($name);
                 }
             }
@@ -660,7 +673,7 @@ class Application
 
         if ($this->commandLoader) {
             foreach ($this->commandLoader->getNames() as $name) {
-                if (!isset($commands[$name]) && $namespace === $this->extractNamespace($name, substr_count($namespace, ':') + 1)) {
+                if (!isset($commands[$name]) && $namespace === $this->extractNamespace($name, substr_count($namespace, ':') + 1) && $this->has($name)) {
                     $commands[$name] = $this->get($name);
                 }
             }
@@ -851,7 +864,6 @@ class Application
         }
 
         $event = new ConsoleCommandEvent($command, $input, $output);
-        $e = null;
 
         try {
             $this->dispatcher->dispatch(ConsoleEvents::COMMAND, $event);
@@ -864,10 +876,9 @@ class Application
         } catch (\Throwable $e) {
             $event = new ConsoleErrorEvent($input, $output, $e, $command);
             $this->dispatcher->dispatch(ConsoleEvents::ERROR, $event);
-            $e = $event->getError();
 
             if (0 !== $exitCode = $event->getExitCode()) {
-                throw $e;
+                throw $event->getError();
             }
         } finally {
             $event = new ConsoleTerminateEvent($command, $input, $output, $exitCode);
@@ -966,8 +977,8 @@ class Application
      * Finds alternative of $name among $collection,
      * if nothing is found in $collection, try in $abbrevs.
      *
-     * @param string             $name       The string
-     * @param array|\Traversable $collection The collection
+     * @param string   $name       The string
+     * @param iterable $collection The collection
      *
      * @return string[] A sorted array of similar string
      */

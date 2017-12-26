@@ -17,6 +17,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\CacheClearer\CacheClearerInterface;
 use Symfony\Component\HttpKernel\RebootableInterface;
@@ -37,10 +38,6 @@ class CacheClearCommand extends Command
     private $cacheClearer;
     private $filesystem;
 
-    /**
-     * @param CacheClearerInterface $cacheClearer
-     * @param Filesystem|null       $filesystem
-     */
     public function __construct(CacheClearerInterface $cacheClearer, Filesystem $filesystem = null)
     {
         parent::__construct();
@@ -79,7 +76,7 @@ EOF
         $io = new SymfonyStyle($input, $output);
 
         $kernel = $this->getApplication()->getKernel();
-        $realCacheDir = isset($realCacheDir) ? $realCacheDir : $kernel->getContainer()->getParameter('kernel.cache_dir');
+        $realCacheDir = $kernel->getContainer()->getParameter('kernel.cache_dir');
         // the old cache dir name must not be longer than the real one to avoid exceeding
         // the maximum length of a directory or file path within it (esp. Windows MAX_PATH)
         $oldCacheDir = substr($realCacheDir, 0, -1).('~' === substr($realCacheDir, -1) ? '+' : '~');
@@ -95,6 +92,9 @@ EOF
         $io->comment(sprintf('Clearing the cache for the <info>%s</info> environment with debug <info>%s</info>', $kernel->getEnvironment(), var_export($kernel->isDebug(), true)));
         $this->cacheClearer->clear($realCacheDir);
 
+        // The current event dispatcher is stale, let's not use it anymore
+        $this->getApplication()->setDispatcher(new EventDispatcher());
+
         if ($input->getOption('no-warmup')) {
             $this->filesystem->rename($realCacheDir, $oldCacheDir);
         } else {
@@ -105,10 +105,11 @@ EOF
             $io->comment('Removing old cache directory...');
         }
 
-        $this->filesystem->remove($oldCacheDir);
-
-        // The current event dispatcher is stale, let's not use it anymore
-        $this->getApplication()->setDispatcher(new EventDispatcher());
+        try {
+            $this->filesystem->remove($oldCacheDir);
+        } catch (IOException $e) {
+            $io->warning($e->getMessage());
+        }
 
         if ($output->isVerbose()) {
             $io->comment('Finished');

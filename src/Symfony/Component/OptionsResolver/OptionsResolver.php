@@ -28,29 +28,21 @@ class OptionsResolver implements Options
 {
     /**
      * The names of all defined options.
-     *
-     * @var array
      */
     private $defined = array();
 
     /**
      * The default option values.
-     *
-     * @var array
      */
     private $defaults = array();
 
     /**
      * The names of required options.
-     *
-     * @var array
      */
     private $required = array();
 
     /**
      * The resolved option values.
-     *
-     * @var array
      */
     private $resolved = array();
 
@@ -63,22 +55,16 @@ class OptionsResolver implements Options
 
     /**
      * A list of accepted values for each option.
-     *
-     * @var array
      */
     private $allowedValues = array();
 
     /**
      * A list of accepted types for each option.
-     *
-     * @var array
      */
     private $allowedTypes = array();
 
     /**
      * A list of closures for evaluating lazy options.
-     *
-     * @var array
      */
     private $lazy = array();
 
@@ -86,8 +72,6 @@ class OptionsResolver implements Options
      * A list of lazy options whose closure is currently being called.
      *
      * This list helps detecting circular dependencies between lazy options.
-     *
-     * @var array
      */
     private $calling = array();
 
@@ -98,8 +82,6 @@ class OptionsResolver implements Options
      * necessary in order to avoid inconsistencies during the resolving
      * process. If any option is changed after being read, all evaluated
      * lazy options that depend on this option would become invalid.
-     *
-     * @var bool
      */
     private $locked = false;
 
@@ -994,15 +976,12 @@ class OptionsResolver implements Options
      * non-technical people.
      *
      * @param mixed  $value The value to return the type of
-     * @param string $type
-     *
-     * @return string The type of the value
      */
-    private function formatTypeOf($value, $type)
+    private function formatTypeOf($value, ?string $type): string
     {
         $suffix = '';
 
-        if ('[]' === substr($type, -2)) {
+        if (null !== $type && '[]' === substr($type, -2)) {
             $suffix = '[]';
             $type = substr($type, 0, -2);
             while ('[]' === substr($type, -2)) {
@@ -1035,10 +1014,8 @@ class OptionsResolver implements Options
      * in double quotes (").
      *
      * @param mixed $value The value to format as string
-     *
-     * @return string The string representation of the passed value
      */
-    private function formatValue($value)
+    private function formatValue($value): string
     {
         if (is_object($value)) {
             return get_class($value);
@@ -1077,13 +1054,9 @@ class OptionsResolver implements Options
      * Each of the values is converted to a string using
      * {@link formatValue()}. The values are then concatenated with commas.
      *
-     * @param array $values A list of values
-     *
-     * @return string The string representation of the value list
-     *
      * @see formatValue()
      */
-    private function formatValues(array $values)
+    private function formatValues(array $values): string
     {
         foreach ($values as $key => $value) {
             $values[$key] = $this->formatValue($value);
