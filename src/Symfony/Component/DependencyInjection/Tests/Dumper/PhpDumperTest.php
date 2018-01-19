@@ -18,7 +18,6 @@ use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
-use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface as SymfonyContainerInterface;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
@@ -370,6 +369,23 @@ class PhpDumperTest extends TestCase
         require self::$fixturesPath.'/php/services_base64_env.php';
         $container = new \Symfony_DI_PhpDumper_Test_Base64Parameters();
         $this->assertSame('world', $container->getParameter('hello'));
+    }
+
+    public function testDumpedCsvEnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', 'foo,bar');
+        $container->setParameter('hello', '%env(csv:foo)%');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_csv_env.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_CsvParameters')));
+
+        require self::$fixturesPath.'/php/services_csv_env.php';
+        $container = new \Symfony_DI_PhpDumper_Test_CsvParameters();
+        $this->assertSame(array('foo', 'bar'), $container->getParameter('hello'));
     }
 
     public function testCustomEnvParameters()

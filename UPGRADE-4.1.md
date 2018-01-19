@@ -1,6 +1,11 @@
 UPGRADE FROM 4.0 to 4.1
 =======================
 
+EventDispatcher
+---------------
+
+ * The `TraceableEventDispatcherInterface` has been deprecated and will be removed in 5.0.
+
 HttpFoundation
 --------------
 
@@ -18,6 +23,8 @@ SecurityBundle
 --------------
 
  * The `logout_on_user_change` firewall option is deprecated and will be removed in 5.0.
+ * The `SecurityUserValueResolver` class is deprecated and will be removed in 5.0, use
+   `Symfony\Component\Security\Http\Controller\UserValueResolver` instead.
 
 Translation
 -----------
@@ -30,6 +37,7 @@ Validator
 
  * The `Email::__construct()` 'strict' property is deprecated and will be removed in 5.0. Use 'mode'=>"strict" instead.
  * Calling `EmailValidator::__construct()` method with a boolean parameter is deprecated and will be removed in 5.0, use `EmailValidator("strict")` instead.
+ * Deprecated the `checkDNS` and `dnsMessage` options of the `Url` constraint. They will be removed in 5.0.
 
 Workflow
 --------

@@ -532,7 +532,7 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
             $oldContainerDir = dirname($oldContainer->getFileName());
             foreach (glob(dirname($oldContainerDir).'/*.legacy') as $legacyContainer) {
                 if ($oldContainerDir.'.legacy' !== $legacyContainer && @unlink($legacyContainer)) {
-                    (new Filesystem())->remove(substr($legacyContainer, 0, -16));
+                    (new Filesystem())->remove(substr($legacyContainer, 0, -7));
                 }
             }
 
@@ -689,6 +689,7 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
             $fs->dumpFile($dir.$file, $code);
             @chmod($dir.$file, 0666 & ~umask());
         }
+        @unlink(dirname($dir.$file).'.legacy');
 
         $cache->write($rootCode, $container->getResources());
     }

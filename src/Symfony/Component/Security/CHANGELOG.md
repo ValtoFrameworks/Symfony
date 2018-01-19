@@ -5,6 +5,7 @@ CHANGELOG
 -----
 
  * The `ContextListener::setLogoutOnUserChange()` method is deprecated and will be removed in 5.0.
+ * added `UserValueResolver`.
 
 4.0.0
 -----
@@ -18,6 +19,7 @@ CHANGELOG
  * removed HTTP digest authentication
  * removed `GuardAuthenticatorInterface` in favor of `AuthenticatorInterface`
  * removed `AbstractGuardAuthenticator::supports()`
+ * added target user to `SwitchUserListener`
 
 3.4.0
 -----

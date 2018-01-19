@@ -289,11 +289,16 @@ class Process implements \IteratorAggregate
             $ptsWorkaround = fopen(__FILE__, 'r');
         }
 
+        $envPairs = array();
+        foreach ($env as $k => $v) {
+            $envPairs[] = $k.'='.$v;
+        }
+
         if (!is_dir($this->cwd)) {
             throw new RuntimeException('The provided cwd does not exist.');
         }
 
-        $this->process = proc_open($commandline, $descriptors, $this->processPipes->pipes, $this->cwd, $env, $options);
+        $this->process = proc_open($commandline, $descriptors, $this->processPipes->pipes, $this->cwd, $envPairs, $options);
 
         if (!is_resource($this->process)) {
             throw new RuntimeException('Unable to launch a new process.');
@@ -1093,7 +1098,7 @@ class Process implements \IteratorAggregate
      *
      * This content will be passed to the underlying process standard input.
      *
-     * @param resource|scalar|\Traversable|null $input The content
+     * @param string|int|float|bool|resource|\Traversable|null $input The content
      *
      * @return self The current Process instance
      *
@@ -1543,7 +1548,13 @@ class Process implements \IteratorAggregate
 
     private function getDefaultEnv()
     {
-        $env = getenv();
+        $env = array();
+
+        foreach ($_SERVER as $k => $v) {
+            if (is_string($v) && false !== $v = getenv($k)) {
+                $env[$k] = $v;
+            }
+        }
 
         foreach ($_ENV as $k => $v) {
             if (is_string($v)) {
