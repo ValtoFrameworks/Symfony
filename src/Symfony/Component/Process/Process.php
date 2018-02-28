@@ -14,6 +14,7 @@ namespace Symfony\Component\Process;
 use Symfony\Component\Process\Exception\InvalidArgumentException;
 use Symfony\Component\Process\Exception\LogicException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Exception\RuntimeException;
 use Symfony\Component\Process\Pipes\PipesInterface;
@@ -192,7 +193,7 @@ class Process implements \IteratorAggregate
      * @throws RuntimeException When process stopped after receiving signal
      * @throws LogicException   In case a callback is provided and output has been disabled
      *
-     * @final since version 3.3
+     * @final
      */
     public function run(callable $callback = null, array $env = array()): int
     {
@@ -214,7 +215,7 @@ class Process implements \IteratorAggregate
      *
      * @throws ProcessFailedException if the process didn't terminate successfully
      *
-     * @final since version 3.3
+     * @final
      */
     public function mustRun(callable $callback = null, array $env = array())
     {
@@ -257,6 +258,10 @@ class Process implements \IteratorAggregate
         $this->hasCallback = null !== $callback;
         $descriptors = $this->getDescriptors();
 
+        if ($this->env) {
+            $env += $this->env;
+        }
+
         if (is_array($commandline = $this->commandline)) {
             $commandline = implode(' ', array_map(array($this, 'escapeArgument'), $commandline));
 
@@ -264,11 +269,10 @@ class Process implements \IteratorAggregate
                 // exec is mandatory to deal with sending a signal to the process
                 $commandline = 'exec '.$commandline;
             }
+        } else {
+            $commandline = $this->replacePlaceholders($commandline, $env);
         }
 
-        if ($this->env) {
-            $env += $this->env;
-        }
         $env += $this->getDefaultEnv();
 
         $options = array('suppress_errors' => true);
@@ -291,7 +295,9 @@ class Process implements \IteratorAggregate
 
         $envPairs = array();
         foreach ($env as $k => $v) {
-            $envPairs[] = $k.'='.$v;
+            if (false !== $v) {
+                $envPairs[] = $k.'='.$v;
+            }
         }
 
         if (!is_dir($this->cwd)) {
@@ -333,7 +339,7 @@ class Process implements \IteratorAggregate
      *
      * @see start()
      *
-     * @final since version 3.3
+     * @final
      */
     public function restart(callable $callback = null, array $env = array())
     {
@@ -387,7 +393,7 @@ class Process implements \IteratorAggregate
         }
 
         if ($this->processInformation['signaled'] && $this->processInformation['termsig'] !== $this->latestSignal) {
-            throw new RuntimeException(sprintf('The process has been signaled with signal "%s".', $this->processInformation['termsig']));
+            throw new ProcessSignaledException($this);
         }
 
         return $this->exitcode;
@@ -1059,7 +1065,7 @@ class Process implements \IteratorAggregate
     /**
      * Sets the environment variables.
      *
-     * An environment variable value should be a string.
+     * Each environment variable value should be a string.
      * If it is an array, the variable is ignored.
      * If it is false or null, it will be removed when
      * env vars are otherwise inherited.
@@ -1544,6 +1550,29 @@ class Process implements \IteratorAggregate
         $argument = preg_replace('/(\\\\+)$/', '$1$1', $argument);
 
         return '"'.str_replace(array('"', '^', '%', '!', "\n"), array('""', '"^^"', '"^%"', '"^!"', '!LF!'), $argument).'"';
+    }
+
+    private function replacePlaceholders(string $commandline, array $env)
+    {
+        $pattern = '\\' === DIRECTORY_SEPARATOR ? '!%s!' : '"$%s"';
+
+        return preg_replace_callback('/\{\{ ?([_a-zA-Z0-9]++) ?\}\}/', function ($m) use ($pattern, $commandline, $env) {
+            if (!isset($env[$m[1]]) || false === $env[$m[1]]) {
+                foreach ($env as $k => $v) {
+                    if (false === $v) {
+                        unset($env[$k]);
+                    }
+                }
+                if (!$env) {
+                    throw new InvalidArgumentException(sprintf('Invalid command line "%s": no values provided for any placeholders.', $commandline));
+                }
+                $env = implode('", "', array_keys($env));
+
+                throw new InvalidArgumentException(sprintf('Invalid command line "%s": no value provided for placeholder "%s", did you mean "%s"?', $commandline, $m[1], $env));
+            }
+
+            return sprintf($pattern, $m[1]);
+        }, $commandline);
     }
 
     private function getDefaultEnv()

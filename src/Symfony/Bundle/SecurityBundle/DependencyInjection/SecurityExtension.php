@@ -415,6 +415,9 @@ class SecurityExtension extends Extension
                             throw new InvalidConfigurationException(sprintf('Invalid firewall "%s": user provider "%s" not found.', $id, $firewall[$key]['provider']));
                         }
                         $userProvider = $providerIds[$normalizedName];
+                    } elseif ('remember_me' === $key) {
+                        // RememberMeFactory will use the firewall secret when created
+                        $userProvider = null;
                     } elseif ($defaultProvider) {
                         $userProvider = $defaultProvider;
                     } else {
@@ -520,7 +523,11 @@ class SecurityExtension extends Extension
 
             return array(
                 'class' => 'Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder',
-                'arguments' => array(),
+                'arguments' => array(
+                    $config['memory_cost'],
+                    $config['time_cost'],
+                    $config['threads'],
+                ),
             );
         }
 

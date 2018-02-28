@@ -4,8 +4,9 @@ CHANGELOG
 4.1.0
 -----
 
- * Deprecated the `checkDNS` and `dnsMessage` options of the `Url` constraint. They will be removed in 5.0.
+ * Deprecated the `checkDNS` and `dnsMessage` options of the `Url` constraint.
  * added a `values` option to the `Expression` constraint
+ * Deprecated use of `Locale` constraint without setting `true` at "canonicalize" option, which will be the default value in 5.0
 
 4.0.0
 -----

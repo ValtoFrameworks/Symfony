@@ -120,6 +120,7 @@ class PhpDumper extends Dumper
             'debug' => true,
             'hot_path_tag' => 'container.hot_path',
             'inline_class_loader_parameter' => 'container.dumper.inline_class_loader',
+            'build_time' => time(),
         ), $options);
 
         $this->namespace = $options['namespace'];
@@ -129,6 +130,11 @@ class PhpDumper extends Dumper
 
         if (0 !== strpos($baseClass = $options['base_class'], '\\') && 'Container' !== $baseClass) {
             $baseClass = sprintf('%s\%s', $options['namespace'] ? '\\'.$options['namespace'] : '', $baseClass);
+            $baseClassWithNamespace = $baseClass;
+        } elseif ('Container' === $baseClass) {
+            $baseClassWithNamespace = Container::class;
+        } else {
+            $baseClassWithNamespace = $baseClass;
         }
 
         $this->initializeMethodNamesMap('Container' === $baseClass ? Container::class : $baseClass);
@@ -170,7 +176,7 @@ class PhpDumper extends Dumper
         }
 
         $code =
-            $this->startClass($options['class'], $baseClass).
+            $this->startClass($options['class'], $baseClass, $baseClassWithNamespace).
             $this->addServices().
             $this->addDefaultParametersMethod().
             $this->endClass()
@@ -218,7 +224,7 @@ EOF;
             array_pop($code);
             $code["Container{$hash}/{$options['class']}.php"] = substr_replace($files[$options['class'].'.php'], "<?php\n\nnamespace Container{$hash};\n", 0, 6);
             $namespaceLine = $this->namespace ? "\nnamespace {$this->namespace};\n" : '';
-            $time = time();
+            $time = $options['build_time'];
             $id = hash('crc32', $hash.$time);
 
             $code[$options['class'].'.php'] = <<<EOF
@@ -399,6 +405,8 @@ EOTXT
             if (!$proxyDumper->isProxyCandidate($definition)) {
                 continue;
             }
+            // register class' reflector for resource tracking
+            $this->container->getReflectionClass($definition->getClass());
             $proxyCode = "\n".$proxyDumper->getProxyCode($definition);
             if ($strip) {
                 $proxyCode = "<?php\n".$proxyCode;
@@ -711,7 +719,7 @@ EOTXT
             $lazyInitialization = '';
         }
 
-        $asFile = $this->asFiles && $definition->isShared() && !$this->isHotPath($definition);
+        $asFile = $this->asFiles && !$this->isHotPath($definition);
         $methodName = $this->generateMethodName($id);
         if ($asFile) {
             $file = $methodName.'.php';
@@ -730,15 +738,6 @@ EOTXT
 EOF;
         }
 
-        if ($this->getProxyDumper()->isProxyCandidate($definition)) {
-            $factoryCode = $asFile ? "\$this->load(__DIR__.'/%s.php', false)" : '$this->%s(false)';
-            $code .= $this->getProxyDumper()->getProxyFactoryCode($definition, $id, sprintf($factoryCode, $methodName));
-        }
-
-        if ($definition->isDeprecated()) {
-            $code .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", $this->export($definition->getDeprecationMessage($id)));
-        }
-
         $inlinedDefinitions = $this->getDefinitionsFromArguments(array($definition));
         $constructorDefinitions = $this->getDefinitionsFromArguments(array($definition->getArguments(), $definition->getFactory()));
         $otherDefinitions = new \SplObjectStorage();
@@ -753,8 +752,18 @@ EOF;
 
         $isSimpleInstance = !$definition->getProperties() && !$definition->getMethodCalls() && !$definition->getConfigurator();
 
+        $code .= $this->addServiceInclude($id, $definition, $inlinedDefinitions);
+
+        if ($this->getProxyDumper()->isProxyCandidate($definition)) {
+            $factoryCode = $asFile ? "\$this->load(__DIR__.'/%s.php', false)" : '$this->%s(false)';
+            $code .= $this->getProxyDumper()->getProxyFactoryCode($definition, $id, sprintf($factoryCode, $methodName));
+        }
+
+        if ($definition->isDeprecated()) {
+            $code .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", $this->export($definition->getDeprecationMessage($id)));
+        }
+
         $code .=
-            $this->addServiceInclude($id, $definition, $inlinedDefinitions).
             $this->addServiceLocalTempVariables($id, $definition, $constructorDefinitions, $inlinedDefinitions).
             $this->addServiceInlinedDefinitions($id, $definition, $constructorDefinitions, $isSimpleInstance).
             $this->addServiceInstance($id, $definition, $isSimpleInstance).
@@ -785,7 +794,7 @@ EOF;
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
         foreach ($definitions as $id => $definition) {
-            if ($definition->isSynthetic() || ($this->asFiles && $definition->isShared() && !$this->isHotPath($definition))) {
+            if ($definition->isSynthetic() || ($this->asFiles && !$this->isHotPath($definition))) {
                 continue;
             }
             if ($definition->isPublic()) {
@@ -803,8 +812,22 @@ EOF;
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
         foreach ($definitions as $id => $definition) {
-            if (!$definition->isSynthetic() && $definition->isShared() && !$this->isHotPath($definition)) {
+            if (!$definition->isSynthetic() && !$this->isHotPath($definition)) {
                 $code = $this->addService($id, $definition, $file);
+
+                if (!$definition->isShared()) {
+                    $i = strpos($code, "\n\ninclude_once ");
+                    if (false !== $i && false !== $i = strpos($code, "\n\n", 2 + $i)) {
+                        $code = array(substr($code, 0, 2 + $i), substr($code, 2 + $i));
+                    } else {
+                        $code = array("\n", $code);
+                    }
+                    $code[1] = implode("\n", array_map(function ($line) { return $line ? '    '.$line : $line; }, explode("\n", $code[1])));
+                    $factory = sprintf('$this->factories%s[\'%s\']', $definition->isPublic() ? '' : "['service_container']", $id);
+                    $code[1] = sprintf("%s = function () {\n%s};\n\nreturn %1\$s();\n", $factory, $code[1]);
+                    $code = $code[0].$code[1];
+                }
+
                 yield $file => $code;
             }
         }
@@ -859,7 +882,7 @@ EOF;
         return $return.sprintf("new %s(%s);\n", $this->dumpLiteralClass($class), implode(', ', $arguments));
     }
 
-    private function startClass(string $class, string $baseClass): string
+    private function startClass(string $class, string $baseClass, string $baseClassWithNamespace): string
     {
         $namespaceLine = !$this->asFiles && $this->namespace ? "\nnamespace {$this->namespace};\n" : '';
 
@@ -908,6 +931,14 @@ EOF;
             $code = str_replace('$parameters', "\$buildParameters;\n    private \$parameters", $code);
             $code = str_replace('__construct()', '__construct(array $buildParameters = array())', $code);
             $code .= "        \$this->buildParameters = \$buildParameters;\n";
+        }
+
+        if (Container::class !== $baseClassWithNamespace) {
+            $r = $this->container->getReflectionClass($baseClassWithNamespace, false);
+
+            if (null !== $r && (null !== $constructor = $r->getConstructor()) && 0 === $constructor->getNumberOfRequiredParameters()) {
+                $code .= "        parent::__construct();\n\n";
+            }
         }
 
         if ($this->container->getParameterBag()->all()) {
@@ -970,10 +1001,10 @@ EOF;
             }
             $code .= <<<EOF
 
-protected function createProxy(\$class, \Closure \$factory)
-{
-    {$proxyLoader}return \$factory();
-}
+    protected function createProxy(\$class, \Closure \$factory)
+    {
+        {$proxyLoader}return \$factory();
+    }
 
 EOF;
             break;
@@ -1036,7 +1067,7 @@ EOF;
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
         foreach ($definitions as $id => $definition) {
-            if (!$definition->isSynthetic() && $definition->isPublic() && (!$this->asFiles || !$definition->isShared() || $this->isHotPath($definition))) {
+            if (!$definition->isSynthetic() && $definition->isPublic() && (!$this->asFiles || $this->isHotPath($definition))) {
                 $code .= '            '.$this->doExport($id).' => '.$this->doExport($this->generateMethodName($id)).",\n";
             }
         }
@@ -1050,7 +1081,7 @@ EOF;
         $definitions = $this->container->getDefinitions();
         ksort($definitions);
         foreach ($definitions as $id => $definition) {
-            if (!$definition->isSynthetic() && $definition->isPublic() && $definition->isShared() && !$this->isHotPath($definition)) {
+            if (!$definition->isSynthetic() && $definition->isPublic() && !$this->isHotPath($definition)) {
                 $code .= sprintf("            %s => __DIR__.'/%s.php',\n", $this->doExport($id), $this->generateMethodName($id));
             }
         }
@@ -1096,16 +1127,16 @@ EOF;
             }
         }
 
-        $code = "\n";
+        $code = '';
 
         foreach ($lineage as $file) {
             if (!isset($this->inlinedRequires[$file])) {
                 $this->inlinedRequires[$file] = true;
-                $code .= sprintf("        include_once %s;\n", $file);
+                $code .= sprintf("\n            include_once %s;", $file);
             }
         }
 
-        return "\n" === $code ? '' : $code;
+        return $code ? sprintf("\n        \$this->privates['service_container'] = function () {%s\n        };\n", $code) : '';
     }
 
     private function addDefaultParametersMethod(): string
@@ -1183,9 +1214,9 @@ EOF;
     }
 
 EOF;
-            if (!$this->asFiles) {
-                $code = preg_replace('/^.*buildParameters.*\n.*\n.*\n/m', '', $code);
-            }
+        if (!$this->asFiles) {
+            $code = preg_replace('/^.*buildParameters.*\n.*\n.*\n/m', '', $code);
+        }
 
         if ($dynamicPhp) {
             $loadedDynamicParameters = $this->exportParameters(array_combine(array_keys($dynamicPhp), array_fill(0, count($dynamicPhp), false)), '', 8);
@@ -1621,8 +1652,12 @@ EOF;
                 if ($definition->isShared()) {
                     $code = sprintf('$this->%s[\'%s\'] = %s', $definition->isPublic() ? 'services' : 'privates', $id, $code);
                 }
-            } elseif ($this->asFiles && $definition->isShared() && !$this->isHotPath($definition)) {
+            } elseif ($this->asFiles && !$this->isHotPath($definition)) {
                 $code = sprintf("\$this->load(__DIR__.'/%s.php')", $this->generateMethodName($id));
+                if (!$definition->isShared()) {
+                    $factory = sprintf('$this->factories%s[\'%s\']', $definition->isPublic() ? '' : "['service_container']", $id);
+                    $code = sprintf('(isset(%s) ? %1$s() : %s)', $factory, $code);
+                }
             } else {
                 $code = sprintf('$this->%s()', $this->generateMethodName($id));
             }

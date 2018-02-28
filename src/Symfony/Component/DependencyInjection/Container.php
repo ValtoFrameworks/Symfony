@@ -43,6 +43,7 @@ class Container implements ResettableContainerInterface
     protected $services = array();
     protected $fileMap = array();
     protected $methodMap = array();
+    protected $factories = array();
     protected $aliases = array();
     protected $loading = array();
     protected $resolving = array();
@@ -142,6 +143,13 @@ class Container implements ResettableContainerInterface
      */
     public function set($id, $service)
     {
+        // Runs the internal initializer; used by the dumped container to include always-needed files
+        if (isset($this->privates['service_container']) && $this->privates['service_container'] instanceof \Closure) {
+            $initialize = $this->privates['service_container'];
+            unset($this->privates['service_container']);
+            $initialize();
+        }
+
         if ('service_container' === $id) {
             throw new InvalidArgumentException('You cannot set service "service_container".');
         }
@@ -209,18 +217,18 @@ class Container implements ResettableContainerInterface
      */
     public function get($id, $invalidBehavior = /* self::EXCEPTION_ON_INVALID_REFERENCE */ 1)
     {
-        if (isset($this->aliases[$id])) {
-            $id = $this->aliases[$id];
-        }
+        return $this->services[$id]
+            ?? $this->services[$id = $this->aliases[$id] ?? $id]
+            ?? ('service_container' === $id ? $this : ($this->factories[$id] ?? array($this, 'make'))($id, $invalidBehavior));
+    }
 
-        // Re-use shared service instance if it exists.
-        if (isset($this->services[$id])) {
-            return $this->services[$id];
-        }
-        if ('service_container' === $id) {
-            return $this;
-        }
-
+    /**
+     * Creates a service.
+     *
+     * As a separate method to allow "get()" to use the really fast `??` operator.
+     */
+    private function make(string $id, int $invalidBehavior)
+    {
         if (isset($this->loading[$id])) {
             throw new ServiceCircularReferenceException($id, array_keys($this->loading));
         }
@@ -289,7 +297,7 @@ class Container implements ResettableContainerInterface
      */
     public function reset()
     {
-        $this->services = array();
+        $this->services = $this->factories = array();
     }
 
     /**

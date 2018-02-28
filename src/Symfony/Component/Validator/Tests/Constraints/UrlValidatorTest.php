@@ -65,6 +65,30 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
+    /**
+     * @dataProvider getValidRelativeUrls
+     * @dataProvider getValidUrls
+     */
+    public function testValidRelativeUrl($url)
+    {
+        $constraint = new Url(array(
+            'relativeProtocol' => true,
+        ));
+
+        $this->validator->validate($url, $constraint);
+
+        $this->assertNoViolation();
+    }
+
+    public function getValidRelativeUrls()
+    {
+        return array(
+            array('//google.com'),
+            array('//symfony.fake/blog/'),
+            array('//symfony.com/search?type=&q=url+validator'),
+        );
+    }
+
     public function getValidUrls()
     {
         return array(
@@ -147,6 +171,46 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
             ->assertRaised();
     }
 
+    /**
+     * @dataProvider getInvalidRelativeUrls
+     * @dataProvider getInvalidUrls
+     */
+    public function testInvalidRelativeUrl($url)
+    {
+        $constraint = new Url(array(
+            'message' => 'myMessage',
+            'relativeProtocol' => true,
+        ));
+
+        $this->validator->validate($url, $constraint);
+
+        $this->buildViolation('myMessage')
+            ->setParameter('{{ value }}', '"'.$url.'"')
+            ->setCode(Url::INVALID_URL_ERROR)
+            ->assertRaised();
+    }
+
+    public function getInvalidRelativeUrls()
+    {
+        return array(
+            array('/google.com'),
+            array('//goog_le.com'),
+            array('//google.com::aa'),
+            array('//google.com:aa'),
+            array('//127.0.0.1:aa/'),
+            array('//[::1'),
+            array('//hello.☎/'),
+            array('//:password@symfony.com'),
+            array('//:password@@symfony.com'),
+            array('//username:passwordsymfony.com'),
+            array('//usern@me:password@symfony.com'),
+            array('//example.com/exploit.html?<script>alert(1);</script>'),
+            array('//example.com/exploit.html?hel lo'),
+            array('//example.com/exploit.html?not_a%hex'),
+            array('//'),
+        );
+    }
+
     public function getInvalidUrls()
     {
         return array(
@@ -201,7 +265,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
      * @dataProvider getCheckDns
      * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
      * @group legacy
-     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1 and will be removed in 5.0. Its false-positive rate is too high to be relied upon.
+     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1. Its false-positive rate is too high to be relied upon.
      */
     public function testCheckDns($violation)
     {
@@ -233,7 +297,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
      * @dataProvider getCheckDnsTypes
      * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
      * @group legacy
-     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1 and will be removed in 5.0. Its false-positive rate is too high to be relied upon.
+     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1. Its false-positive rate is too high to be relied upon.
      */
     public function testCheckDnsByType($type)
     {
@@ -271,8 +335,8 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
      * @expectedException \Symfony\Component\Validator\Exception\InvalidOptionsException
      * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
      * @group legacy
-     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1 and will be removed in 5.0. Its false-positive rate is too high to be relied upon.
-     * @expectedDeprecation The "dnsMessage" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1 and will be removed in 5.0.
+     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1. Its false-positive rate is too high to be relied upon.
+     * @expectedDeprecation The "dnsMessage" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1.
      */
     public function testCheckDnsWithInvalidType()
     {
@@ -288,7 +352,7 @@ class UrlValidatorTest extends ConstraintValidatorTestCase
 
     /**
      * @group legacy
-     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1 and will be removed in 5.0. Its false-positive rate is too high to be relied upon.
+     * @expectedDeprecation The "checkDNS" option in "Symfony\Component\Validator\Constraints\Url" is deprecated since Symfony 4.1. Its false-positive rate is too high to be relied upon.
      */
     public function testCheckDnsOptionIsDeprecated()
     {

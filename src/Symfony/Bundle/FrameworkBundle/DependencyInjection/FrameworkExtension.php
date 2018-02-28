@@ -758,8 +758,9 @@ class FrameworkExtension extends Extension
         if (1 === count($engines)) {
             $container->setAlias('templating', (string) reset($engines))->setPublic(true);
         } else {
+            $templateEngineDefinition = $container->getDefinition('templating.engine.delegating');
             foreach ($engines as $engine) {
-                $container->getDefinition('templating.engine.delegating')->addMethodCall('addEngine', array($engine));
+                $templateEngineDefinition->addMethodCall('addEngine', array($engine));
             }
             $container->setAlias('templating', 'templating.engine.delegating')->setPublic(true);
         }
@@ -1136,7 +1137,9 @@ class FrameworkExtension extends Extension
                 ->replaceArgument(2, $config['debug'])
                 // temporary property to lazy-reference the cache provider without using it until AddAnnotationsCachedReaderPass runs
                 ->setProperty('cacheProviderBackup', new ServiceClosureArgument(new Reference($cacheService)))
+                ->addTag('annotations.cached_reader')
             ;
+
             $container->setAlias('annotation_reader', 'annotations.cached_reader')->setPrivate(true);
             $container->setAlias(Reader::class, new Alias('annotations.cached_reader', false));
         } else {
@@ -1271,6 +1274,10 @@ class FrameworkExtension extends Extension
 
         if (isset($config['circular_reference_handler']) && $config['circular_reference_handler']) {
             $container->getDefinition('serializer.normalizer.object')->addMethodCall('setCircularReferenceHandler', array(new Reference($config['circular_reference_handler'])));
+        }
+
+        if ($config['max_depth_handler'] ?? false) {
+            $container->getDefinition('serializer.normalizer.object')->addMethodCall('setMaxDepthHandler', array(new Reference($config['max_depth_handler'])));
         }
     }
 
