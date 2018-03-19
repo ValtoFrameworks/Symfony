@@ -7,6 +7,11 @@ Config
  * Implementing `ParentNodeDefinitionInterface` without the `getChildNodeDefinitions()` method
    is deprecated.
 
+Console
+-------
+
+ * Deprecated the `setCrossingChar()` method in favor of the `setDefaultCrossingChar()` method in `TableStyle`.
+
 EventDispatcher
 ---------------
 
@@ -55,8 +60,8 @@ HttpFoundation
 --------------
 
  * Passing the file size to the constructor of the `UploadedFile` class is deprecated.
-
  * The `getClientSize()` method of the `UploadedFile` class is deprecated. Use `getSize()` instead.
+ * Deprecated `Symfony\Component\HttpFoundation\Request::getSession()` when no session has been set. Use `Symfony\Component\HttpFoundation\Request::hasSession()` instead.
 
 Security
 --------
@@ -65,6 +70,7 @@ Security
  * Using the `AdvancedUserInterface` is now deprecated. To use the existing
    functionality, create a custom user-checker based on the
    `Symfony\Component\Security\Core\User\UserChecker`.
+ * `AuthenticationUtils::getLastUsername()` now always returns a string.
 
 SecurityBundle
 --------------

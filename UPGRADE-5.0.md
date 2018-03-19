@@ -6,6 +6,11 @@ Config
 
  * Added the `getChildNodeDefinitions()` method to `ParentNodeDefinitionInterface`.
 
+Console
+-------
+
+ * Removed the `setCrossingChar()` method in favor of the `setDefaultCrossingChar()` method in `TableStyle`.
+
 EventDispatcher
 ---------------
 
@@ -54,6 +59,7 @@ HttpFoundation
 
  * The `$size` argument of the `UploadedFile` constructor has been removed.
  * The `getClientSize()` method of the `UploadedFile` class has been removed.
+ * The `getSession()` method of the `Request` class throws an exception when session is null.
 
 Security
 --------
