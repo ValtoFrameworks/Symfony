@@ -80,6 +80,7 @@ class FormType extends BaseType
             }
         }
 
+        $formConfig = $form->getConfig();
         $view->vars = array_replace($view->vars, array(
             'errors' => $form->getErrors(),
             'valid' => $form->isSubmitted() ? $form->isValid() : true,
@@ -88,9 +89,10 @@ class FormType extends BaseType
             'required' => $form->isRequired(),
             'size' => null,
             'label_attr' => $options['label_attr'],
-            'compound' => $form->getConfig()->getCompound(),
-            'method' => $form->getConfig()->getMethod(),
-            'action' => $form->getConfig()->getAction(),
+            'help' => $options['help'],
+            'compound' => $formConfig->getCompound(),
+            'method' => $formConfig->getMethod(),
+            'action' => $formConfig->getAction(),
             'submitted' => $form->isSubmitted(),
         ));
     }
@@ -177,10 +179,12 @@ class FormType extends BaseType
             'attr' => array(),
             'post_max_size_message' => 'The uploaded file was too large. Please try to upload a smaller file.',
             'upload_max_size_message' => $uploadMaxSizeMessage, // internal
+            'help' => null,
         ));
 
         $resolver->setAllowedTypes('label_attr', 'array');
         $resolver->setAllowedTypes('upload_max_size_message', array('callable'));
+        $resolver->setAllowedTypes('help', array('string', 'null'));
     }
 
     /**

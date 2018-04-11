@@ -4,6 +4,7 @@ CHANGELOG
 4.1.0
 -----
 
+ * Query string normalization uses `parse_str()` instead of custom parsing logic.
  * Passing the file size to the constructor of the `UploadedFile` class is deprecated.
  * The `getClientSize()` method of the `UploadedFile` class is deprecated. Use `getSize()` instead.
  * added `RedisSessionHandler` to use Redis as a session storage
@@ -11,6 +12,10 @@ CHANGELOG
    `*` and `*/*` default values (if they are present in the Accept HTTP header)
    when looking for items.
  * deprecated `Request::getSession()` when no session has been set. Use `Request::hasSession()` instead.
+ * added `CannotWriteFileException`, `ExtensionFileException`, `FormSizeFileException`,
+   `IniSizeFileException`, `NoFileException`, `NoTmpDirFileException`, `PartialFileException` to
+   handle failed `UploadedFile`.
+ * added `MigratingSessionHandler` for migrating between two session handlers without losing sessions
 
 4.0.0
 -----

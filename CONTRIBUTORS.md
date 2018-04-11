@@ -14,21 +14,21 @@ Symfony is the result of the work of many people who made the code better
  - Victor Berchet (victor)
  - Kévin Dunglas (dunglas)
  - Johannes S (johannes)
- - Jakub Zalas (jakubzalas)
  - Robin Chalas (chalas_r)
+ - Jakub Zalas (jakubzalas)
  - Kris Wallsmith (kriswallsmith)
  - Ryan Weaver (weaverryan)
  - Javier Eguiluz (javier.eguiluz)
  - Maxime Steinhausser (ogizanagi)
- - Hugo Hamon (hhamon)
  - Grégoire Pineau (lyrixx)
+ - Hugo Hamon (hhamon)
  - Abdellatif Ait boudad (aitboudad)
  - Romain Neutron (romain)
  - Pascal Borreli (pborreli)
  - Wouter De Jong (wouterj)
  - Joseph Bielawski (stloyd)
- - Karma Dordrak (drak)
  - Roland Franssen (ro0)
+ - Karma Dordrak (drak)
  - Lukas Kahwe Smith (lsmith)
  - Martin Hasoň (hason)
  - Jeremy Mikola (jmikola)
@@ -40,6 +40,7 @@ Symfony is the result of the work of many people who made the code better
  - Guilhem Niot (energetick)
  - Sarah Khalil (saro0h)
  - Jonathan Wage (jwage)
+ - Hamza Amrouche (simperfit)
  - Diego Saint Esteben (dosten)
  - Alexandre Salomé (alexandresalome)
  - William Durand (couac)
@@ -47,25 +48,26 @@ Symfony is the result of the work of many people who made the code better
  - Francis Besset (francisbesset)
  - Iltar van der Berg (kjarli)
  - stealth35 ‏ (stealth35)
- - Hamza Amrouche (simperfit)
  - Alexander Mols (asm89)
+ - Samuel ROZE (sroze)
  - Yonel Ceruto (yonelceruto)
  - Bulat Shakirzyanov (avalanche123)
  - Peter Rehm (rpet)
  - Saša Stamenković (umpirsky)
  - Matthias Pigulla (mpdude)
- - Henrik Bjørnskov (henrikbjorn)
- - Miha Vrhovnik
- - Diego Saint Esteben (dii3g0)
- - Dany Maillard (maidmaid)
  - Pierre du Plessis (pierredup)
+ - Henrik Bjørnskov (henrikbjorn)
+ - Dany Maillard (maidmaid)
+ - Miha Vrhovnik
+ - Tobias Nyholm (tobias)
+ - Diego Saint Esteben (dii3g0)
  - Konstantin Kudryashov (everzet)
  - Kevin Bond (kbond)
  - Bilal Amarni (bamarni)
  - Alexander M. Turek (derrabus)
  - Jérémy DERUSSÉ (jderusse)
  - Florin Patan (florinpatan)
- - Samuel ROZE (sroze)
+ - Mathieu Piot (mpiot)
  - Gábor Egyed (1ed)
  - Michel Weimerskirch (mweimerskirch)
  - Andrej Hudec (pulzarraider)
@@ -75,13 +77,12 @@ Symfony is the result of the work of many people who made the code better
  - Titouan Galopin (tgalopin)
  - Konstantin Myakshin (koc)
  - Christian Raue
- - Tobias Nyholm (tobias)
  - Arnout Boks (aboks)
  - Deni
  - Henrik Westphal (snc)
  - Dariusz Górecki (canni)
- - Douglas Greenshields (shieldo)
  - Issei Murasawa (issei_m)
+ - Douglas Greenshields (shieldo)
  - Lee McDermott
  - Brandon Turner
  - Luis Cordova (cordoval)
@@ -93,13 +94,13 @@ Symfony is the result of the work of many people who made the code better
  - Jordan Alliot (jalliot)
  - Jérôme Tamarelle (gromnan)
  - John Wards (johnwards)
+ - David Maicher (dmaicher)
  - Fran Moreno (franmomu)
  - Antoine Hérault (herzult)
  - Paráda József (paradajozsef)
- - David Maicher (dmaicher)
+ - Vladimir Reznichenko (kalessil)
  - Arnaud Le Blanc (arnaud-lb)
  - Maxime STEINHAUSSER
- - Vladimir Reznichenko (kalessil)
  - Michal Piotrowski (eventhorizon)
  - Tim Nagel (merk)
  - Brice BERNARD (brikou)
@@ -143,22 +144,23 @@ Symfony is the result of the work of many people who made the code better
  - Jérôme Vasseur (jvasseur)
  - Jérémie Augustin (jaugustin)
  - Andréia Bohner (andreia)
+ - Philipp Wahala (hifi)
  - Julien Falque (julienfalque)
  - Rafael Dohms (rdohms)
  - Arnaud Kleinpeter (nanocom)
+ - gadelat (gadelat)
  - jwdeitch
  - Mikael Pajunen
  - Joel Wurtz (brouznouf)
+ - Valentin Udaltsov (vudaltsov)
  - Chris Wilkinson (thewilkybarkid)
  - Oleg Voronkovich
- - Philipp Wahala (hifi)
  - Vyacheslav Pavlov
  - Richard van Laak (rvanlaak)
  - Richard Shank (iampersistent)
  - Thomas Rabaix (rande)
  - Rouven Weßling (realityking)
  - Teoh Han Hui (teohhanhui)
- - Valentin Udaltsov (vudaltsov)
  - Clemens Tolboom
  - Helmer Aaviksoo
  - Hiromi Hishida (77web)
@@ -171,6 +173,7 @@ Symfony is the result of the work of many people who made the code better
  - GDIBass
  - jeremyFreeAgent (Jérémy Romey) (jeremyfreeagent)
  - James Halsall (jaitsu)
+ - Matthieu Napoli (mnapoli)
  - Gabriel Caruso
  - Warnar Boekkooi (boekkooi)
  - Dmitrii Chekaliuk (lazyhammer)
@@ -180,10 +183,10 @@ Symfony is the result of the work of many people who made the code better
  - Dorian Villet (gnutix)
  - Sergey Linnik (linniksa)
  - Richard Miller (mr_r_miller)
+ - Gabriel Ostrolucký
  - Mario A. Alvarez Garcia (nomack84)
  - Dennis Benkert (denderello)
  - SpacePossum
- - Matthieu Napoli (mnapoli)
  - Benjamin Dulau (dbenjamin)
  - Mathieu Lemoine (lemoinem)
  - Christian Schmidt
@@ -194,12 +197,12 @@ Symfony is the result of the work of many people who made the code better
  - bronze1man
  - sun (sun)
  - Larry Garfield (crell)
- - Gabriel Ostrolucký
  - Martin Schuhfuß (usefulthink)
  - apetitpa
  - Matthieu Bontemps (mbontemps)
  - apetitpa
  - Pierre Minnieur (pminnieur)
+ - Jannik Zschiesche (apfelbox)
  - fivestar
  - Dominique Bongiraud
  - Jeremy Livingston (jeremylivingston)
@@ -215,6 +218,7 @@ Symfony is the result of the work of many people who made the code better
  - Michele Orselli (orso)
  - Tom Van Looy (tvlooy)
  - Sven Paulus (subsven)
+ - Thomas Calvet (fancyweb)
  - Rui Marinho (ruimarinho)
  - Niels Keurentjes (curry684)
  - Eugene Wissner
@@ -222,9 +226,7 @@ Symfony is the result of the work of many people who made the code better
  - Tristan Darricau (nicofuma)
  - Michaël Perrin (michael.perrin)
  - Marcel Beerta (mazen)
- - gadelat (gadelat)
  - Loïc Faugeron
- - Jannik Zschiesche (apfelbox)
  - Hidde Wieringa (hiddewie)
  - Marco Pivetta (ocramius)
  - Rob Frawley 2nd (robfrawley)
@@ -242,14 +244,15 @@ Symfony is the result of the work of many people who made the code better
  - Danny Berger (dpb587)
  - Ruben Gonzalez (rubenrua)
  - Adam Prager (padam87)
+ - Benoît Burnichon (bburnichon)
  - Roman Marintšenko (inori)
  - Xavier Montaña Carreras (xmontana)
  - Mickaël Andrieu (mickaelandrieu)
  - Xavier Perez
  - Arjen Brouwer (arjenjb)
  - Katsuhiro OGAWA
- - Thomas Calvet (fancyweb)
  - Patrick McDougle (patrick-mcdougle)
+ - Yanick Witschi (toflar)
  - Alif Rachmawadi
  - Alessandro Chitolina
  - Kristen Gilden (kgilden)
@@ -288,8 +291,8 @@ Symfony is the result of the work of many people who made the code better
  - Robert Kiss (kepten)
  - Roumen Damianoff (roumen)
  - Antonio J. García Lagar (ajgarlag)
- - Benoît Burnichon (bburnichon)
  - Kim Hemsø Rasmussen (kimhemsoe)
+ - Florent Mata (fmata)
  - Wouter Van Hecke
  - Jérôme Parmentier (lctrs)
  - Michael Babker (mbabker)
@@ -297,7 +300,6 @@ Symfony is the result of the work of many people who made the code better
  - Michael Holm (hollo)
  - Marc Weistroff (futurecat)
  - Christian Schmidt
- - Yanick Witschi (toflar)
  - Edi Modrić (emodric)
  - Chad Sikorra (chadsikorra)
  - Chris Smith (cs278)
@@ -331,6 +333,7 @@ Symfony is the result of the work of many people who made the code better
  - janschoenherr
  - Thomas Schulz (king2500)
  - Dariusz Rumiński
+ - Frank de Jonge (frenkynet)
  - Berny Cantos (xphere81)
  - Thierry Thuon (lepiaf)
  - Ricard Clau (ricardclau)
@@ -349,6 +352,7 @@ Symfony is the result of the work of many people who made the code better
  - Inal DJAFAR (inalgnu)
  - Christian Gärtner (dagardner)
  - Tomasz Kowalczyk (thunderer)
+ - Artur Eshenbrener
  - François-Xavier de Guillebon (de-gui_f)
  - Damien Alexandre (damienalexandre)
  - Felix Labrecque
@@ -374,6 +378,7 @@ Symfony is the result of the work of many people who made the code better
  - Vyacheslav Salakhutdinov (megazoll)
  - Hassan Amouhzi
  - Tamas Szijarto
+ - Michele Locati
  - Pavel Volokitin (pvolok)
  - Arthur de Moulins (4rthem)
  - Nicolas Dewez (nicolas_dewez)
@@ -408,7 +413,6 @@ Symfony is the result of the work of many people who made the code better
  - Emanuele Gaspari (inmarelibero)
  - Sébastien Santoro (dereckson)
  - Brian King
- - Frank de Jonge (frenkynet)
  - Michel Salib (michelsalib)
  - geoffrey
  - Steffen Roßkamp
@@ -432,6 +436,7 @@ Symfony is the result of the work of many people who made the code better
  - Florian Pfitzer (marmelatze)
  - Asier Illarramendi (doup)
  - Andreas Braun
+ - Boris Vujicic (boris.vujicic)
  - Chris Sedlmayr (catchamonkey)
  - Seb Koelen
  - Christoph Mewes (xrstf)
@@ -446,7 +451,6 @@ Symfony is the result of the work of many people who made the code better
  - Marek Pietrzak
  - Luc Vieillescazes (iamluc)
  - franek (franek)
- - Artur Eshenbrener
  - Christian Wahler
  - Gintautas Miselis
  - Rob Bast
@@ -465,6 +469,7 @@ Symfony is the result of the work of many people who made the code better
  - Roman Lapin (memphys)
  - Yoshio HANAWA
  - Gladhon
+ - Haralan Dobrev (hkdobrev)
  - Sebastian Bergmann
  - Miroslav Sustek
  - Sullivan SENECHAL (soullivaneuh)
@@ -482,7 +487,6 @@ Symfony is the result of the work of many people who made the code better
  - Roy Van Ginneken (rvanginneken)
  - ondrowan
  - Barry vd. Heuvel (barryvdh)
- - Florent Mata
  - Evan S Kaufman (evanskaufman)
  - mcben
  - Jérôme Vieilledent (lolautruche)
@@ -498,7 +502,6 @@ Symfony is the result of the work of many people who made the code better
  - Andrew Udvare (audvare)
  - alexpods
  - Arjen van der Meijden
- - Michele Locati
  - Dariusz Ruminski
  - Mathieu Lechat
  - Erik Trapman (eriktrapman)
@@ -550,11 +553,13 @@ Symfony is the result of the work of many people who made the code better
  - Michiel Boeckaert (milio)
  - Geoffrey Tran (geoff)
  - Romain Pierre (romain-pierre)
+ - David Prévot
  - Jan Behrens
  - Mantas Var (mvar)
  - Sebastian Krebs
  - Jean-Christophe Cuvelier [Artack]
  - alcaeus
+ - Fred Cox
  - vitaliytv
  - Dalibor Karlović (dkarlovi)
  - Sebastian Blum
@@ -599,6 +604,7 @@ Symfony is the result of the work of many people who made the code better
  - mcfedr (mcfedr)
  - Rostyslav Kinash
  - Maciej Malarz (malarzm)
+ - Pascal Luna (skalpa)
  - Daisuke Ohata
  - Vincent Simonin
  - Alex Bogomazov (alebo)
@@ -619,6 +625,7 @@ Symfony is the result of the work of many people who made the code better
  - Denis Brumann (dbrumann)
  - Quentin de Longraye (quentinus95)
  - Chris Heng (gigablah)
+ - Shaun Simmons (simshaun)
  - Richard Bradley
  - Ulumuddin Yunus (joenoez)
  - Johann Saunier (prophet777)
@@ -685,6 +692,7 @@ Symfony is the result of the work of many people who made the code better
  - Joshua Nye
  - Claudio Zizza
  - Dave Marshall (davedevelopment)
+ - Jakub Kulhan (jakubkulhan)
  - avorobiev
  - Venu
  - Lars Vierbergen
@@ -697,6 +705,7 @@ Symfony is the result of the work of many people who made the code better
  - Nykopol (nykopol)
  - Jordan Deitch
  - Casper Valdemar Poulsen
+ - Remon van de Kamp
  - Josiah (josiah)
  - Joschi Kuphal
  - John Bohn (jbohn)
@@ -736,6 +745,7 @@ Symfony is the result of the work of many people who made the code better
  - Adrien Lucas (adrienlucas)
  - Zhuravlev Alexander (scif)
  - James Michael DuPont
+ - Xavier HAUSHERR
  - Tom Klingenberg
  - Christopher Hall (mythmakr)
  - Patrick Dawkins (pjcdawkins)
@@ -748,6 +758,7 @@ Symfony is the result of the work of many people who made the code better
  - Sofiane HADDAG (sofhad)
  - frost-nzcr4
  - Bozhidar Hristov
+ - andrey1s
  - Abhoryo
  - Fabian Vogler (fabian)
  - Korvin Szanto
@@ -757,6 +768,7 @@ Symfony is the result of the work of many people who made the code better
  - Maksim Kotlyar (makasim)
  - Neil Ferreira
  - Nathanael Noblet (gnat)
+ - Indra Gunawan (indragunawan)
  - Dmitry Parnas (parnas)
  - Paul LE CORRE
  - Emanuele Iannone
@@ -846,6 +858,7 @@ Symfony is the result of the work of many people who made the code better
  - Mátyás Somfai (smatyas)
  - stefan.r
  - Valérian Galliat
+ - d-ph
  - Rikijs Murgs
  - Ben Ramsey (ramsey)
  - Amaury Leroux de Lens (amo__)
@@ -921,17 +934,16 @@ Symfony is the result of the work of many people who made the code better
  - AKeeman (akeeman)
  - Lin Clark
  - Jeremy David (jeremy.david)
+ - Gocha Ossinkine (ossinkine)
  - Troy McCabe
  - Ville Mattila
  - ilyes kooli
  - gr1ev0us
  - mlazovla
- - Boris Vujicic (boris.vujicic)
  - Max Beutel
  - Antanas Arvasevicius
  - Maximilian Berghoff (electricmaxxx)
  - nacho
- - Mathieu Piot
  - Piotr Antosik (antek88)
  - Artem Lopata
  - Sergey Novikov (s12v)
@@ -943,6 +955,7 @@ Symfony is the result of the work of many people who made the code better
  - Ken Marfilla (marfillaster)
  - benatespina (benatespina)
  - Denis Kop
+ - Jean-Guilhem Rouel (jean-gui)
  - jfcixmedia
  - Nikita Konstantinov
  - Martijn Evers
@@ -974,14 +987,15 @@ Symfony is the result of the work of many people who made the code better
  - Olaf Klischat
  - orlovv
  - Peter Smeets (darkspartan)
- - Haralan Dobrev (hkdobrev)
  - Jhonny Lidfors (jhonny)
  - Julien Bianchi (jubianchi)
  - Robert Meijers
+ - James Sansbury
  - Marcin Chwedziak
  - hjkl
  - Tony Cosentino (tony-co)
  - Dan Wilga
+ - Andrew Tch
  - Alexander Cheprasov
  - Rodrigo Díez Villamuera (rodrigodiez)
  - Malte Blättermann
@@ -991,6 +1005,7 @@ Symfony is the result of the work of many people who made the code better
  - Jeremy Bush
  - wizhippo
  - Viacheslav Sychov
+ - Helmut Hummel (helhum)
  - Matt Brunt
  - Carlos Ortega Huetos
  - rpg600
@@ -1015,6 +1030,7 @@ Symfony is the result of the work of many people who made the code better
  - rchoquet
  - gitlost
  - Taras Girnyk
+ - Anthony GRASSIOT (antograssiot)
  - Eduardo García Sanz (coma)
  - James Gilliland
  - fduch (fduch)
@@ -1044,6 +1060,7 @@ Symfony is the result of the work of many people who made the code better
  - Peter Thompson (petert82)
  - Felicitus
  - Krzysztof Przybyszewski
+ - alexpozzi
  - Paul Matthews
  - Jakub Kisielewski
  - Vacheslav Silyutin
@@ -1067,7 +1084,6 @@ Symfony is the result of the work of many people who made the code better
  - Sergey Yuferev
  - Tobias Stöckler
  - Mario Young
- - Jakub Kulhan
  - Ilia (aliance)
  - Mo Di (modi)
  - Pablo Schläpfer
@@ -1102,7 +1118,6 @@ Symfony is the result of the work of many people who made the code better
  - Pierre Tachoire (krichprollsch)
  - Marc J. Schmidt (marcjs)
  - Marco Jantke
- - Remon van de Kamp
  - Saem Ghani
  - Clément LEFEBVRE
  - Conrad Kleinespel
@@ -1125,6 +1140,7 @@ Symfony is the result of the work of many people who made the code better
  - Berat Doğan
  - Guillaume LECERF
  - Juanmi Rodriguez Cerón
+ - Sergey Yastrebov
  - Andy Raines
  - Anthony Ferrara
  - Klaas Cuvelier (kcuvelier)
@@ -1150,6 +1166,7 @@ Symfony is the result of the work of many people who made the code better
  - Andreas Frömer
  - Philip Frank
  - Lance McNearney
+ - Antoine M (amakdessi)
  - Gonzalo Vilaseca (gonzalovilaseca)
  - Giorgio Premi
  - Ian Carroll
@@ -1216,6 +1233,8 @@ Symfony is the result of the work of many people who made the code better
  - Qingshan Luo
  - Ergie Gonzaga
  - Matthew J Mucklo
+ - AnrDaemon
+ - Smaine Milianni (ismail1432)
  - fdgdfg (psampaz)
  - Stéphane Seng
  - Maxwell Vandervelde
@@ -1225,7 +1244,6 @@ Symfony is the result of the work of many people who made the code better
  - Sebastian Ionescu
  - Thomas Ploch
  - Simon Neidhold
- - Xavier HAUSHERR
  - Valentin VALCIU
  - Jeremiah VALERIE
  - Kevin Dew
@@ -1282,6 +1300,7 @@ Symfony is the result of the work of many people who made the code better
  - Przemysław Piechota (kibao)
  - Leonid Terentyev (li0n)
  - ryunosuke
+ - zenmate
  - victoria
  - Christian Schmidt
  - Francisco Facioni (fran6co)
@@ -1305,6 +1324,7 @@ Symfony is the result of the work of many people who made the code better
  - Vasily Khayrulin (sirian)
  - Stefan Koopmanschap (skoop)
  - Stefan Hüsges (tronsha)
+ - Jake Bishop (yakobeyak)
  - Dan Blows
  - Matt Wells
  - Nicolas Appriou
@@ -1351,7 +1371,6 @@ Symfony is the result of the work of many people who made the code better
  - Christopher Parotat
  - 蝦米
  - Grayson Koonce (breerly)
- - Indra Gunawan (indragunawan)
  - Karim Cassam Chenaï (ka)
  - Michal Kurzeja (mkurzeja)
  - Nicolas Bastien (nicolas_bastien)
@@ -1397,7 +1416,6 @@ Symfony is the result of the work of many people who made the code better
  - Artem Lopata (bumz)
  - Nicole Cordes
  - Roman Orlov
- - andrey1s
  - VolCh
  - Alexey Popkov
  - Gijs Kunze
@@ -1408,6 +1426,7 @@ Symfony is the result of the work of many people who made the code better
  - Daan van Renterghem
  - Nicole Cordes
  - Martin Kirilov
+ - amcastror
  - Bram Van der Sype (brammm)
  - Guile (guile)
  - Julien Moulin (lizjulien)
@@ -1435,6 +1454,7 @@ Symfony is the result of the work of many people who made the code better
  - Edvinas Klovas
  - Drew Butler
  - Peter Breuls
+ - Chansig
  - Tischoi
  - J Bruni
  - Alexey Prilipko
@@ -1485,6 +1505,7 @@ Symfony is the result of the work of many people who made the code better
  - grifx
  - Robert Campbell
  - Matt Lehner
+ - Helmut Januschka
  - Hein Zaw Htet™
  - Ruben Kruiswijk
  - Cosmin-Romeo TANASE
@@ -1495,12 +1516,15 @@ Symfony is the result of the work of many people who made the code better
  - hadriengem
  - timaschew
  - Jochen Mandl
+ - Marin Nicolae
+ - Alessandro Loffredo
  - Ian Phillips
  - Haritz
  - Matthieu Prat
  - Ion Bazan
  - Grummfy
  - Filipe Guerra
+ - Jean Ragouin
  - Gerben Wijnja
  - Rowan Manning
  - Per Modin
@@ -1515,6 +1539,7 @@ Symfony is the result of the work of many people who made the code better
  - Erik van Wingerden
  - Valouleloup
  - Dane Powell
+ - mweimerskirch
  - Gerrit Drost
  - Linnaea Von Lavia
  - Simon Mönch
@@ -1573,6 +1598,7 @@ Symfony is the result of the work of many people who made the code better
  - Vladimir Chernyshev (volch)
  - Yorkie Chadwick (yorkie76)
  - GuillaumeVerdon
+ - Philipp Keck
  - Ondrej Mirtes
  - akimsko
  - Youpie
@@ -1614,8 +1640,10 @@ Symfony is the result of the work of many people who made the code better
  - Ron Gähler
  - Edwin Hageman
  - Mantas Urnieža
+ - temperatur
  - Cas
  - Dusan Kasan
+ - Karolis
  - Myke79
  - Brian Debuire
  - Piers Warmers
@@ -1630,6 +1658,7 @@ Symfony is the result of the work of many people who made the code better
  - Jordan Hoff
  - znerol
  - Christian Eikermann
+ - Kai Eichinger
  - Antonio Angelino
  - Matt Fields
  - Niklas Keller
@@ -1644,6 +1673,7 @@ Symfony is the result of the work of many people who made the code better
  - Jörg Rühl
  - wesleyh
  - sergey
+ - Daniel Bannert
  - Karim Miladi
  - Michael Genereux
  - patrick-mcdougle
@@ -1668,8 +1698,10 @@ Symfony is the result of the work of many people who made the code better
  - Guillaume Aveline
  - Adrian Philipp
  - James Michael DuPont
+ - Tim Goudriaan
  - Kasperki
  - Tammy D
+ - Daniel STANCU
  - Ondrej Slinták
  - vlechemin
  - Brian Corrigan
@@ -1682,7 +1714,6 @@ Symfony is the result of the work of many people who made the code better
  - Neophy7e
  - bokonet
  - Arrilot
- - Shaun Simmons
  - Markus Staab
  - Pierre-Louis LAUNAY
  - djama
@@ -1702,12 +1733,14 @@ Symfony is the result of the work of many people who made the code better
  - Elan Ruusamäe
  - Thorsten Hallwas
  - Michael Squires
+ - Egor Gorbachev
  - Derek Stephen McLean
  - Norman Soetbeer
  - zorn
  - Yuriy Potemkin
  - Benjamin Long
  - Matt Janssen
+ - Ben Miller
  - Peter Gribanov
  - Ben Johnson
  - kwiateusz
@@ -1809,6 +1842,7 @@ Symfony is the result of the work of many people who made the code better
  - emilienbouard (neime)
  - Nicholas Byfleet (nickbyfleet)
  - Tomas Norkūnas (norkunas)
+ - Marco Petersen (ocrampete16)
  - ollie harridge (ollietb)
  - Paul Andrieux (paulandrieux)
  - Paweł Szczepanek (pauluz)
@@ -1828,11 +1862,11 @@ Symfony is the result of the work of many people who made the code better
  - scourgen hung (scourgen)
  - Sébastien Alfaiate (seb33300)
  - Sebastian Busch (sebu)
+ - Christophe Villeger (seragan)
  - André Filipe Gonçalves Neves (seven)
  - Bruno Ziegler (sfcoder)
  - Andrea Giuliano (shark)
  - Schuyler Jager (sjager)
- - Pascal Luna (skalpa)
  - Volker (skydiablo)
  - Serkan Yildiz (srknyldz)
  - Julien Sanchez (sumbobyboys)
@@ -1856,12 +1890,14 @@ Symfony is the result of the work of many people who made the code better
  - drublic
  - Andreas Streichardt
  - Pascal Hofmann
+ - Stefan Kruppa
  - smokeybear87
  - Gustavo Adrian
  - Kevin Weber
  - Ben Scott
  - Dionysis Arvanitis
  - Sergey Fedotov
+ - Konstantin Scheumann
  - Michael
  - fh-github@fholzhauer.de
  - AbdElKader Bouadjadja

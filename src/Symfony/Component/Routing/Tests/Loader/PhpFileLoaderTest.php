@@ -99,6 +99,9 @@ class PhpFileLoaderTest extends TestCase
         $expectedCollection->add('buz', (new Route('/zub'))
             ->setDefaults(array('_controller' => 'foo:act'))
         );
+        $expectedCollection->add('c_root', (new Route('/sub/pub/'))
+            ->setRequirements(array('id' => '\d+'))
+        );
         $expectedCollection->add('c_bar', (new Route('/sub/pub/bar'))
             ->setRequirements(array('id' => '\d+'))
         );
@@ -106,8 +109,11 @@ class PhpFileLoaderTest extends TestCase
             ->setHost('host')
             ->setRequirements(array('id' => '\d+'))
         );
+        $expectedCollection->add('z_c_root', new Route('/zub/pub/'));
         $expectedCollection->add('z_c_bar', new Route('/zub/pub/bar'));
         $expectedCollection->add('z_c_pub_buz', (new Route('/zub/pub/buz'))->setHost('host'));
+        $expectedCollection->add('r_root', new Route('/bus'));
+        $expectedCollection->add('r_bar', new Route('/bus/bar/'));
         $expectedCollection->add('ouf', (new Route('/ouf'))
             ->setSchemes(array('https'))
             ->setMethods(array('GET'))
@@ -115,9 +121,23 @@ class PhpFileLoaderTest extends TestCase
         );
 
         $expectedCollection->addResource(new FileResource(realpath(__DIR__.'/../Fixtures/php_dsl_sub.php')));
+        $expectedCollection->addResource(new FileResource(realpath(__DIR__.'/../Fixtures/php_dsl_sub_root.php')));
         $expectedCollection->addResource(new FileResource(realpath(__DIR__.'/../Fixtures/php_dsl.php')));
 
         $this->assertEquals($expectedCollection, $routeCollection);
+    }
+
+    public function testRoutingConfiguratorCanImportGlobPatterns()
+    {
+        $locator = new FileLocator(array(__DIR__.'/../Fixtures/glob'));
+        $loader = new PhpFileLoader($locator);
+        $routeCollection = $loader->load('php_dsl.php');
+
+        $route = $routeCollection->get('bar_route');
+        $this->assertSame('AppBundle:Bar:view', $route->getDefault('_controller'));
+
+        $route = $routeCollection->get('baz_route');
+        $this->assertSame('AppBundle:Baz:view', $route->getDefault('_controller'));
     }
 
     public function testRoutingI18nConfigurator()

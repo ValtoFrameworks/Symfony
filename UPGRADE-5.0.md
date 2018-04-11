@@ -5,11 +5,21 @@ Config
 ------
 
  * Added the `getChildNodeDefinitions()` method to `ParentNodeDefinitionInterface`.
+ * The `Processor` class has been made final
 
 Console
 -------
 
  * Removed the `setCrossingChar()` method in favor of the `setDefaultCrossingChar()` method in `TableStyle`.
+ * Removed the `setHorizontalBorderChar()` method in favor of the `setDefaultCrossingChars()` method in `TableStyle`.
+ * Removed the `getHorizontalBorderChar()` method in favor of the `getBorderChars()` method in `TableStyle`.
+ * Removed the `setVerticalBorderChar()` method in favor of the `setVerticalBorderChars()` method in `TableStyle`.
+ * Removed the `getVerticalBorderChar()` method in favor of the `getBorderChars()` method in `TableStyle`.
+
+DependencyInjection
+-------------------
+
+ * Removed the `TypedReference::canBeAutoregistered()` and  `TypedReference::getRequiringClass()` methods.
 
 EventDispatcher
 ---------------
@@ -66,6 +76,7 @@ Security
 
  * The `ContextListener::setLogoutOnUserChange()` method has been removed.
  * The `Symfony\Component\Security\Core\User\AdvancedUserInterface` has been removed.
+ * The `ExpressionVoter::addExpressionLanguageProvider()` method has been removed.
 
 SecurityBundle
 --------------

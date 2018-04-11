@@ -17,6 +17,7 @@ use Symfony\Bundle\FullStack;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\Lock\Store\SemaphoreStore;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 class ConfigurationTest extends TestCase
 {
@@ -246,6 +247,15 @@ class ConfigurationTest extends TestCase
                 'resources' => array(
                     'default' => array(
                         class_exists(SemaphoreStore::class) && SemaphoreStore::isSupported() ? 'semaphore' : 'flock',
+                    ),
+                ),
+            ),
+            'messenger' => array(
+                'enabled' => !class_exists(FullStack::class) && class_exists(MessageBusInterface::class),
+                'routing' => array(),
+                'middlewares' => array(
+                    'validation' => array(
+                        'enabled' => !class_exists(FullStack::class),
                     ),
                 ),
             ),

@@ -432,6 +432,27 @@ class PhpDumperTest extends TestCase
         $this->assertSame(array('foo', 'bar'), $container->getParameter('hello'));
     }
 
+    public function testDumpedJsonEnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('env(foo)', '["foo","bar"]');
+        $container->setParameter('env(bar)', 'null');
+        $container->setParameter('hello', '%env(json:foo)%');
+        $container->setParameter('hello-bar', '%env(json:bar)%');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_json_env.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_JsonParameters')));
+
+        putenv('foobar="hello"');
+        require self::$fixturesPath.'/php/services_json_env.php';
+        $container = new \Symfony_DI_PhpDumper_Test_JsonParameters();
+        $this->assertSame(array('foo', 'bar'), $container->getParameter('hello'));
+        $this->assertNull($container->getParameter('hello-bar'));
+    }
+
     public function testCustomEnvParameters()
     {
         $container = new ContainerBuilder();
@@ -945,6 +966,24 @@ class PhpDumperTest extends TestCase
 
         $this->assertSame('bar', $container->getParameter('Foo'));
         $this->assertSame('foo', $container->getParameter('BAR'));
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
+     * @expectedExceptionMessage Service "errored_definition" is broken.
+     */
+    public function testErroredDefinition()
+    {
+        $container = include self::$fixturesPath.'/containers/container9.php';
+        $container->setParameter('foo_bar', 'foo_bar');
+        $container->compile();
+        $dumper = new PhpDumper($container);
+        $dump = $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Errored_Definition'));
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_errored_definition.php', str_replace(str_replace('\\', '\\\\', self::$fixturesPath.DIRECTORY_SEPARATOR.'includes'.DIRECTORY_SEPARATOR), '%path%', $dump));
+        eval('?>'.$dump);
+
+        $container = new \Symfony_DI_PhpDumper_Errored_Definition();
+        $container->get('runtime_error');
     }
 }
 

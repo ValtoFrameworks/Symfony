@@ -183,6 +183,27 @@ class YamlFileLoaderTest extends TestCase
         $loader->load('import_override_defaults.yml');
     }
 
+    public function testImportRouteWithGlobMatchingSingleFile()
+    {
+        $loader = new YamlFileLoader(new FileLocator(array(__DIR__.'/../Fixtures/glob')));
+        $routeCollection = $loader->load('import_single.yml');
+
+        $route = $routeCollection->get('bar_route');
+        $this->assertSame('AppBundle:Bar:view', $route->getDefault('_controller'));
+    }
+
+    public function testImportRouteWithGlobMatchingMultipleFiles()
+    {
+        $loader = new YamlFileLoader(new FileLocator(array(__DIR__.'/../Fixtures/glob')));
+        $routeCollection = $loader->load('import_multiple.yml');
+
+        $route = $routeCollection->get('bar_route');
+        $this->assertSame('AppBundle:Bar:view', $route->getDefault('_controller'));
+
+        $route = $routeCollection->get('baz_route');
+        $this->assertSame('AppBundle:Baz:view', $route->getDefault('_controller'));
+    }
+
     public function testImportRouteWithNamePrefix()
     {
         $loader = new YamlFileLoader(new FileLocator(array(__DIR__.'/../Fixtures/import_with_name_prefix')));
@@ -208,7 +229,6 @@ class YamlFileLoaderTest extends TestCase
 
         $this->assertCount(3, $routes);
     }
-
 
     public function testImportingRoutesFromDefinition()
     {
@@ -274,5 +294,14 @@ class YamlFileLoaderTest extends TestCase
         $this->assertEquals('DefaultController::defaultAction', $routes->get('home.en')->getDefault('_controller'));
         $this->assertEquals('DefaultController::defaultAction', $routes->get('home.nl')->getDefault('_controller'));
         $this->assertEquals('DefaultController::defaultAction', $routes->get('not_localized')->getDefault('_controller'));
+    }
+
+    public function testImportRouteWithNoTrailingSlash()
+    {
+        $loader = new YamlFileLoader(new FileLocator(array(__DIR__.'/../Fixtures/import_with_no_trailing_slash')));
+        $routeCollection = $loader->load('routing.yml');
+
+        $this->assertEquals('/slash/', $routeCollection->get('a_app_homepage')->getPath());
+        $this->assertEquals('/no-slash', $routeCollection->get('b_app_homepage')->getPath());
     }
 }

@@ -126,7 +126,7 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                     if (isset($arguments[$r->name][$p->name])) {
                         $target = $arguments[$r->name][$p->name];
                         if ('?' !== $target[0]) {
-                            $invalidBehavior = ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE;
+                            $invalidBehavior = ContainerInterface::RUNTIME_EXCEPTION_ON_INVALID_REFERENCE;
                         } elseif ('' === $target = (string) substr($target, 1)) {
                             throw new InvalidArgumentException(sprintf('A "%s" tag must have non-empty "id" attributes for service "%s".', $this->controllerTag, $id));
                         } elseif ($p->allowsNull() && !$p->isOptional()) {
@@ -136,17 +136,22 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                         $binding = $bindings[$bindingName];
 
                         list($bindingValue, $bindingId) = $binding->getValues();
+                        $binding->setValues(array($bindingValue, $bindingId, true));
 
                         if (!$bindingValue instanceof Reference) {
-                            continue;
+                            $args[$p->name] = new Reference('_value.'.$container->hash($bindingValue));
+                            $container->register((string) $args[$p->name], 'mixed')
+                                ->setFactory('current')
+                                ->addArgument(array($bindingValue));
+                        } else {
+                            $args[$p->name] = $bindingValue;
                         }
-
-                        $binding->setValues(array($bindingValue, $bindingId, true));
-                        $args[$p->name] = $bindingValue;
 
                         continue;
                     } elseif (!$type || !$autowire) {
                         continue;
+                    } elseif (!$p->allowsNull()) {
+                        $invalidBehavior = ContainerInterface::RUNTIME_EXCEPTION_ON_INVALID_REFERENCE;
                     }
 
                     if (Request::class === $type) {
@@ -164,7 +169,7 @@ class RegisterControllerArgumentLocatorsPass implements CompilerPassInterface
                         throw new InvalidArgumentException($message);
                     }
 
-                    $args[$p->name] = $type ? new TypedReference($target, $type, $r->class, $invalidBehavior) : new Reference($target, $invalidBehavior);
+                    $args[$p->name] = $type ? new TypedReference($target, $type, $invalidBehavior) : new Reference($target, $invalidBehavior);
                 }
                 // register the maps as a per-method service-locators
                 if ($args) {

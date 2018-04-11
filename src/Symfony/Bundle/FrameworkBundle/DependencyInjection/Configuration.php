@@ -22,6 +22,7 @@ use Symfony\Component\Form\Form;
 use Symfony\Component\Lock\Lock;
 use Symfony\Component\Lock\Store\SemaphoreStore;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Translation\Translator;
 use Symfony\Component\Validator\Validation;
@@ -31,6 +32,7 @@ use Symfony\Component\WebLink\HttpHeaderSerializer;
  * FrameworkExtension configuration structure.
  *
  * @author Jeremy Mikola <jmikola@gmail.com>
+ * @author Grégoire Pineau <lyrixx@lyrixx.info>
  */
 class Configuration implements ConfigurationInterface
 {
@@ -101,6 +103,7 @@ class Configuration implements ConfigurationInterface
         $this->addPhpErrorsSection($rootNode);
         $this->addWebLinkSection($rootNode);
         $this->addLockSection($rootNode);
+        $this->addMessengerSection($rootNode);
 
         return $treeBuilder;
     }
@@ -292,23 +295,61 @@ class Configuration implements ConfigurationInterface
                                         ->defaultNull()
                                     ->end()
                                     ->arrayNode('places')
+                                        ->beforeNormalization()
+                                            ->always()
+                                            ->then(function ($places) {
+                                                // It's an indexed array of shape  ['place1', 'place2']
+                                                if (isset($places[0]) && is_string($places[0])) {
+                                                    return array_map(function (string $place) {
+                                                        return array('name' => $place);
+                                                    }, $places);
+                                                }
+
+                                                // It's an indexed array, we let the validation occur
+                                                if (isset($places[0]) && is_array($places[0])) {
+                                                    return $places;
+                                                }
+
+                                                foreach ($places as $name => $place) {
+                                                    if (is_array($place) && array_key_exists('name', $place)) {
+                                                        continue;
+                                                    }
+                                                    $place['name'] = $name;
+                                                    $places[$name] = $place;
+                                                }
+
+                                                return array_values($places);
+                                            })
+                                        ->end()
                                         ->isRequired()
                                         ->requiresAtLeastOneElement()
-                                        ->prototype('scalar')
-                                            ->cannotBeEmpty()
+                                        ->prototype('array')
+                                            ->children()
+                                                ->scalarNode('name')
+                                                    ->isRequired()
+                                                    ->cannotBeEmpty()
+                                                ->end()
+                                                ->arrayNode('metadata')
+                                                    ->normalizeKeys(false)
+                                                    ->defaultValue(array())
+                                                    ->example(array('color' => 'blue', 'description' => 'Workflow to manage article.'))
+                                                    ->prototype('variable')
+                                                    ->end()
+                                                ->end()
+                                            ->end()
                                         ->end()
                                     ->end()
                                     ->arrayNode('transitions')
                                         ->beforeNormalization()
                                             ->always()
                                             ->then(function ($transitions) {
-                                                // It's an indexed array, we let the validation occurs
-                                                if (isset($transitions[0])) {
+                                                // It's an indexed array, we let the validation occur
+                                                if (isset($transitions[0]) && is_array($transitions[0])) {
                                                     return $transitions;
                                                 }
 
                                                 foreach ($transitions as $name => $transition) {
-                                                    if (array_key_exists('name', $transition)) {
+                                                    if (is_array($transition) && array_key_exists('name', $transition)) {
                                                         continue;
                                                     }
                                                     $transition['name'] = $name;
@@ -351,7 +392,21 @@ class Configuration implements ConfigurationInterface
                                                         ->cannotBeEmpty()
                                                     ->end()
                                                 ->end()
+                                                ->arrayNode('metadata')
+                                                    ->normalizeKeys(false)
+                                                    ->defaultValue(array())
+                                                    ->example(array('color' => 'blue', 'description' => 'Workflow to manage article.'))
+                                                    ->prototype('variable')
+                                                    ->end()
+                                                ->end()
                                             ->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('metadata')
+                                        ->normalizeKeys(false)
+                                        ->defaultValue(array())
+                                        ->example(array('color' => 'blue', 'description' => 'Workflow to manage article.'))
+                                        ->prototype('variable')
                                         ->end()
                                     ->end()
                                 ->end()
@@ -833,10 +888,15 @@ class Configuration implements ConfigurationInterface
                     ->info('PHP errors handling configuration')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->booleanNode('log')
-                            ->info('Use the app logger instead of the PHP logger for logging PHP errors.')
+                        ->scalarNode('log')
+                            ->info('Use the application logger instead of the PHP logger for logging PHP errors.')
+                            ->example('"true" to use the default configuration: log all errors. "false" to disable. An integer bit field of E_* constants.')
                             ->defaultValue($this->debug)
                             ->treatNullLike($this->debug)
+                            ->validate()
+                                ->ifTrue(function ($v) { return !(\is_int($v) || \is_bool($v)); })
+                                ->thenInvalid('The "php_errors.log" parameter should be either an integer or a boolean.')
+                            ->end()
                         ->end()
                         ->booleanNode('throw')
                             ->info('Throw PHP errors as \ErrorException instances.')
@@ -899,6 +959,59 @@ class Configuration implements ConfigurationInterface
                 ->arrayNode('web_link')
                     ->info('web links configuration')
                     ->{!class_exists(FullStack::class) && class_exists(HttpHeaderSerializer::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                ->end()
+            ->end()
+        ;
+    }
+
+    private function addMessengerSection(ArrayNodeDefinition $rootNode)
+    {
+        $rootNode
+            ->children()
+                ->arrayNode('messenger')
+                    ->info('Messenger configuration')
+                    ->{!class_exists(FullStack::class) && class_exists(MessageBusInterface::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                    ->children()
+                        ->arrayNode('routing')
+                            ->useAttributeAsKey('message_class')
+                            ->beforeNormalization()
+                                ->always()
+                                ->then(function ($config) {
+                                    $newConfig = array();
+                                    foreach ($config as $k => $v) {
+                                        if (!is_int($k)) {
+                                            $newConfig[$k] = array('senders' => is_array($v) ? array_values($v) : array($v));
+                                        } else {
+                                            $newConfig[$v['message-class']]['senders'] = array_map(
+                                                function ($a) {
+                                                    return is_string($a) ? $a : $a['service'];
+                                                },
+                                                array_values($v['sender'])
+                                            );
+                                        }
+                                    }
+
+                                    return $newConfig;
+                                })
+                            ->end()
+                            ->prototype('array')
+                                ->children()
+                                    ->arrayNode('senders')
+                                        ->requiresAtLeastOneElement()
+                                        ->prototype('scalar')->end()
+                                    ->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                        ->arrayNode('middlewares')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->arrayNode('validation')
+                                    ->{!class_exists(FullStack::class) && class_exists(Validation::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                                ->end()
+                            ->end()
+                        ->end()
+                    ->end()
                 ->end()
             ->end()
         ;

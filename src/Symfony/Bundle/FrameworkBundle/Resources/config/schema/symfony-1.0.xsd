@@ -29,7 +29,9 @@
             <xsd:element name="property-info" type="property_info" minOccurs="0" maxOccurs="1" />
             <xsd:element name="cache" type="cache" minOccurs="0" maxOccurs="1" />
             <xsd:element name="workflow" type="workflow" minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="php-errors" type="php-errors" minOccurs="0" maxOccurs="1" />
             <xsd:element name="lock" type="lock" minOccurs="0" maxOccurs="1" />
+            <xsd:element name="messenger" type="messenger" minOccurs="0" maxOccurs="1" />
         </xsd:choice>
 
         <xsd:attribute name="http-method-override" type="xsd:boolean" />
@@ -273,14 +275,20 @@
         <xsd:sequence>
             <xsd:element name="marking-store" type="marking_store" minOccurs="0" maxOccurs="1" />
             <xsd:element name="support" type="xsd:string" minOccurs="0" maxOccurs="unbounded" />
-            <xsd:element name="place" type="xsd:string" minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="place" type="place" minOccurs="0" maxOccurs="unbounded" />
             <xsd:element name="transition" type="transition" minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="metadata" type="metadata" minOccurs="0" maxOccurs="unbounded" />
         </xsd:sequence>
         <xsd:attribute name="name" type="xsd:string" />
         <xsd:attribute name="type" type="workflow_type" />
         <xsd:attribute name="initial-place" type="xsd:string" />
         <xsd:attribute name="support-strategy" type="xsd:string" />
         <xsd:attribute name="enabled" type="xsd:boolean" />
+    </xsd:complexType>
+
+    <xsd:complexType name="php-errors">
+        <xsd:attribute name="log" type="xsd:string" />
+        <xsd:attribute name="throw" type="xsd:boolean" />
     </xsd:complexType>
 
     <xsd:complexType name="marking_store">
@@ -302,8 +310,22 @@
         <xsd:sequence>
             <xsd:element name="from" type="xsd:string" minOccurs="1" maxOccurs="unbounded" />
             <xsd:element name="to" type="xsd:string" minOccurs="1" maxOccurs="unbounded" />
+            <xsd:element name="metadata" type="metadata" minOccurs="0" maxOccurs="unbounded" />
         </xsd:sequence>
         <xsd:attribute name="name" type="xsd:string" use="required" />
+    </xsd:complexType>
+
+    <xsd:complexType name="place" mixed="true">
+        <xsd:sequence>
+            <xsd:element name="metadata" type="metadata" minOccurs="0" maxOccurs="unbounded" />
+        </xsd:sequence>
+        <xsd:attribute name="name" type="xsd:string" />
+    </xsd:complexType>
+
+    <xsd:complexType name="metadata">
+        <xsd:sequence>
+            <xsd:any minOccurs="0" processContents="lax"/>
+        </xsd:sequence>
     </xsd:complexType>
 
     <xsd:simpleType name="workflow_type">
@@ -326,5 +348,33 @@
                 <xsd:attribute name="name" type="xsd:string" />
             </xsd:extension>
         </xsd:simpleContent>
+    </xsd:complexType>
+
+    <xsd:complexType name="messenger">
+        <xsd:sequence>
+            <xsd:element name="routing" type="messenger_routing" minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="middlewares" type="messenger_middleware" minOccurs="0" maxOccurs="unbounded" />
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="messenger_routing">
+        <xsd:choice minOccurs="0" maxOccurs="unbounded">
+            <xsd:element name="sender" type="messenger_routing_sender" />
+        </xsd:choice>
+        <xsd:attribute name="message-class" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="messenger_routing_sender">
+        <xsd:attribute name="service" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="messenger_middleware">
+        <xsd:sequence>
+            <xsd:element name="validation" type="messenger_validation" minOccurs="0" maxOccurs="1" />
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="messenger_validation">
+        <xsd:attribute name="enabled" type="xsd:boolean" />
     </xsd:complexType>
 </xsd:schema>
