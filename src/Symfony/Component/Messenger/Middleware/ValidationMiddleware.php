@@ -12,7 +12,6 @@
 namespace Symfony\Component\Messenger\Middleware;
 
 use Symfony\Component\Messenger\Exception\ValidationFailedException;
-use Symfony\Component\Messenger\MiddlewareInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
@@ -30,7 +29,7 @@ class ValidationMiddleware implements MiddlewareInterface
     public function handle($message, callable $next)
     {
         $violations = $this->validator->validate($message);
-        if (count($violations)) {
+        if (\count($violations)) {
             throw new ValidationFailedException($message, $violations);
         }
 

@@ -20,11 +20,13 @@ class Serializer implements DecoderInterface, EncoderInterface
 {
     private $serializer;
     private $format;
+    private $context;
 
-    public function __construct(SerializerInterface $serializer, string $format = 'json')
+    public function __construct(SerializerInterface $serializer, string $format = 'json', array $context = array())
     {
         $this->serializer = $serializer;
         $this->format = $format;
+        $this->context = $context;
     }
 
     /**
@@ -34,11 +36,13 @@ class Serializer implements DecoderInterface, EncoderInterface
     {
         if (empty($encodedMessage['body']) || empty($encodedMessage['headers'])) {
             throw new \InvalidArgumentException('Encoded message should have at least a `body` and some `headers`.');
-        } elseif (empty($encodedMessage['headers']['type'])) {
+        }
+
+        if (empty($encodedMessage['headers']['type'])) {
             throw new \InvalidArgumentException('Encoded message does not have a `type` header.');
         }
 
-        return $this->serializer->deserialize($encodedMessage['body'], $encodedMessage['headers']['type'], $this->format);
+        return $this->serializer->deserialize($encodedMessage['body'], $encodedMessage['headers']['type'], $this->format, $this->context);
     }
 
     /**
@@ -47,8 +51,8 @@ class Serializer implements DecoderInterface, EncoderInterface
     public function encode($message): array
     {
         return array(
-            'body' => $this->serializer->serialize($message, $this->format),
-            'headers' => array('type' => get_class($message)),
+            'body' => $this->serializer->serialize($message, $this->format, $this->context),
+            'headers' => array('type' => \get_class($message)),
         );
     }
 }

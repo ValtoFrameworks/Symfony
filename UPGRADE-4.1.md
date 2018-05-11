@@ -23,11 +23,46 @@ DependencyInjection
 -------------------
 
  * Deprecated the `TypedReference::canBeAutoregistered()` and  `TypedReference::getRequiringClass()` methods.
+ * Deprecated support for auto-discovered extension configuration class which does not implement `ConfigurationInterface`.
 
 EventDispatcher
 ---------------
 
  * The `TraceableEventDispatcherInterface` has been deprecated.
+
+Form
+----
+
+ * Deprecated the `ChoiceLoaderInterface` implementation in `CountryType`,
+   `LanguageType`, `LocaleType` and `CurrencyType`, use the `choice_loader`
+   option instead.
+
+   Before:
+   ```php
+   class MyCountryType extends CountryType
+   {
+       public function loadChoiceList()
+       {
+           // override the method
+       }
+   }
+   ```
+
+   After:
+   ```php
+   class MyCountryType extends AbstractType
+   {
+       public function getParent()
+       {
+           return CountryType::class;
+       }
+
+       public function configureOptions(OptionsResolver $resolver)
+       {
+           $resolver->setDefault('choice_loader', ...); // override the option instead
+       }
+   }
+   ```
 
 FrameworkBundle
 ---------------
@@ -119,6 +154,7 @@ Validator
 Workflow
 --------
 
+ * Deprecated the `DefinitionBuilder::reset()` method, use the `clear()` one instead.
  * Deprecated the `add` method in favor of the `addWorkflow` method in `Workflow\Registry`.
  * Deprecated `SupportStrategyInterface` in favor of `WorkflowSupportStrategyInterface`.
  * Deprecated the class `ClassInstanceSupportStrategy` in favor of the class `InstanceOfSupportStrategy`.

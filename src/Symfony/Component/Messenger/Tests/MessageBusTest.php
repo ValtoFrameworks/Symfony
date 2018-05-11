@@ -14,7 +14,7 @@ namespace Symfony\Component\Messenger\Tests;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Messenger\MessageBus;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\MiddlewareInterface;
+use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Component\Messenger\Tests\Fixtures\DummyMessage;
 
 class MessageBusTest extends TestCase
@@ -26,29 +26,38 @@ class MessageBusTest extends TestCase
         $this->assertInstanceOf(MessageBusInterface::class, $bus);
     }
 
-    public function testItCallsTheMiddlewaresAndChainTheReturnValue()
+    /**
+     * @expectedException \Symfony\Component\Messenger\Exception\InvalidArgumentException
+     * @expectedExceptionMessage Invalid type for message argument. Expected object, but got "string".
+     */
+    public function testItDispatchInvalidMessageType()
+    {
+        (new MessageBus())->dispatch('wrong');
+    }
+
+    public function testItCallsMiddlewareAndChainTheReturnValue()
     {
         $message = new DummyMessage('Hello');
         $responseFromDepthMiddleware = 1234;
 
-        $firstMiddleware = $this->createMock(MiddlewareInterface::class);
+        $firstMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
         $firstMiddleware->expects($this->once())
             ->method('handle')
             ->with($message, $this->anything())
-            ->will($this->returnCallback(function($message, $next) {
+            ->will($this->returnCallback(function ($message, $next) {
                 return $next($message);
             }));
 
-        $secondMiddleware = $this->createMock(MiddlewareInterface::class);
+        $secondMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
         $secondMiddleware->expects($this->once())
             ->method('handle')
             ->with($message, $this->anything())
             ->willReturn($responseFromDepthMiddleware);
 
-        $bus = new MessageBus([
+        $bus = new MessageBus(array(
             $firstMiddleware,
             $secondMiddleware,
-        ]);
+        ));
 
         $this->assertEquals($responseFromDepthMiddleware, $bus->dispatch($message));
     }

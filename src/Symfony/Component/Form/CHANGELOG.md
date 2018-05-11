@@ -4,6 +4,10 @@ CHANGELOG
 4.1.0
 -----
 
+ * added `input=datetime_immutable` to `DateType`, `TimeType`, `DateTimeType`
+ * added `rounding_mode` option to `MoneyType`
+ * added `choice_translation_locale` option to `CountryType`, `LanguageType`, `LocaleType` and `CurrencyType`
+ * deprecated the `ChoiceLoaderInterface` implementation in `CountryType`, `LanguageType`, `LocaleType` and `CurrencyType`
  * added `input=datetime_immutable` to DateType, TimeType, DateTimeType
  * added `rounding_mode` option to MoneyType
 

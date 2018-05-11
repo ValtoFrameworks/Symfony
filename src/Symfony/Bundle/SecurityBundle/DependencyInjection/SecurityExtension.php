@@ -28,6 +28,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Component\Security\Http\Controller\UserValueResolver;
 
 /**
@@ -179,6 +180,10 @@ class SecurityExtension extends Extension
         }
         $arguments[1] = new IteratorArgument($userProviders);
         $contextListenerDefinition->setArguments($arguments);
+
+        if (1 === \count($providerIds)) {
+            $container->setAlias(UserProviderInterface::class, current($providerIds));
+        }
 
         $customUserChecker = false;
 
@@ -422,6 +427,9 @@ class SecurityExtension extends Extension
                         $userProvider = null;
                     } elseif ($defaultProvider) {
                         $userProvider = $defaultProvider;
+                    } elseif (empty($providerIds)) {
+                        $userProvider = sprintf('security.user.provider.missing.%s', $key);
+                        $container->setDefinition($userProvider, (new ChildDefinition('security.user.provider.missing'))->replaceArgument(0, $id));
                     } else {
                         throw new InvalidConfigurationException(sprintf('Not configuring explicitly the provider for the "%s" listener on "%s" firewall is ambiguous as there is more than one registered provider.', $key, $id));
                     }
@@ -634,7 +642,7 @@ class SecurityExtension extends Extension
 
     private function createExpression($container, $expression)
     {
-        if (isset($this->expressions[$id = 'security.expression.'.ContainerBuilder::hash($expression)])) {
+        if (isset($this->expressions[$id = '.security.expression.'.ContainerBuilder::hash($expression)])) {
             return $this->expressions[$id];
         }
 
@@ -657,7 +665,7 @@ class SecurityExtension extends Extension
             $methods = array_map('strtoupper', (array) $methods);
         }
 
-        $id = 'security.request_matcher.'.ContainerBuilder::hash(array($path, $host, $methods, $ip, $attributes));
+        $id = '.security.request_matcher.'.ContainerBuilder::hash(array($path, $host, $methods, $ip, $attributes));
 
         if (isset($this->requestMatchers[$id])) {
             return $this->requestMatchers[$id];

@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Messenger\DependencyInjection;
 
+use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PriorityTaggedServiceTrait;
 use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
@@ -21,6 +22,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Messenger\Handler\ChainHandler;
 use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
 use Symfony\Component\Messenger\Handler\MessageSubscriberInterface;
+use Symfony\Component\Messenger\TraceableMessageBus;
 
 /**
  * @author Samuel Roze <samuel.roze@gmail.com>
@@ -29,15 +31,17 @@ class MessengerPass implements CompilerPassInterface
 {
     use PriorityTaggedServiceTrait;
 
-    private $messageBusService;
-    private $messageHandlerResolverService;
     private $handlerTag;
+    private $busTag;
+    private $senderTag;
+    private $receiverTag;
 
-    public function __construct(string $messageBusService = 'message_bus', string $messageHandlerResolverService = 'messenger.handler_resolver', string $handlerTag = 'messenger.message_handler')
+    public function __construct(string $handlerTag = 'messenger.message_handler', string $busTag = 'messenger.bus', string $senderTag = 'messenger.sender', string $receiverTag = 'messenger.receiver')
     {
-        $this->messageBusService = $messageBusService;
-        $this->messageHandlerResolverService = $messageHandlerResolverService;
         $this->handlerTag = $handlerTag;
+        $this->busTag = $busTag;
+        $this->senderTag = $senderTag;
+        $this->receiverTag = $receiverTag;
     }
 
     /**
@@ -45,21 +49,24 @@ class MessengerPass implements CompilerPassInterface
      */
     public function process(ContainerBuilder $container)
     {
-        if (!$container->hasDefinition($this->messageBusService)) {
+        if (!$container->hasDefinition('messenger.handler_resolver')) {
             return;
         }
 
-        if (!$container->getParameter('kernel.debug') || !$container->has('logger')) {
-            $container->removeDefinition('messenger.middleware.debug.logging');
-        }
+        foreach ($container->findTaggedServiceIds($this->busTag) as $busId => $tags) {
+            if ($container->hasParameter($busMiddlewareParameter = $busId.'.middleware')) {
+                $this->registerBusMiddleware($container, $busId, $container->getParameter($busMiddlewareParameter));
 
-        if (!$container->has('serializer')) {
-            $container->removeDefinition('messenger.transport.serialize_message_with_type_in_headers');
-            $container->removeAlias('messenger.transport.default_encoder');
-            $container->removeAlias('messenger.transport.default_decoder');
+                $container->getParameterBag()->remove($busMiddlewareParameter);
+            }
+
+            if ($container->hasDefinition('messenger.data_collector')) {
+                $this->registerBusToCollector($container, $busId, $tags[0]);
+            }
         }
 
         $this->registerReceivers($container);
+        $this->registerSenders($container);
         $this->registerHandlers($container);
     }
 
@@ -73,7 +80,7 @@ class MessengerPass implements CompilerPassInterface
                 $priority = $tag['priority'] ?? 0;
 
                 foreach ($handles as $messageClass) {
-                    if (is_array($messageClass)) {
+                    if (\is_array($messageClass)) {
                         $messagePriority = $messageClass[1];
                         $messageClass = $messageClass[0];
                     } else {
@@ -93,30 +100,33 @@ class MessengerPass implements CompilerPassInterface
 
         foreach ($handlersByMessage as $message => $handlers) {
             krsort($handlersByMessage[$message]);
-            $handlersByMessage[$message] = call_user_func_array('array_merge', $handlersByMessage[$message]);
+            $handlersByMessage[$message] = array_merge(...$handlersByMessage[$message]);
         }
 
         $definitions = array();
+        $handlersLocatorMapping = array();
         foreach ($handlersByMessage as $message => $handlers) {
-            if (1 === count($handlers)) {
-                $handlersByMessage[$message] = current($handlers);
+            if (1 === \count($handlers)) {
+                $handlersLocatorMapping['handler.'.$message] = current($handlers);
             } else {
                 $d = new Definition(ChainHandler::class, array($handlers));
                 $d->setPrivate(true);
                 $serviceId = hash('sha1', $message);
                 $definitions[$serviceId] = $d;
-                $handlersByMessage[$message] = new Reference($serviceId);
+                $handlersLocatorMapping['handler.'.$message] = new Reference($serviceId);
             }
         }
         $container->addDefinitions($definitions);
 
-        $handlersLocatorMapping = array();
-        foreach ($handlersByMessage as $message => $handler) {
-            $handlersLocatorMapping['handler.'.$message] = $handler;
-        }
-
-        $handlerResolver = $container->getDefinition($this->messageHandlerResolverService);
+        $handlerResolver = $container->getDefinition('messenger.handler_resolver');
         $handlerResolver->replaceArgument(0, ServiceLocatorTagPass::register($container, $handlersLocatorMapping));
+
+        if ($container->hasDefinition('console.command.messenger_debug')) {
+            $container->getDefinition('console.command.messenger_debug')
+                ->replaceArgument(0, array_map(function (array $handlers): array {
+                    return array_map('strval', $handlers);
+                }, $handlersByMessage));
+        }
     }
 
     private function guessHandledClasses(\ReflectionClass $handlerClass, string $serviceId): array
@@ -136,7 +146,7 @@ class MessengerPass implements CompilerPassInterface
         }
 
         $parameters = $method->getParameters();
-        if (1 !== count($parameters)) {
+        if (1 !== \count($parameters)) {
             throw new RuntimeException(sprintf('Invalid handler service "%s": method "%s::__invoke()" must have exactly one argument corresponding to the message it handles.', $serviceId, $handlerClass->getName()));
         }
 
@@ -154,12 +164,69 @@ class MessengerPass implements CompilerPassInterface
     private function registerReceivers(ContainerBuilder $container)
     {
         $receiverMapping = array();
-        foreach ($container->findTaggedServiceIds('messenger.receiver') as $id => $tags) {
+        $taggedReceivers = $container->findTaggedServiceIds($this->receiverTag);
+
+        foreach ($taggedReceivers as $id => $tags) {
+            $receiverMapping[$id] = new Reference($id);
+
             foreach ($tags as $tag) {
-                $receiverMapping[$tag['id'] ?? $id] = new Reference($id);
+                if (isset($tag['name'])) {
+                    $receiverMapping[$tag['name']] = $receiverMapping[$id];
+                }
             }
         }
 
+        if (1 === \count($taggedReceivers) && $container->hasDefinition('console.command.messenger_consume_messages')) {
+            $container->getDefinition('console.command.messenger_consume_messages')->replaceArgument(3, (string) current($receiverMapping));
+        }
+
         $container->getDefinition('messenger.receiver_locator')->replaceArgument(0, $receiverMapping);
+    }
+
+    private function registerSenders(ContainerBuilder $container)
+    {
+        $senderLocatorMapping = array();
+        foreach ($container->findTaggedServiceIds($this->senderTag) as $id => $tags) {
+            $senderLocatorMapping[$id] = new Reference($id);
+
+            foreach ($tags as $tag) {
+                if (isset($tag['name'])) {
+                    $senderLocatorMapping[$tag['name']] = $senderLocatorMapping[$id];
+                }
+            }
+        }
+
+        $container->getDefinition('messenger.sender_locator')->replaceArgument(0, $senderLocatorMapping);
+    }
+
+    private function registerBusToCollector(ContainerBuilder $container, string $busId, array $tag)
+    {
+        $container->setDefinition(
+            $tracedBusId = 'debug.traced.'.$busId,
+            (new Definition(TraceableMessageBus::class, array(new Reference($tracedBusId.'.inner'))))->setDecoratedService($busId)
+        );
+
+        $container->getDefinition('messenger.data_collector')->addMethodCall('registerBus', array($busId, new Reference($tracedBusId)));
+    }
+
+    private function registerBusMiddleware(ContainerBuilder $container, string $busId, array $middleware)
+    {
+        $container->getDefinition($busId)->replaceArgument(0, array_map(function (string $name) use ($container, $busId) {
+            if (!$container->has($messengerMiddlewareId = 'messenger.middleware.'.$name)) {
+                $messengerMiddlewareId = $name;
+            }
+
+            if (!$container->has($messengerMiddlewareId)) {
+                throw new RuntimeException(sprintf('Invalid middleware "%s": define such service to be able to use it.', $name));
+            }
+
+            if ($container->getDefinition($messengerMiddlewareId)->isAbstract()) {
+                $childDefinition = new ChildDefinition($messengerMiddlewareId);
+
+                $container->setDefinition($messengerMiddlewareId = $busId.'.middleware.'.$name, $childDefinition);
+            }
+
+            return new Reference($messengerMiddlewareId);
+        }, $middleware));
     }
 }

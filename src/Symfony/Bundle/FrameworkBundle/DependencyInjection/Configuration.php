@@ -970,21 +970,27 @@ class Configuration implements ConfigurationInterface
             ->children()
                 ->arrayNode('messenger')
                     ->info('Messenger configuration')
-                    ->{!class_exists(FullStack::class) && class_exists(MessageBusInterface::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                    ->{!class_exists(FullStack::class) && interface_exists(MessageBusInterface::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                    ->fixXmlConfig('transport')
+                    ->fixXmlConfig('bus', 'buses')
                     ->children()
                         ->arrayNode('routing')
                             ->useAttributeAsKey('message_class')
                             ->beforeNormalization()
                                 ->always()
                                 ->then(function ($config) {
+                                    if (!\is_array($config)) {
+                                        return array();
+                                    }
+
                                     $newConfig = array();
                                     foreach ($config as $k => $v) {
-                                        if (!is_int($k)) {
-                                            $newConfig[$k] = array('senders' => is_array($v) ? array_values($v) : array($v));
+                                        if (!\is_int($k)) {
+                                            $newConfig[$k] = array('senders' => \is_array($v) ? array_values($v) : array($v));
                                         } else {
                                             $newConfig[$v['message-class']]['senders'] = array_map(
                                                 function ($a) {
-                                                    return is_string($a) ? $a : $a['service'];
+                                                    return \is_string($a) ? $a : $a['service'];
                                                 },
                                                 array_values($v['sender'])
                                             );
@@ -1003,11 +1009,60 @@ class Configuration implements ConfigurationInterface
                                 ->end()
                             ->end()
                         ->end()
-                        ->arrayNode('middlewares')
+                        ->arrayNode('serializer')
+                            ->{!class_exists(FullStack::class) && class_exists(Serializer::class) ? 'canBeDisabled' : 'canBeEnabled'}()
                             ->addDefaultsIfNotSet()
                             ->children()
-                                ->arrayNode('validation')
-                                    ->{!class_exists(FullStack::class) && class_exists(Validation::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                                ->scalarNode('format')->defaultValue('json')->end()
+                                ->arrayNode('context')
+                                    ->normalizeKeys(false)
+                                    ->useAttributeAsKey('name')
+                                    ->defaultValue(array())
+                                    ->prototype('variable')->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                        ->scalarNode('encoder')->defaultValue('messenger.transport.serializer')->end()
+                        ->scalarNode('decoder')->defaultValue('messenger.transport.serializer')->end()
+                        ->arrayNode('transports')
+                            ->useAttributeAsKey('name')
+                            ->arrayPrototype()
+                                ->beforeNormalization()
+                                    ->ifString()
+                                    ->then(function (string $dsn) {
+                                        return array('dsn' => $dsn);
+                                    })
+                                ->end()
+                                ->fixXmlConfig('option')
+                                ->children()
+                                    ->scalarNode('dsn')->end()
+                                    ->arrayNode('options')
+                                        ->normalizeKeys(false)
+                                        ->defaultValue(array())
+                                        ->prototype('variable')
+                                        ->end()
+                                    ->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                        ->scalarNode('default_bus')->defaultValue(null)->end()
+                        ->arrayNode('buses')
+                            ->defaultValue(array('messenger.bus.default' => array('default_middleware' => true, 'middleware' => array())))
+                            ->useAttributeAsKey('name')
+                            ->prototype('array')
+                                ->addDefaultsIfNotSet()
+                                ->children()
+                                    ->booleanNode('default_middleware')->defaultTrue()->end()
+                                    ->arrayNode('middleware')
+                                        ->beforeNormalization()
+                                            ->ifString()
+                                            ->then(function (string $middleware) {
+                                                return array($middleware);
+                                            })
+                                        ->end()
+                                        ->defaultValue(array())
+                                        ->prototype('scalar')->end()
+                                    ->end()
                                 ->end()
                             ->end()
                         ->end()

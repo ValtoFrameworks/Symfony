@@ -90,7 +90,7 @@ class AutowirePass extends AbstractRecursivePass
 
             if (ContainerBuilder::RUNTIME_EXCEPTION_ON_INVALID_REFERENCE === $value->getInvalidBehavior()) {
                 // since the error message varies by referenced id and $this->currentId, so should the id of the dummy errored definition
-                $this->container->register($id = sprintf('_errored.%s.%s', $this->currentId, (string) $value), $value->getType())
+                $this->container->register($id = sprintf('.errored.%s.%s', $this->currentId, (string) $value), $value->getType())
                     ->addError($message);
 
                 return new TypedReference($id, $value->getType(), $value->getInvalidBehavior());
@@ -207,7 +207,10 @@ class AutowirePass extends AbstractRecursivePass
                     if ($parameter->isOptional()) {
                         continue;
                     }
-                    throw new AutowiringFailedException($this->currentId, sprintf('Cannot autowire service "%s": argument "$%s" of method "%s()" must have a type-hint or be given a value explicitly.', $this->currentId, $parameter->name, $class !== $this->currentId ? $class.'::'.$method : $method));
+                    $type = ProxyHelper::getTypeHint($reflectionMethod, $parameter, false);
+                    $type = $type ? sprintf('is type-hinted "%s"', $type) : 'has no type-hint';
+
+                    throw new AutowiringFailedException($this->currentId, sprintf('Cannot autowire service "%s": argument "$%s" of method "%s()" %s, you should configure its value explicitly.', $this->currentId, $parameter->name, $class !== $this->currentId ? $class.'::'.$method : $method, $type));
                 }
 
                 // specifically pass the default value

@@ -23,5 +23,5 @@ interface SenderInterface
      *
      * @param object $message
      */
-    public function send($message);
+    public function send($message): void;
 }

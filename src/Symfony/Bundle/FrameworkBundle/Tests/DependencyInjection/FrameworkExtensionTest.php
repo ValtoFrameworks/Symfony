@@ -33,6 +33,9 @@ use Symfony\Component\DependencyInjection\Loader\ClosureLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\HttpKernel\DependencyInjection\LoggerPass;
+use Symfony\Component\Messenger\Tests\Fixtures\DummyMessage;
+use Symfony\Component\Messenger\Tests\Fixtures\SecondMessage;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
 use Symfony\Component\Serializer\Normalizer\DateIntervalNormalizer;
@@ -523,19 +526,91 @@ abstract class FrameworkExtensionTest extends TestCase
     public function testMessenger()
     {
         $container = $this->createContainerFromFile('messenger');
-        $this->assertFalse($container->hasDefinition('messenger.middleware.doctrine_transaction'));
+        $this->assertTrue($container->hasAlias('message_bus'));
+        $this->assertFalse($container->hasDefinition('messenger.transport.amqp.factory'));
     }
 
-    public function testMessengerValidationEnabled()
+    public function testMessengerTransports()
     {
-        $container = $this->createContainerFromFile('messenger_validation_enabled');
-        $this->assertTrue($definition = $container->hasDefinition('messenger.middleware.validator'));
+        $container = $this->createContainerFromFile('messenger_transports');
+        $this->assertTrue($container->hasDefinition('messenger.transport.default'));
+        $this->assertTrue($container->getDefinition('messenger.transport.default')->hasTag('messenger.receiver'));
+        $this->assertTrue($container->getDefinition('messenger.transport.default')->hasTag('messenger.sender'));
+        $this->assertEquals(array(array('name' => 'default')), $container->getDefinition('messenger.transport.default')->getTag('messenger.receiver'));
+        $this->assertEquals(array(array('name' => 'default')), $container->getDefinition('messenger.transport.default')->getTag('messenger.sender'));
+
+        $this->assertTrue($container->hasDefinition('messenger.transport.customised'));
+        $transportFactory = $container->getDefinition('messenger.transport.customised')->getFactory();
+        $transportArguments = $container->getDefinition('messenger.transport.customised')->getArguments();
+
+        $this->assertEquals(array(new Reference('messenger.transport_factory'), 'createTransport'), $transportFactory);
+        $this->assertCount(2, $transportArguments);
+        $this->assertSame('amqp://localhost/%2f/messages?exchange_name=exchange_name', $transportArguments[0]);
+        $this->assertSame(array('queue' => array('name' => 'Queue')), $transportArguments[1]);
+
+        $this->assertTrue($container->hasDefinition('messenger.transport.amqp.factory'));
     }
 
-    public function testMessengerValidationDisabled()
+    public function testMessengerRouting()
     {
-        $container = $this->createContainerFromFile('messenger_validation_disabled');
-        $this->assertFalse($container->hasDefinition('messenger.middleware.validator'));
+        $container = $this->createContainerFromFile('messenger_routing');
+        $senderLocatorDefinition = $container->getDefinition('messenger.asynchronous.routing.sender_locator');
+
+        $messageToSenderIdsMapping = array(
+            DummyMessage::class => array('amqp'),
+            SecondMessage::class => array('amqp', 'audit', null),
+            '*' => array('amqp'),
+        );
+
+        $this->assertSame($messageToSenderIdsMapping, $senderLocatorDefinition->getArgument(1));
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\LogicException
+     * @expectedExceptionMessage The default Messenger serializer cannot be enabled as the Serializer support is not available. Try enable it or install it by running "composer require symfony/serializer-pack".
+     */
+    public function testMessengerTransportConfigurationWithoutSerializer()
+    {
+        $this->createContainerFromFile('messenger_transport_no_serializer');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\LogicException
+     * @expectedExceptionMessage The default AMQP transport is not available. Make sure you have installed and enabled the Serializer component. Try enable it or install it by running "composer require symfony/serializer-pack".
+     */
+    public function testMessengerAMQPTransportConfigurationWithoutSerializer()
+    {
+        $this->createContainerFromFile('messenger_amqp_transport_no_serializer');
+    }
+
+    public function testMessengerTransportConfiguration()
+    {
+        $container = $this->createContainerFromFile('messenger_transport');
+
+        $this->assertSame('messenger.transport.serializer', (string) $container->getAlias('messenger.transport.encoder'));
+        $this->assertSame('messenger.transport.serializer', (string) $container->getAlias('messenger.transport.decoder'));
+
+        $serializerTransportDefinition = $container->getDefinition('messenger.transport.serializer');
+        $this->assertSame('csv', $serializerTransportDefinition->getArgument(1));
+        $this->assertSame(array('enable_max_depth' => true), $serializerTransportDefinition->getArgument(2));
+    }
+
+    public function testMessengerWithMultipleBuses()
+    {
+        $container = $this->createContainerFromFile('messenger_multiple_buses');
+
+        $this->assertTrue($container->has('messenger.bus.commands'));
+        $this->assertSame(array(), $container->getDefinition('messenger.bus.commands')->getArgument(0));
+        $this->assertEquals(array('logging', 'route_messages', 'call_message_handler'), $container->getParameter('messenger.bus.commands.middleware'));
+        $this->assertTrue($container->has('messenger.bus.events'));
+        $this->assertSame(array(), $container->getDefinition('messenger.bus.events')->getArgument(0));
+        $this->assertEquals(array('logging', 'allow_no_handler', 'route_messages', 'call_message_handler'), $container->getParameter('messenger.bus.events.middleware'));
+        $this->assertTrue($container->has('messenger.bus.queries'));
+        $this->assertSame(array(), $container->getDefinition('messenger.bus.queries')->getArgument(0));
+        $this->assertEquals(array('route_messages', 'allow_no_handler', 'call_message_handler'), $container->getParameter('messenger.bus.queries.middleware'));
+
+        $this->assertTrue($container->hasAlias('message_bus'));
+        $this->assertSame('messenger.bus.commands', (string) $container->getAlias('message_bus'));
     }
 
     public function testTranslator()
@@ -1061,6 +1136,7 @@ abstract class FrameworkExtensionTest extends TestCase
     {
         $container = $this->createContainer(array('kernel.charset' => 'UTF-8', 'kernel.secret' => 'secret'));
         $container->registerExtension(new FrameworkExtension());
+        $container->getCompilerPassConfig()->setBeforeOptimizationPasses(array(new LoggerPass()));
         $this->loadFromFile($container, 'default_config');
         $container
             ->register('foo', \stdClass::class)
@@ -1075,7 +1151,7 @@ abstract class FrameworkExtensionTest extends TestCase
         $container = $this->createContainerFromFile('cache');
 
         $redisUrl = 'redis://localhost';
-        $providerId = 'cache_connection.'.ContainerBuilder::hash($redisUrl);
+        $providerId = '.cache_connection.'.ContainerBuilder::hash($redisUrl);
 
         $this->assertTrue($container->hasDefinition($providerId));
 
@@ -1089,7 +1165,7 @@ abstract class FrameworkExtensionTest extends TestCase
         $container = $this->createContainerFromFile('cache_env_var');
 
         $redisUrl = 'redis://paas.com';
-        $providerId = 'cache_connection.'.ContainerBuilder::hash($redisUrl);
+        $providerId = '.cache_connection.'.ContainerBuilder::hash($redisUrl);
 
         $this->assertTrue($container->hasDefinition($providerId));
 
@@ -1152,6 +1228,7 @@ abstract class FrameworkExtensionTest extends TestCase
             $container->getCompilerPassConfig()->setOptimizationPasses(array());
             $container->getCompilerPassConfig()->setRemovingPasses(array());
         }
+        $container->getCompilerPassConfig()->setBeforeOptimizationPasses(array(new LoggerPass()));
         $container->getCompilerPassConfig()->setBeforeRemovingPasses(array(new AddConstraintValidatorsPass(), new TranslatorPass('translator.default', 'translation.reader')));
         $container->getCompilerPassConfig()->setAfterRemovingPasses(array(new AddAnnotationsCachedReaderPass()));
 
