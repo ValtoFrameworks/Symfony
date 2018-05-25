@@ -63,8 +63,8 @@ use Symfony\Component\Lock\StoreInterface;
 use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
 use Symfony\Component\Messenger\MessageBus;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Transport\ReceiverInterface;
-use Symfony\Component\Messenger\Transport\SenderInterface;
+use Symfony\Component\Messenger\Transport\ChainSender;
+use Symfony\Component\Messenger\Transport\TransportFactoryInterface;
 use Symfony\Component\Messenger\Transport\TransportInterface;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\PropertyAccessExtractorInterface;
@@ -343,12 +343,10 @@ class FrameworkExtension extends Extension
             ->addTag('validator.constraint_validator');
         $container->registerForAutoconfiguration(ObjectInitializerInterface::class)
             ->addTag('validator.initializer');
-        $container->registerForAutoconfiguration(ReceiverInterface::class)
-            ->addTag('messenger.receiver');
-        $container->registerForAutoconfiguration(SenderInterface::class)
-            ->addTag('messenger.sender');
         $container->registerForAutoconfiguration(MessageHandlerInterface::class)
             ->addTag('messenger.message_handler');
+        $container->registerForAutoconfiguration(TransportFactoryInterface::class)
+            ->addTag('messenger.transport_factory');
 
         if (!$container->getParameter('kernel.debug')) {
             // remove tagged iterator argument for resource checkers
@@ -573,10 +571,10 @@ class FrameworkExtension extends Extension
                 foreach ($workflow['supports'] as $supportedClassName) {
                     $strategyDefinition = new Definition(Workflow\SupportStrategy\InstanceOfSupportStrategy::class, array($supportedClassName));
                     $strategyDefinition->setPublic(false);
-                    $registryDefinition->addMethodCall('add', array(new Reference($workflowId), $strategyDefinition));
+                    $registryDefinition->addMethodCall('addWorkflow', array(new Reference($workflowId), $strategyDefinition));
                 }
             } elseif (isset($workflow['support_strategy'])) {
-                $registryDefinition->addMethodCall('add', array(new Reference($workflowId), new Reference($workflow['support_strategy'])));
+                $registryDefinition->addMethodCall('addWorkflow', array(new Reference($workflowId), new Reference($workflow['support_strategy'])));
             }
 
             // Enable the AuditTrail
@@ -1471,16 +1469,21 @@ class FrameworkExtension extends Extension
             $config['default_bus'] = key($config['buses']);
         }
 
-        $defaultMiddleware = array('before' => array('logging'), 'after' => array('route_messages', 'call_message_handler'));
+        $defaultMiddleware = array(
+            'before' => array(array('id' => 'logging')),
+            'after' => array(array('id' => 'route_messages'), array('id' => 'call_message_handler')),
+        );
         foreach ($config['buses'] as $busId => $bus) {
             $middleware = $bus['default_middleware'] ? array_merge($defaultMiddleware['before'], $bus['middleware'], $defaultMiddleware['after']) : $bus['middleware'];
 
-            if (!$validationConfig['enabled'] && \in_array('messenger.middleware.validation', $middleware, true)) {
-                throw new LogicException('The Validation middleware is only available when the Validator component is installed and enabled. Try running "composer require symfony/validator".');
+            foreach ($middleware as $middlewareItem) {
+                if (!$validationConfig['enabled'] && 'messenger.middleware.validation' === $middlewareItem['id']) {
+                    throw new LogicException('The Validation middleware is only available when the Validator component is installed and enabled. Try running "composer require symfony/validator".');
+                }
             }
 
             $container->setParameter($busId.'.middleware', $middleware);
-            $container->setDefinition($busId, (new Definition(MessageBus::class, array(array())))->addTag('messenger.bus'));
+            $container->register($busId, MessageBus::class)->addArgument(array())->addTag('messenger.bus');
 
             if ($busId === $config['default_bus']) {
                 $container->setAlias('message_bus', $busId);
@@ -1492,16 +1495,28 @@ class FrameworkExtension extends Extension
             throw new LogicException(sprintf('The default bus named "%s" is not defined. Define it or change the default bus name.', $config['default_bus']));
         }
 
-        $messageToSenderIdsMapping = array();
+        $messageToSenderIdMapping = array();
+        $messageToSendAndHandleMapping = array();
         foreach ($config['routing'] as $message => $messageConfiguration) {
             if ('*' !== $message && !class_exists($message) && !interface_exists($message, false)) {
                 throw new LogicException(sprintf('Messenger routing configuration contains a mistake: message "%s" does not exist. It needs to match an existing class or interface.', $message));
             }
 
-            $messageToSenderIdsMapping[$message] = $messageConfiguration['senders'];
+            if (1 < \count($messageConfiguration['senders'])) {
+                $senders = array_map(function ($sender) { return new Reference($sender); }, $messageConfiguration['senders']);
+                $chainSenderDefinition = new Definition(ChainSender::class, array($senders));
+                $chainSenderId = '.messenger.chain_sender.'.$message;
+                $container->setDefinition($chainSenderId, $chainSenderDefinition);
+                $messageToSenderIdMapping[$message] = $chainSenderId;
+            } else {
+                $messageToSenderIdMapping[$message] = $messageConfiguration['senders'][0];
+            }
+
+            $messageToSendAndHandleMapping[$message] = $messageConfiguration['send_and_handle'];
         }
 
-        $container->getDefinition('messenger.asynchronous.routing.sender_locator')->replaceArgument(1, $messageToSenderIdsMapping);
+        $container->getDefinition('messenger.asynchronous.routing.sender_locator')->replaceArgument(1, $messageToSenderIdMapping);
+        $container->getDefinition('messenger.middleware.route_messages')->replaceArgument(1, $messageToSendAndHandleMapping);
 
         foreach ($config['transports'] as $name => $transport) {
             if (0 === strpos($transport['dsn'], 'amqp://') && !$container->hasDefinition('messenger.transport.amqp.factory')) {
@@ -1511,8 +1526,8 @@ class FrameworkExtension extends Extension
             $transportDefinition = (new Definition(TransportInterface::class))
                 ->setFactory(array(new Reference('messenger.transport_factory'), 'createTransport'))
                 ->setArguments(array($transport['dsn'], $transport['options']))
-                ->addTag('messenger.receiver', array('name' => $name))
-                ->addTag('messenger.sender', array('name' => $name))
+                ->addTag('messenger.receiver', array('alias' => $name))
+                ->addTag('messenger.sender', array('alias' => $name))
             ;
             $container->setDefinition('messenger.transport.'.$name, $transportDefinition);
         }
