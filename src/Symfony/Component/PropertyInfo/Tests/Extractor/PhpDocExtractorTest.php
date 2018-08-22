@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\PropertyInfo\Tests\PhpDocExtractor;
 
+use phpDocumentor\Reflection\Types\Collection;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\PropertyInfo\Type;
@@ -40,6 +41,21 @@ class PhpDocExtractorTest extends TestCase
         $this->assertSame($longDescription, $this->extractor->getLongDescription('Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy', $property));
     }
 
+    public function testParamTagTypeIsOmitted()
+    {
+        $this->assertNull($this->extractor->getTypes(OmittedParamTagTypeDocBlock::class, 'omittedType'));
+    }
+
+    /**
+     * @dataProvider typesWithNoPrefixesProvider
+     */
+    public function testExtractTypesWithNoPrefixes($property, array $type = null)
+    {
+        $noPrefixExtractor = new PhpDocExtractor(null, array(), array(), array());
+
+        $this->assertEquals($type, $noPrefixExtractor->getTypes('Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy', $property));
+    }
+
     public function typesProvider()
     {
         return array(
@@ -62,14 +78,18 @@ class PhpDocExtractorTest extends TestCase
             array('bal', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime')), null, null),
             array('parent', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy')), null, null),
             array('collection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime'))), null, null),
+            array('nestedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING, false)))), null, null),
+            array('mixedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, null, null)), null, null),
             array('a', array(new Type(Type::BUILTIN_TYPE_INT)), 'A.', null),
             array('b', array(new Type(Type::BUILTIN_TYPE_OBJECT, true, 'Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy')), 'B.', null),
             array('c', array(new Type(Type::BUILTIN_TYPE_BOOL, true)), null, null),
             array('d', array(new Type(Type::BUILTIN_TYPE_BOOL)), null, null),
             array('e', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_RESOURCE))), null, null),
             array('f', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime'))), null, null),
-            array('g', array(new Type(Type::BUILTIN_TYPE_BOOL, true)), null, null),
-            array('array', array(new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true)), 'Nullable array.', null),
+            array('g', array(new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true)), 'Nullable array.', null),
+            array('h', array(new Type(Type::BUILTIN_TYPE_STRING, true)), null, null),
+            array('i', array(new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)), null, null),
+            array('j', array(new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')), null, null),
             array('donotexist', null, null, null),
             array('staticGetter', null, null, null),
             array('staticSetter', null, null, null),
@@ -77,9 +97,37 @@ class PhpDocExtractorTest extends TestCase
         );
     }
 
-    public function testParamTagTypeIsOmitted()
+    /**
+     * @dataProvider provideCollectionTypes
+     */
+    public function testExtractCollection($property, array $type = null, $shortDescription, $longDescription)
     {
-        $this->assertNull($this->extractor->getTypes(OmittedParamTagTypeDocBlock::class, 'omittedType'));
+        if (!class_exists(Collection::class)) {
+            $this->markTestSkipped('Collections are not implemented in current phpdocumentor/type-resolver version');
+        }
+
+        $this->testExtract($property, $type, $shortDescription, $longDescription);
+    }
+
+    public function provideCollectionTypes()
+    {
+        return array(
+            array('iteratorCollection', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Iterator', true, null, new Type(Type::BUILTIN_TYPE_STRING))), null, null),
+            array('iteratorCollectionWithKey', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Iterator', true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING))), null, null),
+            array(
+                'nestedIterators',
+                array(new Type(
+                    Type::BUILTIN_TYPE_OBJECT,
+                    false,
+                    'Iterator',
+                    true,
+                    new Type(Type::BUILTIN_TYPE_INT),
+                    new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Iterator', true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING))
+                )),
+                null,
+                null,
+            ),
+        );
     }
 
     /**
@@ -114,27 +162,22 @@ class PhpDocExtractorTest extends TestCase
             array('bal', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime')), null, null),
             array('parent', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy')), null, null),
             array('collection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime'))), null, null),
+            array('nestedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING, false)))), null, null),
+            array('mixedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, null, null)), null, null),
             array('a', null, 'A.', null),
             array('b', null, 'B.', null),
             array('c', array(new Type(Type::BUILTIN_TYPE_BOOL, true)), null, null),
             array('d', array(new Type(Type::BUILTIN_TYPE_BOOL)), null, null),
             array('e', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_RESOURCE))), null, null),
             array('f', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime'))), null, null),
-            array('g', null),
+            array('g', array(new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true)), 'Nullable array.', null),
+            array('h', array(new Type(Type::BUILTIN_TYPE_STRING, true)), null, null),
+            array('i', array(new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)), null, null),
+            array('j', array(new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')), null, null),
             array('donotexist', null, null, null),
             array('staticGetter', null, null, null),
             array('staticSetter', null, null, null),
         );
-    }
-
-    /**
-     * @dataProvider typesWithNoPrefixesProvider
-     */
-    public function testExtractTypesWithNoPrefixes($property, array $type = null)
-    {
-        $noPrefixExtractor = new PhpDocExtractor(null, array(), array(), array());
-
-        $this->assertEquals($type, $noPrefixExtractor->getTypes('Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy', $property));
     }
 
     public function typesWithNoPrefixesProvider()
@@ -159,13 +202,18 @@ class PhpDocExtractorTest extends TestCase
             array('bal', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime')), null, null),
             array('parent', array(new Type(Type::BUILTIN_TYPE_OBJECT, false, 'Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy')), null, null),
             array('collection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_OBJECT, false, 'DateTime'))), null, null),
+            array('nestedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING, false)))), null, null),
+            array('mixedCollection', array(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, null, null)), null, null),
             array('a', null, 'A.', null),
             array('b', null, 'B.', null),
             array('c', null, null, null),
             array('d', null, null, null),
             array('e', null, null, null),
             array('f', null, null, null),
-            array('g', null),
+            array('g', array(new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true)), 'Nullable array.', null),
+            array('h', array(new Type(Type::BUILTIN_TYPE_STRING, true)), null, null),
+            array('i', array(new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)), null, null),
+            array('j', array(new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')), null, null),
             array('donotexist', null, null, null),
             array('staticGetter', null, null, null),
             array('staticSetter', null, null, null),
@@ -175,6 +223,29 @@ class PhpDocExtractorTest extends TestCase
     public function testReturnNullOnEmptyDocBlock()
     {
         $this->assertNull($this->extractor->getShortDescription(EmptyDocBlock::class, 'foo'));
+    }
+
+    public function dockBlockFallbackTypesProvider()
+    {
+        return array(
+            'pub' => array(
+                'pub', array(new Type(Type::BUILTIN_TYPE_STRING)),
+            ),
+            'protAcc' => array(
+                'protAcc', array(new Type(Type::BUILTIN_TYPE_INT)),
+            ),
+            'protMut' => array(
+                'protMut', array(new Type(Type::BUILTIN_TYPE_BOOL)),
+            ),
+        );
+    }
+
+    /**
+     * @dataProvider dockBlockFallbackTypesProvider
+     */
+    public function testDocBlockFallback($property, $types)
+    {
+        $this->assertEquals($types, $this->extractor->getTypes('Symfony\Component\PropertyInfo\Tests\Fixtures\DockBlockFallback', $property));
     }
 }
 

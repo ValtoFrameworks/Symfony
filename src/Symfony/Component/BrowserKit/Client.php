@@ -13,8 +13,8 @@ namespace Symfony\Component\BrowserKit;
 
 use Symfony\Component\BrowserKit\Exception\BadMethodCallException;
 use Symfony\Component\DomCrawler\Crawler;
-use Symfony\Component\DomCrawler\Link;
 use Symfony\Component\DomCrawler\Form;
+use Symfony\Component\DomCrawler\Link;
 use Symfony\Component\Process\PhpProcess;
 
 /**
@@ -291,18 +291,47 @@ abstract class Client
     }
 
     /**
+     * Clicks the first link (or clickable image) that contains the given text.
+     *
+     * @param string $linkText The text of the link or the alt attribute of the clickable image
+     */
+    public function clickLink(string $linkText): Crawler
+    {
+        return $this->click($this->getCrawler()->selectLink($linkText)->link());
+    }
+
+    /**
      * Submits a form.
      *
-     * @param Form  $form   A Form instance
-     * @param array $values An array of form field values
+     * @param Form  $form             A Form instance
+     * @param array $values           An array of form field values
+     * @param array $serverParameters An array of server parameters
      *
      * @return Crawler
      */
-    public function submit(Form $form, array $values = array(), $serverParameters = array())
+    public function submit(Form $form, array $values = array()/*, array $serverParameters = array()*/)
     {
         $form->setValues($values);
+        $serverParameters = 2 < \func_num_args() ? func_get_arg(2) : array();
 
         return $this->request($form->getMethod(), $form->getUri(), $form->getPhpValues(), $form->getPhpFiles(), $serverParameters);
+    }
+
+    /**
+     * Finds the first form that contains a button with the given content and
+     * uses it to submit the given form field values.
+     *
+     * @param string $button           The text content, id, value or name of the form <button> or <input type="submit">
+     * @param array  $fieldValues      Use this syntax: array('my_form[name]' => '...', 'my_form[email]' => '...')
+     * @param string $method           The HTTP method used to submit the form
+     * @param array  $serverParameters These values override the ones stored in $_SERVER (HTTP headers must include a HTTP_ prefix as PHP does)
+     */
+    public function submitForm(string $button, array $fieldValues = array(), string $method = 'POST', array $serverParameters = array()): Crawler
+    {
+        $buttonNode = $this->getCrawler()->selectButton($button);
+        $form = $buttonNode->form($fieldValues, $method);
+
+        return $this->submit($form, array(), $serverParameters);
     }
 
     /**
@@ -410,7 +439,7 @@ abstract class Client
             unlink($deprecationsFile);
             foreach ($deprecations ? unserialize($deprecations) : array() as $deprecation) {
                 if ($deprecation[0]) {
-                    trigger_error($deprecation[1], E_USER_DEPRECATED);
+                    @trigger_error($deprecation[1], E_USER_DEPRECATED);
                 } else {
                     @trigger_error($deprecation[1], E_USER_DEPRECATED);
                 }
@@ -552,7 +581,7 @@ abstract class Client
 
         $request = $this->internalRequest;
 
-        if (in_array($this->internalResponse->getStatus(), array(301, 302, 303))) {
+        if (\in_array($this->internalResponse->getStatus(), array(301, 302, 303))) {
             $method = 'GET';
             $files = array();
             $content = null;

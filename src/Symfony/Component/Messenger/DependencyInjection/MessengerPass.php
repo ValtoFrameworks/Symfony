@@ -21,7 +21,6 @@ use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Messenger\Handler\ChainHandler;
 use Symfony\Component\Messenger\Handler\Locator\ContainerHandlerLocator;
-use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
 use Symfony\Component\Messenger\Handler\MessageSubscriberInterface;
 use Symfony\Component\Messenger\TraceableMessageBus;
 use Symfony\Component\Messenger\Transport\ReceiverInterface;
@@ -116,7 +115,7 @@ class MessengerPass implements CompilerPassInterface
                     }
 
                     if (!\class_exists($messageClass)) {
-                        $messageClassLocation = isset($tag['handles']) ? 'declared in your tag attribute "handles"' : $r->implementsInterface(MessageHandlerInterface::class) ? sprintf('returned by method "%s::getHandledMessages()"', $r->getName()) : sprintf('used as argument type in method "%s::%s()"', $r->getName(), $method);
+                        $messageClassLocation = isset($tag['handles']) ? 'declared in your tag attribute "handles"' : $r->implementsInterface(MessageSubscriberInterface::class) ? sprintf('returned by method "%s::getHandledMessages()"', $r->getName()) : sprintf('used as argument type in method "%s::%s()"', $r->getName(), $method);
 
                         throw new RuntimeException(sprintf('Invalid handler service "%s": message class "%s" %s does not exist.', $serviceId, $messageClass, $messageClassLocation));
                     }
@@ -128,11 +127,13 @@ class MessengerPass implements CompilerPassInterface
                     if ('__invoke' !== $method) {
                         $wrapperDefinition = (new Definition('callable'))->addArgument(array(new Reference($serviceId), $method))->setFactory('Closure::fromCallable');
 
-                        $definitions[$serviceId = '.messenger.method_on_object_wrapper.'.ContainerBuilder::hash($messageClass.':'.$messagePriority.':'.$serviceId.':'.$method)] = $wrapperDefinition;
+                        $definitions[$definitionId = '.messenger.method_on_object_wrapper.'.ContainerBuilder::hash($messageClass.':'.$messagePriority.':'.$serviceId.':'.$method)] = $wrapperDefinition;
+                    } else {
+                        $definitionId = $serviceId;
                     }
 
                     foreach ($handlerBuses as $handlerBus) {
-                        $handlersByBusAndMessage[$handlerBus][$messageClass][$messagePriority][] = $serviceId;
+                        $handlersByBusAndMessage[$handlerBus][$messageClass][$messagePriority][] = $definitionId;
                     }
                 }
             }
@@ -185,7 +186,7 @@ class MessengerPass implements CompilerPassInterface
         }
     }
 
-    private function guessHandledClasses(\ReflectionClass $handlerClass, string $serviceId): array
+    private function guessHandledClasses(\ReflectionClass $handlerClass, string $serviceId): iterable
     {
         if ($handlerClass->implementsInterface(MessageSubscriberInterface::class)) {
             if (!$handledMessages = $handlerClass->getName()::getHandledMessages()) {

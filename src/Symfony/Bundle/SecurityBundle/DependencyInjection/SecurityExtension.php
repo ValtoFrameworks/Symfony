@@ -15,17 +15,17 @@ use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\Factory\SecurityF
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\UserProvider\UserProviderFactoryInterface;
 use Symfony\Bundle\SecurityBundle\SecurityUserValueResolver;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Console\Application;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
-use Symfony\Component\HttpKernel\DependencyInjection\Extension;
-use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Parameter;
 use Symfony\Component\DependencyInjection\Reference;
-use Symfony\Component\Config\FileLocator;
+use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
@@ -45,6 +45,7 @@ class SecurityExtension extends Extension
     private $listenerPositions = array('pre_auth', 'form', 'http', 'remember_me');
     private $factories = array();
     private $userProviderFactories = array();
+    private $statelessFirewallKeys = array();
 
     public function __construct()
     {
@@ -104,6 +105,9 @@ class SecurityExtension extends Extension
         $this->createAuthorization($config, $container);
         $this->createRoleHierarchy($config, $container);
 
+        $container->getDefinition('security.authentication.guard_handler')
+            ->replaceArgument(2, $this->statelessFirewallKeys);
+
         if ($config['encoders']) {
             $this->createEncoders($config['encoders'], $container);
         }
@@ -123,7 +127,7 @@ class SecurityExtension extends Extension
 
     private function createRoleHierarchy(array $config, ContainerBuilder $container)
     {
-        if (!isset($config['role_hierarchy']) || 0 === count($config['role_hierarchy'])) {
+        if (!isset($config['role_hierarchy']) || 0 === \count($config['role_hierarchy'])) {
             $container->removeDefinition('security.access.role_hierarchy_voter');
 
             return;
@@ -154,7 +158,7 @@ class SecurityExtension extends Extension
         }
 
         // allow cache warm-up for expressions
-        if (count($this->expressions)) {
+        if (\count($this->expressions)) {
             $container->getDefinition('security.cache_warmer.expression')
                 ->replaceArgument(0, new IteratorArgument(array_values($this->expressions)));
         } else {
@@ -263,7 +267,7 @@ class SecurityExtension extends Extension
                 throw new InvalidConfigurationException(sprintf('Invalid firewall "%s": user provider "%s" not found.', $id, $firewall['provider']));
             }
             $defaultProvider = $providerIds[$normalizedName];
-        } elseif (1 === count($providerIds)) {
+        } elseif (1 === \count($providerIds)) {
             $defaultProvider = reset($providerIds);
         }
 
@@ -285,7 +289,12 @@ class SecurityExtension extends Extension
             }
 
             $listeners[] = new Reference($this->createContextListener($container, $contextKey));
+            $sessionStrategyId = 'security.authentication.session_strategy';
+        } else {
+            $this->statelessFirewallKeys[] = $id;
+            $sessionStrategyId = 'security.authentication.session_strategy_noop';
         }
+        $container->setAlias(new Alias('security.authentication.session_strategy.'.$id, false), $sessionStrategyId);
 
         $config->replaceArgument(6, $contextKey);
 
@@ -321,7 +330,7 @@ class SecurityExtension extends Extension
             }
 
             // add cookie logout handler
-            if (count($firewall['logout']['delete_cookies']) > 0) {
+            if (\count($firewall['logout']['delete_cookies']) > 0) {
                 $cookieHandlerId = 'security.logout.handler.cookie_clearing.'.$id;
                 $cookieHandler = $container->setDefinition($cookieHandlerId, new ChildDefinition('security.logout.handler.cookie_clearing'));
                 $cookieHandler->addArgument($firewall['logout']['delete_cookies']);
@@ -400,7 +409,7 @@ class SecurityExtension extends Extension
             return $this->contextListeners[$contextKey];
         }
 
-        $listenerId = 'security.context_listener.'.count($this->contextListeners);
+        $listenerId = 'security.context_listener.'.\count($this->contextListeners);
         $listener = $container->setDefinition($listenerId, new ChildDefinition('security.context_listener'));
         $listener->replaceArgument(2, $contextKey);
 
@@ -673,7 +682,7 @@ class SecurityExtension extends Extension
 
         // only add arguments that are necessary
         $arguments = array($path, $host, $methods, $ip, $attributes);
-        while (count($arguments) > 0 && !end($arguments)) {
+        while (\count($arguments) > 0 && !end($arguments)) {
             array_pop($arguments);
         }
 

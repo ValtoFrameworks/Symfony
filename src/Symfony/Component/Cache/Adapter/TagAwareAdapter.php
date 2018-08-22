@@ -13,17 +13,17 @@ namespace Symfony\Component\Cache\Adapter;
 
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\InvalidArgumentException;
+use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Component\Cache\ResettableInterface;
-use Symfony\Component\Cache\TaggableCacheInterface;
 use Symfony\Component\Cache\Traits\GetTrait;
 use Symfony\Component\Cache\Traits\ProxyTrait;
 
 /**
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class TagAwareAdapter implements TagAwareAdapterInterface, TaggableCacheInterface, PruneableInterface, ResettableInterface
+class TagAwareAdapter implements CacheInterface, TagAwareAdapterInterface, PruneableInterface, ResettableInterface
 {
     const TAGS_PREFIX = "\0tags\0";
 
@@ -67,7 +67,7 @@ class TagAwareAdapter implements TagAwareAdapterInterface, TaggableCacheInterfac
                 }
                 if (isset($itemTags[$key])) {
                     foreach ($itemTags[$key] as $tag => $version) {
-                        $item->prevTags[$tag] = $tag;
+                        $item->metadata[CacheItem::METADATA_TAGS][$tag] = $tag;
                     }
                     unset($itemTags[$key]);
                 } else {
@@ -84,7 +84,7 @@ class TagAwareAdapter implements TagAwareAdapterInterface, TaggableCacheInterfac
             function ($deferred) {
                 $tagsByKey = array();
                 foreach ($deferred as $key => $item) {
-                    $tagsByKey[$key] = $item->tags;
+                    $tagsByKey[$key] = $item->newMetadata[CacheItem::METADATA_TAGS] ?? array();
                 }
 
                 return $tagsByKey;

@@ -19,6 +19,7 @@ use Symfony\Component\Cache\Exception\InvalidArgumentException;
 use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Component\Cache\ResettableInterface;
 use Symfony\Component\Cache\Traits\GetTrait;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Chains several adapters together.
@@ -48,7 +49,7 @@ class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
 
         foreach ($adapters as $adapter) {
             if (!$adapter instanceof CacheItemPoolInterface) {
-                throw new InvalidArgumentException(sprintf('The class "%s" does not implement the "%s" interface.', get_class($adapter), CacheItemPoolInterface::class));
+                throw new InvalidArgumentException(sprintf('The class "%s" does not implement the "%s" interface.', \get_class($adapter), CacheItemPoolInterface::class));
             }
 
             if ($adapter instanceof AdapterInterface) {
@@ -57,15 +58,17 @@ class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
                 $this->adapters[] = new ProxyAdapter($adapter);
             }
         }
-        $this->adapterCount = count($this->adapters);
+        $this->adapterCount = \count($this->adapters);
 
         $this->syncItem = \Closure::bind(
             function ($sourceItem, $item) use ($defaultLifetime) {
                 $item->value = $sourceItem->value;
                 $item->expiry = $sourceItem->expiry;
                 $item->isHit = $sourceItem->isHit;
+                $item->metadata = $sourceItem->metadata;
 
                 $sourceItem->isTaggable = false;
+                unset($sourceItem->metadata[CacheItem::METADATA_TAGS]);
 
                 if (0 < $sourceItem->defaultLifetime && $sourceItem->defaultLifetime < $defaultLifetime) {
                     $defaultLifetime = $sourceItem->defaultLifetime;
@@ -84,19 +87,20 @@ class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
     /**
      * {@inheritdoc}
      */
-    public function get(string $key, callable $callback)
+    public function get(string $key, callable $callback, float $beta = null)
     {
         $lastItem = null;
         $i = 0;
-        $wrap = function (CacheItem $item = null) use ($key, $callback, &$wrap, &$i, &$lastItem) {
+        $wrap = function (CacheItem $item = null) use ($key, $callback, $beta, &$wrap, &$i, &$lastItem) {
             $adapter = $this->adapters[$i];
             if (isset($this->adapters[++$i])) {
                 $callback = $wrap;
+                $beta = INF === $beta ? INF : 0;
             }
             if ($adapter instanceof CacheInterface) {
-                $value = $adapter->get($key, $callback);
+                $value = $adapter->get($key, $callback, $beta);
             } else {
-                $value = $this->doGet($adapter, $key, $callback);
+                $value = $this->doGet($adapter, $key, $callback, $beta ?? 1.0);
             }
             if (null !== $item) {
                 ($this->syncItem)($lastItem = $lastItem ?? $item, $item);
@@ -298,7 +302,7 @@ class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
     public function reset()
     {
         foreach ($this->adapters as $adapter) {
-            if ($adapter instanceof ResettableInterface) {
+            if ($adapter instanceof ResetInterface) {
                 $adapter->reset();
             }
         }
