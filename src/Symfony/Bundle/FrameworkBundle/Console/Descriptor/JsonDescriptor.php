@@ -220,6 +220,10 @@ class JsonDescriptor extends Descriptor
             'autoconfigure' => $definition->isAutoconfigured(),
         );
 
+        if ('' !== $classDescription = $this->getClassDescription($definition->getClass())) {
+            $data['description'] = $classDescription;
+        }
+
         if ($showArguments) {
             $data['arguments'] = $this->describeValue($definition->getArguments(), $omitTags, $showArguments);
         }
@@ -339,6 +343,19 @@ class JsonDescriptor extends Descriptor
 
         if ($callable instanceof \Closure) {
             $data['type'] = 'closure';
+
+            $r = new \ReflectionFunction($callable);
+            if (false !== strpos($r->name, '{closure}')) {
+                return $data;
+            }
+            $data['name'] = $r->name;
+
+            if ($class = $r->getClosureScopeClass()) {
+                $data['class'] = $class->name;
+                if (!$r->getClosureThis()) {
+                    $data['static'] = true;
+                }
+            }
 
             return $data;
         }

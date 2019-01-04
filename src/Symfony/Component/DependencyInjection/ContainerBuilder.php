@@ -124,6 +124,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
     private $removedIds = array();
 
+    private $removedBindingIds = array();
+
     private static $internalTypes = array(
         'int' => true,
         'float' => true,
@@ -346,11 +348,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         try {
             if (isset($this->classReflectors[$class])) {
                 $classReflector = $this->classReflectors[$class];
-            } elseif ($this->trackResources) {
+            } elseif (class_exists(ClassExistenceResource::class)) {
                 $resource = new ClassExistenceResource($class, false);
                 $classReflector = $resource->isFresh(0) ? false : new \ReflectionClass($class);
             } else {
-                $classReflector = new \ReflectionClass($class);
+                $classReflector = class_exists($class) ? new \ReflectionClass($class) : false;
             }
         } catch (\ReflectionException $e) {
             if ($throw) {
@@ -500,7 +502,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             throw new BadMethodCallException(sprintf('Setting service "%s" for an unknown or non-synthetic service definition on a compiled container is not allowed.', $id));
         }
 
-        unset($this->definitions[$id], $this->aliasDefinitions[$id], $this->removedIds[$id]);
+        $this->removeId($id);
+        unset($this->removedIds[$id]);
 
         parent::set($id, $service);
     }
@@ -513,8 +516,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     public function removeDefinition($id)
     {
         if (isset($this->definitions[$id = (string) $id])) {
-            unset($this->definitions[$id]);
-            $this->removedIds[$id] = true;
+            $this->removeId($id);
         }
     }
 
@@ -592,7 +594,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             throw $e;
         }
 
-        if ($e = $definition->getErrors()) {
+        if ($definition->hasErrors() && $e = $definition->getErrors()) {
             throw new RuntimeException(reset($e));
         }
 
@@ -618,10 +620,10 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * the parameters passed to the container constructor to have precedence
      * over the loaded ones.
      *
-     * $container = new ContainerBuilder(new ParameterBag(array('foo' => 'bar')));
-     * $loader = new LoaderXXX($container);
-     * $loader->load('resource_name');
-     * $container->register('foo', 'stdClass');
+     *     $container = new ContainerBuilder(new ParameterBag(array('foo' => 'bar')));
+     *     $loader = new LoaderXXX($container);
+     *     $loader->load('resource_name');
+     *     $container->register('foo', 'stdClass');
      *
      * In the above example, even if the loaded resource defines a foo
      * parameter, the value will still be 'bar' as defined in the ContainerBuilder
@@ -836,7 +838,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             throw new InvalidArgumentException(sprintf('An alias can not reference itself, got a circular reference on "%s".', $alias));
         }
 
-        unset($this->definitions[$alias], $this->removedIds[$alias]);
+        $this->removeId($alias);
+        unset($this->removedIds[$alias]);
 
         return $this->aliasDefinitions[$alias] = $id;
     }
@@ -849,8 +852,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     public function removeAlias($alias)
     {
         if (isset($this->aliasDefinitions[$alias = (string) $alias])) {
-            unset($this->aliasDefinitions[$alias]);
-            $this->removedIds[$alias] = true;
+            $this->removeId($alias);
         }
     }
 
@@ -919,7 +921,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      * an autowired definition.
      *
      * @param string      $id    The service identifier
-     * @param null|string $class The service class
+     * @param string|null $class The service class
      *
      * @return Definition The created definition
      */
@@ -979,7 +981,8 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
         $id = (string) $id;
 
-        unset($this->aliasDefinitions[$id], $this->removedIds[$id]);
+        $this->removeId($id);
+        unset($this->removedIds[$id]);
 
         return $this->definitions[$id] = $definition;
     }
@@ -1114,7 +1117,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         if (null !== $factory) {
-            $service = \call_user_func_array($factory, $arguments);
+            $service = $factory(...$arguments);
 
             if (!$definition->isDeprecated() && \is_array($factory) && \is_string($factory[0])) {
                 $r = new \ReflectionClass($factory[0]);
@@ -1124,7 +1127,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 }
             }
         } else {
-            $r = new \ReflectionClass($class = $parameterBag->resolveValue($definition->getClass()));
+            $r = new \ReflectionClass($parameterBag->resolveValue($definition->getClass()));
 
             $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs($arguments);
 
@@ -1162,7 +1165,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 throw new InvalidArgumentException(sprintf('The configure callable for class "%s" is not a callable.', \get_class($service)));
             }
 
-            \call_user_func($callable, $service);
+            $callable($service);
         }
 
         return $service;
@@ -1253,14 +1256,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
      *
      * Example:
      *
-     * $container->register('foo')->addTag('my.tag', array('hello' => 'world'));
+     *     $container->register('foo')->addTag('my.tag', array('hello' => 'world'));
      *
-     * $serviceIds = $container->findTaggedServiceIds('my.tag');
-     * foreach ($serviceIds as $serviceId => $tags) {
-     *     foreach ($tags as $tag) {
-     *         echo $tag['hello'];
+     *     $serviceIds = $container->findTaggedServiceIds('my.tag');
+     *     foreach ($serviceIds as $serviceId => $tags) {
+     *         foreach ($tags as $tag) {
+     *             echo $tag['hello'];
+     *         }
      *     }
-     * }
      *
      * @param string $name
      * @param bool   $throwOnAbstract
@@ -1335,6 +1338,25 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         return $this->autoconfiguredInstanceof[$interface];
+    }
+
+    /**
+     * Registers an autowiring alias that only binds to a specific argument name.
+     *
+     * The argument name is derived from $name if provided (from $id otherwise)
+     * using camel case: "foo.bar" or "foo_bar" creates an alias bound to
+     * "$fooBar"-named arguments with $type as type-hint. Such arguments will
+     * receive the service $id when autowiring is used.
+     */
+    public function registerAliasForArgument(string $id, string $type, string $name = null): Alias
+    {
+        $name = lcfirst(str_replace(' ', '', ucwords(preg_replace('/[^a-zA-Z0-9\x7f-\xff]++/', ' ', $name ?? $id))));
+
+        if (!preg_match('/^[a-zA-Z_\x7f-\xff]/', $name)) {
+            throw new InvalidArgumentException(sprintf('Invalid argument name "%s" for service "%s": the first character must be a letter.', $name, $id));
+        }
+
+        return $this->setAlias($type.' $'.$name, $id);
     }
 
     /**
@@ -1490,6 +1512,18 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     }
 
     /**
+     * Gets removed binding ids.
+     *
+     * @return array
+     *
+     * @internal
+     */
+    public function getRemovedBindingIds()
+    {
+        return $this->removedBindingIds;
+    }
+
+    /**
      * Computes a reasonably unique hash of a value.
      *
      * @param mixed $value A serializable value
@@ -1515,11 +1549,15 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return $value;
         }
 
-        foreach ($bag->getEnvPlaceholders() as $env => $placeholders) {
-            if (isset($placeholders[$value])) {
-                $bag = new ParameterBag($bag->all());
+        $envPlaceholders = $bag->getEnvPlaceholders();
+        if (isset($envPlaceholders[$name][$value])) {
+            $bag = new ParameterBag($bag->all());
 
-                return $bag->unescapeValue($bag->get("env($name)"));
+            return $bag->unescapeValue($bag->get("env($name)"));
+        }
+        foreach ($envPlaceholders as $env => $placeholders) {
+            if (isset($placeholders[$value])) {
+                return $this->getEnv($env);
             }
         }
 
@@ -1544,7 +1582,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             }
         }
 
-        \call_user_func_array(array($service, $call[0]), $this->doResolveServices($this->getParameterBag()->unescapeValue($this->getParameterBag()->resolveValue($call[1])), $inlineServices));
+        $service->{$call[0]}(...$this->doResolveServices($this->getParameterBag()->unescapeValue($this->getParameterBag()->resolveValue($call[1])), $inlineServices));
     }
 
     /**
@@ -1568,7 +1606,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         if (null === $this->expressionLanguage) {
             if (!class_exists('Symfony\Component\ExpressionLanguage\ExpressionLanguage')) {
-                throw new RuntimeException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
+                throw new LogicException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
             }
             $this->expressionLanguage = new ExpressionLanguage(null, $this->expressionLanguageProviders);
         }
@@ -1592,5 +1630,22 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         return false;
+    }
+
+    private function removeId($id)
+    {
+        $this->removedIds[$id] = true;
+        unset($this->aliasDefinitions[$id]);
+
+        if (!isset($this->definitions[$id])) {
+            return;
+        }
+
+        foreach ($this->definitions[$id]->getBindings() as $binding) {
+            list(, $identifier) = $binding->getValues();
+            $this->removedBindingIds[$identifier] = true;
+        }
+
+        unset($this->definitions[$id]);
     }
 }

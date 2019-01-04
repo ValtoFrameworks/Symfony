@@ -18,6 +18,9 @@ use Symfony\Component\Security\Http\Event\InteractiveLoginEvent;
 use Symfony\Component\Security\Http\Firewall\SimplePreAuthenticationListener;
 use Symfony\Component\Security\Http\SecurityEvents;
 
+/**
+ * @group legacy
+ */
 class SimplePreAuthenticationListenerTest extends TestCase
 {
     private $authenticationManager;
@@ -72,7 +75,7 @@ class SimplePreAuthenticationListenerTest extends TestCase
             ->expects($this->once())
             ->method('authenticate')
             ->with($this->equalTo($this->token))
-            ->will($this->throwException($exception))
+            ->willThrowException($exception)
         ;
 
         $this->tokenStorage->expects($this->once())

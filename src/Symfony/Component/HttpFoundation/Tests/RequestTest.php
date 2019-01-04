@@ -232,6 +232,55 @@ class RequestTest extends TestCase
         $this->assertEquals(80, $request->getPort());
         $this->assertEquals('test.com', $request->getHttpHost());
         $this->assertFalse($request->isSecure());
+
+        // Fragment should not be included in the URI
+        $request = Request::create('http://test.com/foo#bar');
+        $this->assertEquals('http://test.com/foo', $request->getUri());
+    }
+
+    public function testCreateWithRequestUri()
+    {
+        $request = Request::create('http://test.com:80/foo');
+        $request->server->set('REQUEST_URI', 'http://test.com:80/foo');
+        $this->assertEquals('http://test.com/foo', $request->getUri());
+        $this->assertEquals('/foo', $request->getPathInfo());
+        $this->assertEquals('test.com', $request->getHost());
+        $this->assertEquals('test.com', $request->getHttpHost());
+        $this->assertEquals(80, $request->getPort());
+        $this->assertFalse($request->isSecure());
+
+        $request = Request::create('http://test.com:8080/foo');
+        $request->server->set('REQUEST_URI', 'http://test.com:8080/foo');
+        $this->assertEquals('http://test.com:8080/foo', $request->getUri());
+        $this->assertEquals('/foo', $request->getPathInfo());
+        $this->assertEquals('test.com', $request->getHost());
+        $this->assertEquals('test.com:8080', $request->getHttpHost());
+        $this->assertEquals(8080, $request->getPort());
+        $this->assertFalse($request->isSecure());
+
+        $request = Request::create('http://test.com/foo?bar=foo', 'GET', array('bar' => 'baz'));
+        $request->server->set('REQUEST_URI', 'http://test.com/foo?bar=foo');
+        $this->assertEquals('http://test.com/foo?bar=baz', $request->getUri());
+        $this->assertEquals('/foo', $request->getPathInfo());
+        $this->assertEquals('bar=baz', $request->getQueryString());
+        $this->assertEquals('test.com', $request->getHost());
+        $this->assertEquals('test.com', $request->getHttpHost());
+        $this->assertEquals(80, $request->getPort());
+        $this->assertFalse($request->isSecure());
+
+        $request = Request::create('https://test.com:443/foo');
+        $request->server->set('REQUEST_URI', 'https://test.com:443/foo');
+        $this->assertEquals('https://test.com/foo', $request->getUri());
+        $this->assertEquals('/foo', $request->getPathInfo());
+        $this->assertEquals('test.com', $request->getHost());
+        $this->assertEquals('test.com', $request->getHttpHost());
+        $this->assertEquals(443, $request->getPort());
+        $this->assertTrue($request->isSecure());
+
+        // Fragment should not be included in the URI
+        $request = Request::create('http://test.com/foo#bar');
+        $request->server->set('REQUEST_URI', 'http://test.com/foo#bar');
+        $this->assertEquals('http://test.com/foo', $request->getUri());
     }
 
     public function testCreateCheckPrecedence()
@@ -332,6 +381,9 @@ class RequestTest extends TestCase
     {
         $request = new Request();
         $this->assertEquals('json', $request->getFormat('application/json; charset=utf-8'));
+        $this->assertEquals('json', $request->getFormat('application/json;charset=utf-8'));
+        $this->assertEquals('json', $request->getFormat('application/json ; charset=utf-8'));
+        $this->assertEquals('json', $request->getFormat('application/json ;charset=utf-8'));
     }
 
     /**
@@ -906,7 +958,7 @@ class RequestTest extends TestCase
 
     public function getClientIpsProvider()
     {
-        //        $expected                   $remoteAddr                $httpForwardedFor            $trustedProxies
+        //        $expected                          $remoteAddr                 $httpForwardedFor            $trustedProxies
         return array(
             // simple IPv4
             array(array('88.88.88.88'),              '88.88.88.88',              null,                        null),
@@ -920,8 +972,8 @@ class RequestTest extends TestCase
 
             // forwarded for with remote IPv4 addr not trusted
             array(array('127.0.0.1'),                '127.0.0.1',                '88.88.88.88',               null),
-            // forwarded for with remote IPv4 addr trusted
-            array(array('88.88.88.88'),              '127.0.0.1',                '88.88.88.88',               array('127.0.0.1')),
+            // forwarded for with remote IPv4 addr trusted + comma
+            array(array('88.88.88.88'),              '127.0.0.1',                '88.88.88.88,',              array('127.0.0.1')),
             // forwarded for with remote IPv4 and all FF addrs trusted
             array(array('88.88.88.88'),              '127.0.0.1',                '88.88.88.88',               array('127.0.0.1', '88.88.88.88')),
             // forwarded for with remote IPv4 range trusted
@@ -1430,16 +1482,6 @@ class RequestTest extends TestCase
         $request = new Request();
         $request->headers->set('Accept', 'application/vnd.wap.wmlscriptc, text/vnd.wap.wml, application/vnd.wap.xhtml+xml, application/xhtml+xml, text/html, multipart/mixed, */*');
         $this->assertEquals(array('application/vnd.wap.wmlscriptc', 'text/vnd.wap.wml', 'application/vnd.wap.xhtml+xml', 'application/xhtml+xml', 'text/html', 'multipart/mixed', '*/*'), $request->getAcceptableContentTypes());
-    }
-
-    public function testGetAcceptableFormats()
-    {
-        $request = new Request();
-        $this->assertEquals(array(), $request->getAcceptableFormats());
-
-        $request = new Request();
-        $request->headers->set('Accept', 'text/html, application/xhtml+xml, application/xml;q=0.9, */*');
-        $this->assertEquals(array('html', 'xml'), $request->getAcceptableFormats());
     }
 
     public function testGetLanguages()

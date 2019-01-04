@@ -399,8 +399,8 @@ class PhpDumperTest extends TestCase
         $container->compile(true);
 
         $expected = array(
-          'env(foo)' => 'd29ybGQ=',
-          'hello' => 'world',
+            'env(foo)' => 'd29ybGQ=',
+            'hello' => 'world',
         );
         $this->assertSame($expected, $container->getParameterBag()->all());
     }
@@ -437,6 +437,28 @@ class PhpDumperTest extends TestCase
         require self::$fixturesPath.'/php/services_csv_env.php';
         $container = new \Symfony_DI_PhpDumper_Test_CsvParameters();
         $this->assertSame(array('foo', 'bar'), $container->getParameter('hello'));
+    }
+
+    public function testDumpedDefaultEnvParameters()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('fallback_param', 'baz');
+        $container->setParameter('fallback_env', '%env(foobar)%');
+        $container->setParameter('env(foobar)', 'foobaz');
+        $container->setParameter('env(foo)', '{"foo": "bar"}');
+        $container->setParameter('hello', '%env(default:fallback_param:bar)%');
+        $container->setParameter('hello-bar', '%env(default:fallback_env:key:baz:json:foo)%');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_default_env.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_DefaultParameters')));
+
+        require self::$fixturesPath.'/php/services_default_env.php';
+        $container = new \Symfony_DI_PhpDumper_Test_DefaultParameters();
+        $this->assertSame('baz', $container->getParameter('hello'));
+        $this->assertSame('foobaz', $container->getParameter('hello-bar'));
     }
 
     public function testDumpedJsonEnvParameters()
@@ -799,7 +821,7 @@ class PhpDumperTest extends TestCase
             ->setPublic(false);
         $container->register('public_foo', 'stdClass')
             ->setPublic(true)
-            ->addArgument(new Expression('service("private_foo")'));
+            ->addArgument(new Expression('service("private_foo").bar'));
 
         $container->compile();
         $dumper = new PhpDumper($container);
@@ -877,12 +899,61 @@ class PhpDumperTest extends TestCase
 
         $manager = $container->get('manager2');
         $this->assertEquals(new \stdClass(), $manager);
+
+        $foo6 = $container->get('foo6');
+        $this->assertEquals((object) array('bar6' => (object) array()), $foo6);
+
+        $this->assertInstanceOf(\stdClass::class, $container->get('root'));
     }
 
     public function provideAlmostCircular()
     {
         yield array('public');
         yield array('private');
+    }
+
+    public function testDeepServiceGraph()
+    {
+        $container = new ContainerBuilder();
+
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('services_deep_graph.yml');
+
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dumper->dump();
+
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_deep_graph.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Deep_Graph')));
+
+        require self::$fixturesPath.'/php/services_deep_graph.php';
+
+        $container = new \Symfony_DI_PhpDumper_Test_Deep_Graph();
+
+        $this->assertInstanceOf(FooForDeepGraph::class, $container->get('foo'));
+        $this->assertEquals((object) array('p2' => (object) array('p3' => (object) array())), $container->get('foo')->bClone);
+    }
+
+    public function testInlineSelfRef()
+    {
+        $container = new ContainerBuilder();
+
+        $bar = (new Definition('App\Bar'))
+            ->setProperty('foo', new Reference('App\Foo'));
+
+        $baz = (new Definition('App\Baz'))
+            ->setProperty('bar', $bar)
+            ->addArgument($bar);
+
+        $container->register('App\Foo')
+            ->setPublic(true)
+            ->addArgument($baz);
+
+        $passConfig = $container->getCompiler()->getPassConfig();
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_inline_self_ref.php', $dumper->dump(array('class' => 'Symfony_DI_PhpDumper_Test_Inline_Self_Ref')));
     }
 
     public function testHotPathOptimizations()
@@ -960,6 +1031,18 @@ class PhpDumperTest extends TestCase
 
         $container->set('foo', (object) array(123));
         $this->assertEquals((object) array('foo' => (object) array(123)), $container->get('bar'));
+    }
+
+    public function testAdawsonContainer()
+    {
+        $container = new ContainerBuilder();
+        $loader = new YamlFileLoader($container, new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('services_adawson.yml');
+        $container->compile();
+
+        $dumper = new PhpDumper($container);
+        $dump = $dumper->dump();
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_adawson.php', $dumper->dump());
     }
 
     /**
@@ -1063,5 +1146,16 @@ class Rot13EnvVarProcessor implements EnvVarProcessorInterface
     public static function getProvidedTypes()
     {
         return array('rot13' => 'string');
+    }
+}
+
+class FooForDeepGraph
+{
+    public $bClone;
+
+    public function __construct(\stdClass $a, \stdClass $b)
+    {
+        // clone to verify that $b has been fully initialized before
+        $this->bClone = clone $b;
     }
 }

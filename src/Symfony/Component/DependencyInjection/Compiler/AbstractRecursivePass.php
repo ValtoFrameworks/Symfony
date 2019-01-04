@@ -14,6 +14,7 @@ namespace Symfony\Component\DependencyInjection\Compiler;
 use Symfony\Component\DependencyInjection\Argument\ArgumentInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ExpressionLanguage;
 use Symfony\Component\DependencyInjection\Reference;
@@ -32,6 +33,7 @@ abstract class AbstractRecursivePass implements CompilerPassInterface
 
     private $processExpressions = false;
     private $expressionLanguage;
+    private $inExpression = false;
 
     /**
      * {@inheritdoc}
@@ -52,12 +54,21 @@ abstract class AbstractRecursivePass implements CompilerPassInterface
         $this->processExpressions = true;
     }
 
+    protected function inExpression(bool $reset = true): bool
+    {
+        $inExpression = $this->inExpression;
+        if ($reset) {
+            $this->inExpression = false;
+        }
+
+        return $inExpression;
+    }
+
     /**
      * Processes a value found in a definition tree.
      *
      * @param mixed $value
      * @param bool  $isRoot
-     * @param bool  $inExpression
      *
      * @return mixed The processed value
      */
@@ -187,16 +198,18 @@ abstract class AbstractRecursivePass implements CompilerPassInterface
     {
         if (null === $this->expressionLanguage) {
             if (!class_exists(ExpressionLanguage::class)) {
-                throw new RuntimeException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
+                throw new LogicException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
             }
 
             $providers = $this->container->getExpressionLanguageProviders();
             $this->expressionLanguage = new ExpressionLanguage(null, $providers, function ($arg) {
                 if ('""' === substr_replace($arg, '', 1, -1)) {
                     $id = stripcslashes(substr($arg, 1, -1));
-                    $arg = $this->processValue(new Reference($id), false, true);
+                    $this->inExpression = true;
+                    $arg = $this->processValue(new Reference($id));
+                    $this->inExpression = false;
                     if (!$arg instanceof Reference) {
-                        throw new RuntimeException(sprintf('"%s::processValue()" must return a Reference when processing an expression, %s returned for service("%s").', \get_class($this), \is_object($arg) ? \get_class($arg) : \gettype($arg)));
+                        throw new RuntimeException(sprintf('"%s::processValue()" must return a Reference when processing an expression, %s returned for service("%s").', \get_class($this), \is_object($arg) ? \get_class($arg) : \gettype($arg), $id));
                     }
                     $arg = sprintf('"%s"', $arg);
                 }

@@ -5,9 +5,7 @@ $container->loadFromExtension('framework', array(
         'enabled' => false,
     ),
     'messenger' => array(
-        'serializer' => array(
-            'enabled' => true,
-        ),
+        'serializer' => 'messenger.transport.symfony_serializer',
         'transports' => array(
             'default' => 'amqp://localhost/%2f/messages',
         ),

@@ -115,7 +115,7 @@ class Definition
     /**
      * Gets the factory.
      *
-     * @return string|array The PHP function or an array containing a class/Reference and a method to call
+     * @return string|array|null The PHP function or an array containing a class/Reference and a method to call
      */
     public function getFactory()
     {
@@ -125,8 +125,8 @@ class Definition
     /**
      * Sets the service that this service is decorating.
      *
-     * @param null|string $id        The decorated service id, use null to remove decoration
-     * @param null|string $renamedId The new decorated service id
+     * @param string|null $id        The decorated service id, use null to remove decoration
+     * @param string|null $renamedId The new decorated service id
      * @param int         $priority  The priority of decoration
      *
      * @return $this
@@ -153,7 +153,7 @@ class Definition
     /**
      * Gets the service that this service is decorating.
      *
-     * @return null|array An array composed of the decorated service id, the new id for it and the priority of decoration, null if no service is decorated
+     * @return array|null An array composed of the decorated service id, the new id for it and the priority of decoration, null if no service is decorated
      */
     public function getDecoratedService()
     {
@@ -406,7 +406,7 @@ class Definition
     /**
      * Sets the definition templates to conditionally apply on the current definition, keyed by parent interface/class.
      *
-     * @param $instanceof ChildDefinition[]
+     * @param ChildDefinition[] $instanceof
      *
      * @return $this
      */
@@ -876,13 +876,17 @@ class Definition
     /**
      * Add an error that occurred when building this Definition.
      *
-     * @param string $error
+     * @param string|\Closure|self $error
      *
      * @return $this
      */
     public function addError($error)
     {
-        $this->errors[] = $error;
+        if ($error instanceof self) {
+            $this->errors = array_merge($this->errors, $error->errors);
+        } else {
+            $this->errors[] = $error;
+        }
 
         return $this;
     }
@@ -894,6 +898,19 @@ class Definition
      */
     public function getErrors()
     {
+        foreach ($this->errors as $i => $error) {
+            if ($error instanceof \Closure) {
+                $this->errors[$i] = (string) $error();
+            } elseif (!\is_string($error)) {
+                $this->errors[$i] = (string) $error;
+            }
+        }
+
         return $this->errors;
+    }
+
+    public function hasErrors(): bool
+    {
+        return (bool) $this->errors;
     }
 }

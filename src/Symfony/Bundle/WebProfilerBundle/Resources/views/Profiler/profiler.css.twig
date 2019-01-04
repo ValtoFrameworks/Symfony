@@ -1,13 +1,15 @@
+{# This file is partially duplicated in TwigBundle/Resources/views/exceotion.css.twig.
+   If you make any change in this file, verify the same change is needed in the other file. #}
 {# Normalization
    (normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css)
    ========================================================================= #}
 *{-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box}html{font-family:sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}body{margin:0}article,aside,details,figcaption,figure,footer,header,hgroup,main,menu,nav,section,summary{display:block}audio,canvas,progress,video{display:inline-block;vertical-align:baseline}audio:not([controls]){display:none;height:0}[hidden],template{display:none}a{background-color:transparent}a:active,a:hover{outline:0}abbr[title]{border-bottom:1px dotted}b,strong{font-weight:700}dfn{font-style:italic}h1{margin:.67em 0;font-size:2em}mark{color:#000;background:#ff0}small{font-size:80%}sub,sup{position:relative;font-size:75%;line-height:0;vertical-align:baseline}sup{top:-.5em}sub{bottom:-.25em}img{border:0}svg:not(:root){overflow:hidden}figure{margin:1em 40px}hr{height:0;-webkit-box-sizing:content-box;-moz-box-sizing:content-box;box-sizing:content-box}pre{overflow:auto}code,kbd,pre,samp{font-family:monospace,monospace;font-size:1em}button,input,optgroup,select,textarea{margin:0;font:inherit;color:inherit}button{overflow:visible}button,select{text-transform:none}button,html input[type="button"],input[type="reset"],input[type="submit"]{-webkit-appearance:button;cursor:pointer}button[disabled],html input[disabled]{cursor:default}button::-moz-focus-inner,input::-moz-focus-inner{padding:0;border:0}input{line-height:normal}input[type="checkbox"],input[type="radio"]{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box;padding:0}input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{height:auto}input[type="search"]{-webkit-box-sizing:content-box;-moz-box-sizing:content-box;box-sizing:content-box;-webkit-appearance:textfield}input[type="search"]::-webkit-search-cancel-button,input[type="search"]::-webkit-search-decoration{-webkit-appearance:none}fieldset{padding:.35em .625em .75em;margin:0 2px;border:1px solid silver}legend{padding:0;border:0}textarea{overflow:auto}optgroup{font-weight:700}table{border-spacing:0;border-collapse:collapse}td,th{padding:0}
 
 :root {
-    --font-sans-serif: 'Helvetica, Arial, sans-serif';
+    --font-sans-serif: Helvetica, Arial, sans-serif;
     --page-background: #f9f9f9;
     --color-text: #222;
-    --color-muted: #777;
+    --color-muted: #999;
     /* when updating any of these colors, do the same in toolbar.css.twig */
     --color-success: #4f805d;
     --color-warning: #a46a1f;
@@ -28,7 +30,6 @@
     --table-header: #e0e0e0;
     --shadow: 0px 0px 1px rgba(128, 128, 128, .2);
     --border: 1px solid #e0e0e0;
-    --color-muted: #999;
     --base-0: #fff;
     --base-1: #f5f5f5;
     --base-2: #e0e0e0;
@@ -41,7 +42,7 @@
 .theme-dark {
     --page-background: #36393e;
     --color-text: #e0e0e0;
-    --color-muted: #999;
+    --color-muted: #777;
     --tab-background: #555;
     --tab-color: #ccc;
     --tab-active-background: #888;
@@ -58,7 +59,6 @@
     --table-header: #555;
     --shadow: 0px 0px 1px rgba(32, 32, 32, .2);
     --border: 1px solid #666;
-    --color-muted: #777;
     --base-0: #2e3136;
     --base-1: #444;
     --base-2: #666;
@@ -79,7 +79,7 @@ body {
     color: var(--base-6);
     display: flex;
     flex-direction: column;
-    font_family: var(--font-sans-serif);
+    font-family: var(--font-sans-serif);
     font-size: 14px;
     line-height: 1.4;
 }
@@ -156,7 +156,7 @@ code, pre {
 {# Buttons (the colors of this element don't change based on the selected theme)
    ------------------------------------------------------------------------- #}
 button {
-    font_family: var(--font-sans-serif);
+    font-family: var(--font-sans-serif);
 }
 .btn {
     background: #777;
@@ -295,7 +295,7 @@ table tbody td.num-col {
     text-align: center;
 }
 .font-normal {
-    font_family: var(--font-sans-serif);
+    font-family: var(--font-sans-serif);
     font-size: 14px;
 }
 .help {
@@ -585,9 +585,18 @@ tr.status-warning td {
     font-size: 21px;
     margin: 0;
     text-decoration: none;
+    vertical-align: middle;
 }
 #summary h2 a:hover {
     text-decoration: underline;
+}
+#summary h2 a.referer {
+    margin-left: .5em;
+    font-size: 75%;
+    color: rgba(255, 255, 255, 0.5);
+}
+#summary h2 a.referer:before {
+    content: '\1F503\00a0';
 }
 
 #summary .status-success { background: var(--color-success); }
@@ -914,6 +923,42 @@ tr.status-warning td {
     display: block;
 }
 
+{# Filters
+   ========================================================================= #}
+[data-filters] { position: relative; }
+[data-filtered] { cursor: pointer; }
+[data-filtered]:after { content: '\00a0\25BE'; }
+[data-filtered]:hover .filter-list li { display: inline-flex; }
+[class*="filter-hidden-"] { display: none; }
+.filter-list { position: absolute; border: var(--border); box-shadow: var(--shadow); margin: 0; padding: 0; display: flex; flex-direction: column; }
+.filter-list :after { content: ''; }
+.filter-list li {
+    background: var(--tab-disabled-background);
+    border-bottom: var(--border);
+    color: var(--tab-disabled-color);
+    display: none;
+    list-style: none;
+    margin: 0;
+    padding: 5px 10px;
+    text-align: left;
+    font-weight: normal;
+}
+.filter-list li.active {
+    background: var(--tab-background);
+    color: var(--tab-color);
+}
+.filter-list li.last-active {
+    background: var(--tab-active-background);
+    color: var(--tab-active-color);
+}
+
+.filter-list-level li { cursor: s-resize; }
+.filter-list-level li.active { cursor: n-resize; }
+.filter-list-level li.last-active { cursor: default; }
+.filter-list-level li.last-active:before { content: '\2714\00a0'; }
+.filter-list-choice li:before { content: '\2714\00a0'; color: transparent; }
+.filter-list-choice li.active:before { color: unset; }
+
 {# Twig panel
    ========================================================================= #}
 #twig-dump pre {
@@ -979,6 +1024,31 @@ table.logs .metadata {
     -webkit-hyphens: auto;
     -moz-hyphens: auto;
     hyphens: auto;
+}
+
+{# Security panel
+   ========================================================================= #}
+#collector-content .decision-log .voter_result td {
+    border-top-width: 1px;
+    border-bottom-width: 0;
+    padding-bottom: 0;
+}
+
+#collector-content .decision-log .voter_details td {
+    border-top-width: 0;
+    border-bottom-width: 1px;
+    padding-bottom: 0;
+}
+
+#collector-content .decision-log .voter_details table {
+    border: 0;
+    margin: 0;
+    box-shadow: unset;
+}
+
+#collector-content .decision-log .voter_details table td {
+    border: 0;
+    padding: 0 0 8px 0;
 }
 
 {# Validator panel
@@ -1087,7 +1157,7 @@ pre.sf-dump, pre.sf-dump .sf-dump-default {
 {# Search Results page
    ========================================================================= #}
 #search-results td {
-    font_family: var(--font-sans-serif);
+    font-family: var(--font-sans-serif);
     vertical-align: middle;
 }
 

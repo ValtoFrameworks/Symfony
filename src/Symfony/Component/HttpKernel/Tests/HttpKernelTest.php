@@ -183,7 +183,7 @@ class HttpKernelTest extends TestCase
     public function testHandleWhenTheControllerIsAnObjectWithInvoke()
     {
         $dispatcher = new EventDispatcher();
-        $kernel = $this->getHttpKernel($dispatcher, new Controller());
+        $kernel = $this->getHttpKernel($dispatcher, new TestController());
 
         $this->assertResponseEquals(new Response('foo'), $kernel->handle(new Request()));
     }
@@ -199,7 +199,7 @@ class HttpKernelTest extends TestCase
     public function testHandleWhenTheControllerIsAnArray()
     {
         $dispatcher = new EventDispatcher();
-        $kernel = $this->getHttpKernel($dispatcher, array(new Controller(), 'controller'));
+        $kernel = $this->getHttpKernel($dispatcher, array(new TestController(), 'controller'));
 
         $this->assertResponseEquals(new Response('foo'), $kernel->handle(new Request()));
     }
@@ -207,7 +207,7 @@ class HttpKernelTest extends TestCase
     public function testHandleWhenTheControllerIsAStaticArray()
     {
         $dispatcher = new EventDispatcher();
-        $kernel = $this->getHttpKernel($dispatcher, array('Symfony\Component\HttpKernel\Tests\Controller', 'staticcontroller'));
+        $kernel = $this->getHttpKernel($dispatcher, array('Symfony\Component\HttpKernel\Tests\TestController', 'staticcontroller'));
 
         $this->assertResponseEquals(new Response('foo'), $kernel->handle(new Request()));
     }
@@ -227,8 +227,8 @@ class HttpKernelTest extends TestCase
         $first = $e->getTrace()[0];
 
         // `file` index the array starting at 0, and __FILE__ starts at 1
-        $line = file($first['file'])[$first['line'] - 1];
-        $this->assertContains('call_user_func_array', $line);
+        $line = file($first['file'])[$first['line'] - 2];
+        $this->assertContains('// call controller', $line);
     }
 
     public function testHandleWhenTheControllerDoesNotReturnAResponseButAViewIsRegistered()
@@ -274,7 +274,7 @@ class HttpKernelTest extends TestCase
             $oldArguments = $event->getArguments();
 
             $newController = function ($id) use ($oldController, $oldArguments) {
-                $response = \call_user_func_array($oldController, $oldArguments);
+                $response = $oldController(...$oldArguments);
 
                 $response->headers->set('X-Id', $id);
 
@@ -372,7 +372,7 @@ class HttpKernelTest extends TestCase
     }
 }
 
-class Controller
+class TestController
 {
     public function __invoke()
     {

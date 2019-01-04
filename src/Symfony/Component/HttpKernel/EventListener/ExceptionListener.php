@@ -50,9 +50,9 @@ class ExceptionListener implements EventSubscriberInterface
 
     public function logKernelException(GetResponseForExceptionEvent $event)
     {
-        $exception = $event->getException();
+        $e = FlattenException::create($event->getException());
 
-        $this->logException($exception, sprintf('Uncaught PHP Exception %s: "%s" at %s line %s', \get_class($exception), $exception->getMessage(), $exception->getFile(), $exception->getLine()));
+        $this->logException($event->getException(), sprintf('Uncaught PHP Exception %s: "%s" at %s line %s', $e->getClass(), $e->getMessage(), $e->getFile(), $e->getLine()));
     }
 
     public function onKernelException(GetResponseForExceptionEvent $event)
@@ -75,7 +75,9 @@ class ExceptionListener implements EventSubscriberInterface
         try {
             $response = $event->getKernel()->handle($request, HttpKernelInterface::SUB_REQUEST, false);
         } catch (\Exception $e) {
-            $this->logException($e, sprintf('Exception thrown when handling an exception (%s: %s at %s line %s)', \get_class($e), $e->getMessage(), $e->getFile(), $e->getLine()));
+            $f = FlattenException::create($e);
+
+            $this->logException($e, sprintf('Exception thrown when handling an exception (%s: %s at %s line %s)', $f->getClass(), $f->getMessage(), $e->getFile(), $e->getLine()));
 
             $wrapper = $e;
 
@@ -141,7 +143,7 @@ class ExceptionListener implements EventSubscriberInterface
      * @param \Exception $exception The thrown exception
      * @param Request    $request   The original request
      *
-     * @return Request $request The cloned request
+     * @return Request The cloned request
      */
     protected function duplicateRequest(\Exception $exception, Request $request)
     {

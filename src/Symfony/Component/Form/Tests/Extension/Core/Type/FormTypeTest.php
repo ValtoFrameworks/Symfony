@@ -170,6 +170,11 @@ class FormTypeTest extends BaseTypeTest
         ));
     }
 
+    public function testSubmitNullUsesDefaultEmptyData($emptyData = array(), $expectedData = array())
+    {
+        parent::testSubmitNullUsesDefaultEmptyData($emptyData, $expectedData);
+    }
+
     public function testSubmitWithEmptyDataCreatesObjectIfClassAvailable()
     {
         $form = $this->factory->createBuilder(static::TESTED_TYPE, null, array(
@@ -633,5 +638,17 @@ class FormTypeTest extends BaseTypeTest
     public function testSubmitNull($expected = null, $norm = null, $view = null)
     {
         parent::testSubmitNull(array(), array(), array());
+    }
+
+    public function testPassBlockPrefixToViewWithParent()
+    {
+        $view = $this->factory->createNamedBuilder('parent', static::TESTED_TYPE)
+            ->add('child', $this->getTestedType(), array(
+                'block_prefix' => 'child',
+            ))
+            ->getForm()
+            ->createView();
+
+        $this->assertSame(array('form', 'child', '_parent_child'), $view['child']->vars['block_prefixes']);
     }
 }

@@ -96,6 +96,14 @@ class ObjectsProvider
         return array('builder_1' => $builder1);
     }
 
+    public static function getContainerDefinitionsWithExistingClasses()
+    {
+        return array(
+            'existing_class_def_1' => new Definition(ClassWithDocComment::class),
+            'existing_class_def_2' => new Definition(ClassWithoutDocComment::class),
+        );
+    }
+
     public static function getContainerDefinitions()
     {
         $definition1 = new Definition('Full\\Qualified\\Class1');
@@ -155,7 +163,7 @@ class ObjectsProvider
 
     public static function getCallables()
     {
-        return array(
+        $callables = array(
             'callable_1' => 'array_key_exists',
             'callable_2' => array('Symfony\\Bundle\\FrameworkBundle\\Tests\\Console\\Descriptor\\CallableClass', 'staticMethod'),
             'callable_3' => array(new CallableClass(), 'method'),
@@ -164,6 +172,12 @@ class ObjectsProvider
             'callable_6' => function () { return 'Closure'; },
             'callable_7' => new CallableClass(),
         );
+
+        if (\PHP_VERSION_ID >= 70100) {
+            $callables['callable_from_callable'] = \Closure::fromCallable(new CallableClass());
+        }
+
+        return $callables;
     }
 }
 
@@ -195,4 +209,36 @@ class RouteStub extends Route
     {
         return new CompiledRoute('', '#PATH_REGEX#', array(), array(), '#HOST_REGEX#');
     }
+}
+
+class ClassWithoutDocComment
+{
+}
+
+/**
+ * This is a class with a doc comment.
+ */
+class ClassWithDocComment
+{
+}
+
+/**
+ * This is the first line of the description.
+ * This is the second line.
+ *
+ * This is the third and shouldn't be shown.
+ *
+ * @annot should not be parsed
+ */
+class ClassWithDocCommentOnMultipleLines
+{
+}
+
+/**
+ *Foo.
+ *
+ * @annot should not be parsed
+ */
+class ClassWithDocCommentWithoutInitialSpace
+{
 }

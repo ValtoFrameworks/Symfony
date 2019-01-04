@@ -18,10 +18,12 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
  * Command that places bundle web assets into a given directory.
@@ -55,7 +57,7 @@ class AssetsInstallCommand extends Command
     {
         $this
             ->setDefinition(array(
-                new InputArgument('target', InputArgument::OPTIONAL, 'The target directory', 'public'),
+                new InputArgument('target', InputArgument::OPTIONAL, 'The target directory', null),
             ))
             ->addOption('symlink', null, InputOption::VALUE_NONE, 'Symlinks the assets instead of copying it')
             ->addOption('relative', null, InputOption::VALUE_NONE, 'Make relative symlinks')
@@ -89,11 +91,16 @@ EOT
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        /** @var KernelInterface $kernel */
         $kernel = $this->getApplication()->getKernel();
         $targetArg = rtrim($input->getArgument('target'), '/');
 
+        if (!$targetArg) {
+            $targetArg = $this->getPublicDirectory($kernel->getContainer());
+        }
+
         if (!is_dir($targetArg)) {
-            $targetArg = $kernel->getContainer()->getParameter('kernel.project_dir').'/'.$targetArg;
+            $targetArg = $kernel->getProjectDir().'/'.$targetArg;
 
             if (!is_dir($targetArg)) {
                 throw new InvalidArgumentException(sprintf('The target directory "%s" does not exist.', $input->getArgument('target')));
@@ -247,5 +254,28 @@ EOT
         $this->filesystem->mirror($originDir, $targetDir, Finder::create()->ignoreDotFiles(false)->in($originDir));
 
         return self::METHOD_COPY;
+    }
+
+    private function getPublicDirectory(ContainerInterface $container)
+    {
+        $defaultPublicDir = 'public';
+
+        if (!$container->hasParameter('kernel.project_dir')) {
+            return $defaultPublicDir;
+        }
+
+        $composerFilePath = $container->getParameter('kernel.project_dir').'/composer.json';
+
+        if (!file_exists($composerFilePath)) {
+            return $defaultPublicDir;
+        }
+
+        $composerConfig = json_decode(file_get_contents($composerFilePath), true);
+
+        if (isset($composerConfig['extra']['public-dir'])) {
+            return $composerConfig['extra']['public-dir'];
+        }
+
+        return $defaultPublicDir;
     }
 }

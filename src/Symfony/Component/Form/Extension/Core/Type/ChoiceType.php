@@ -128,10 +128,7 @@ class ChoiceType extends AbstractType
 
                 // Throw exception if unknown values were submitted
                 if (\count($unknownValues) > 0) {
-                    throw new TransformationFailedException(sprintf(
-                        'The choices "%s" do not exist in the choice list.',
-                        implode('", "', array_keys($unknownValues))
-                    ));
+                    throw new TransformationFailedException(sprintf('The choices "%s" do not exist in the choice list.', implode('", "', array_keys($unknownValues))));
                 }
 
                 $event->setData($data);
@@ -381,7 +378,7 @@ class ChoiceType extends AbstractType
         if ($options['multiple']) {
             $choiceType = __NAMESPACE__.'\CheckboxType';
             // The user can check 0 or more checkboxes. If required
-            // is true, he is required to check all of them.
+            // is true, they are required to check all of them.
             $choiceOpts['required'] = false;
         } else {
             $choiceType = __NAMESPACE__.'\RadioType';

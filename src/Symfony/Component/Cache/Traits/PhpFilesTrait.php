@@ -13,7 +13,7 @@ namespace Symfony\Component\Cache\Traits;
 
 use Symfony\Component\Cache\Exception\CacheException;
 use Symfony\Component\Cache\Exception\InvalidArgumentException;
-use Symfony\Component\Cache\Marshaller\PhpMarshaller;
+use Symfony\Component\VarExporter\VarExporter;
 
 /**
  * @author Piotr Stankowski <git@trakos.pl>
@@ -40,7 +40,7 @@ trait PhpFilesTrait
     {
         self::$startTime = self::$startTime ?? $_SERVER['REQUEST_TIME'] ?? time();
 
-        return \function_exists('opcache_invalidate') && ini_get('opcache.enable') && ('cli' !== \PHP_SAPI || ini_get('opcache.enable_cli'));
+        return \function_exists('opcache_invalidate') && ('cli' !== \PHP_SAPI || filter_var(ini_get('opcache.enable_cli'), FILTER_VALIDATE_BOOLEAN)) && filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -54,7 +54,11 @@ trait PhpFilesTrait
         set_error_handler($this->includeHandler);
         try {
             foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->directory, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::LEAVES_ONLY) as $file) {
-                list($expiresAt) = include $file;
+                try {
+                    list($expiresAt) = include $file;
+                } catch (\ErrorException $e) {
+                    $expiresAt = $time;
+                }
 
                 if ($time >= $expiresAt) {
                     $pruned = $this->doUnlink($file) && !file_exists($file) && $pruned;
@@ -111,7 +115,7 @@ trait PhpFilesTrait
                     if ($now >= $expiresAt) {
                         unset($this->values[$id], $missingIds[$k]);
                     }
-                } catch (\Exception $e) {
+                } catch (\ErrorException $e) {
                     unset($missingIds[$k]);
                 }
             }
@@ -137,6 +141,8 @@ trait PhpFilesTrait
         try {
             $file = $this->files[$id] ?? $this->files[$id] = $this->getFile($id);
             list($expiresAt, $value) = include $file;
+        } catch (\ErrorException $e) {
+            return false;
         } finally {
             restore_error_handler();
         }
@@ -166,7 +172,7 @@ trait PhpFilesTrait
                 $value = "'N;'";
             } elseif (\is_object($value) || \is_array($value)) {
                 try {
-                    $value = PhpMarshaller::marshall($value, $isStaticValue);
+                    $value = VarExporter::export($value, $isStaticValue);
                 } catch (\Exception $e) {
                     throw new InvalidArgumentException(sprintf('Cache key "%s" has non-serializable %s value.', $key, \is_object($value) ? \get_class($value) : 'array'), 0, $e);
                 }
@@ -183,7 +189,8 @@ trait PhpFilesTrait
             }
 
             if (!$isStaticValue) {
-                $value = "static function () {\n\nreturn {$value};\n\n}";
+                $value = str_replace("\n", "\n    ", $value);
+                $value = "static function () {\n\n    return {$value};\n\n}";
             }
 
             $file = $this->files[$key] = $this->getFile($key, true);

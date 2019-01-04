@@ -18,14 +18,11 @@ class ProjectServiceContainer extends Container
 {
     private $parameters;
     private $targetDirs = array();
-
-    /**
-     * @internal but protected for BC on cache:clear
-     */
-    protected $privates = array();
+    private $getService;
 
     public function __construct()
     {
+        $this->getService = \Closure::fromCallable(array($this, 'getService'));
         $this->services = $this->privates = array();
         $this->methodMap = array(
             'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber' => 'getTestServiceSubscriberService',
@@ -33,12 +30,6 @@ class ProjectServiceContainer extends Container
         );
 
         $this->aliases = array();
-    }
-
-    public function reset()
-    {
-        $this->privates = array();
-        parent::reset();
     }
 
     public function compile()
@@ -54,8 +45,8 @@ class ProjectServiceContainer extends Container
     public function getRemovedIds()
     {
         return array(
-            '.service_locator.ljJrY4L' => true,
-            '.service_locator.ljJrY4L.foo_service' => true,
+            '.service_locator.nZQiwdg' => true,
+            '.service_locator.nZQiwdg.foo_service' => true,
             'Psr\\Container\\ContainerInterface' => true,
             'Symfony\\Component\\DependencyInjection\\ContainerInterface' => true,
             'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => true,
@@ -79,7 +70,7 @@ class ProjectServiceContainer extends Container
      */
     protected function getFooServiceService()
     {
-        return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber((new \Symfony\Component\DependencyInjection\Argument\ServiceLocator(\Closure::fromCallable(array($this, 'getService')), array(
+        return $this->services['foo_service'] = new \Symfony\Component\DependencyInjection\Tests\Fixtures\TestServiceSubscriber((new \Symfony\Component\DependencyInjection\Argument\ServiceLocator($this->getService, array(
             'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition' => array('privates', 'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\CustomDefinition', 'getCustomDefinitionService', false),
             'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber' => array('services', 'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber', 'getTestServiceSubscriberService', false),
             'bar' => array('services', 'Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\TestServiceSubscriber', 'getTestServiceSubscriberService', false),

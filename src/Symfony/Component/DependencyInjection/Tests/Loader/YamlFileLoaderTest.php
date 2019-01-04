@@ -364,8 +364,19 @@ class YamlFileLoaderTest extends TestCase
         $resources = $container->getResources();
 
         $fixturesDir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures'.\DIRECTORY_SEPARATOR;
-        $this->assertTrue(false !== array_search(new FileResource($fixturesDir.'yaml'.\DIRECTORY_SEPARATOR.'services_prototype.yml'), $resources));
-        $this->assertTrue(false !== array_search(new GlobResource($fixturesDir.'Prototype', '', true), $resources));
+        $this->assertContains((string) new FileResource($fixturesDir.'yaml'.\DIRECTORY_SEPARATOR.'services_prototype.yml'), $resources);
+
+        $prototypeRealPath = \realpath(__DIR__.\DIRECTORY_SEPARATOR.'..'.\DIRECTORY_SEPARATOR.'Fixtures'.\DIRECTORY_SEPARATOR.'Prototype');
+        $globResource = new GlobResource(
+            $fixturesDir.'Prototype',
+            '',
+            true,
+            false, array(
+                str_replace(\DIRECTORY_SEPARATOR, '/', $prototypeRealPath.\DIRECTORY_SEPARATOR.'BadClasses') => true,
+                str_replace(\DIRECTORY_SEPARATOR, '/', $prototypeRealPath.\DIRECTORY_SEPARATOR.'OtherDir') => true,
+            )
+        );
+        $this->assertContains((string) $globResource, $resources);
         $resources = array_map('strval', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Foo', $resources);
         $this->assertContains('reflection.Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\Sub\Bar', $resources);
@@ -513,6 +524,16 @@ class YamlFileLoaderTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
+     * @expectedExceptionMessage The value of the "parent" option for the "bar" service must be the id of the service without the "@" prefix (replace "@foo" with "foo").
+     */
+    public function testChildDefinitionWithWrongSyntaxThrowsException()
+    {
+        $loader = new YamlFileLoader(new ContainerBuilder(), new FileLocator(self::$fixturesPath.'/yaml'));
+        $loader->load('bad_parent.yml');
+    }
+
+    /**
+     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
      * @expectedExceptionMessage The value of the "decorates" option for the "bar" service must be the id of the service without the "@" prefix (replace "@foo" with "foo").
      */
     public function testDecoratedServicesWithWrongSyntaxThrowsException()
@@ -556,7 +577,7 @@ class YamlFileLoaderTest extends TestCase
         $this->assertCount(1, $args);
         $this->assertInstanceOf(Reference::class, $args[0]);
         $this->assertTrue($container->has((string) $args[0]));
-        $this->assertRegExp('/^\.\d+_Bar[._A-Za-z0-9]{7}$/', (string) $args[0]);
+        $this->assertRegExp('/^\.\d+_Bar~[._A-Za-z0-9]{7}$/', (string) $args[0]);
 
         $anonymous = $container->getDefinition((string) $args[0]);
         $this->assertEquals('Bar', $anonymous->getClass());
@@ -568,7 +589,7 @@ class YamlFileLoaderTest extends TestCase
         $this->assertInternalType('array', $factory);
         $this->assertInstanceOf(Reference::class, $factory[0]);
         $this->assertTrue($container->has((string) $factory[0]));
-        $this->assertRegExp('/^\.\d+_Quz[._A-Za-z0-9]{7}$/', (string) $factory[0]);
+        $this->assertRegExp('/^\.\d+_Quz~[._A-Za-z0-9]{7}$/', (string) $factory[0]);
         $this->assertEquals('constructFoo', $factory[1]);
 
         $anonymous = $container->getDefinition((string) $factory[0]);

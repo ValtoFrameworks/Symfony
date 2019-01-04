@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+4.3.0
+-----
+
+ * added support for hyperlinks
+
 4.2.0
 -----
 
@@ -9,6 +14,8 @@ CHANGELOG
  * deprecated passing a command as a string to `ProcessHelper::run()`,
    pass it the command as an array of its arguments instead
  * made the `ProcessHelper` class final
+ * added `WrappableOutputFormatterInterface::formatAndWrap()` (implemented in `OutputFormatter`)
+ * added `capture_stderr_separately` option to `CommandTester::execute()`
 
 4.1.0
 -----

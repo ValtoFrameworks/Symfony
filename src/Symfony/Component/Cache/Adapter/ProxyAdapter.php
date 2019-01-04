@@ -13,12 +13,12 @@ namespace Symfony\Component\Cache\Adapter;
 
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
-use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Component\Cache\ResettableInterface;
-use Symfony\Component\Cache\Traits\GetTrait;
+use Symfony\Component\Cache\Traits\ContractsTrait;
 use Symfony\Component\Cache\Traits\ProxyTrait;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * @author Nicolas Grekas <p@tchwork.com>
@@ -26,7 +26,7 @@ use Symfony\Component\Cache\Traits\ProxyTrait;
 class ProxyAdapter implements AdapterInterface, CacheInterface, PruneableInterface, ResettableInterface
 {
     use ProxyTrait;
-    use GetTrait;
+    use ContractsTrait;
 
     private $namespace;
     private $namespaceLen;
@@ -91,10 +91,10 @@ class ProxyAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
     /**
      * {@inheritdoc}
      */
-    public function get(string $key, callable $callback, float $beta = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
     {
         if (!$this->pool instanceof CacheInterface) {
-            return $this->doGet($this, $key, $callback, $beta ?? 1.0);
+            return $this->doGet($this, $key, $callback, $beta, $metadata);
         }
 
         return $this->pool->get($this->getId($key), function ($innerItem) use ($key, $callback) {
@@ -103,7 +103,7 @@ class ProxyAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
             ($this->setInnerItem)($innerItem, (array) $item);
 
             return $value;
-        }, $beta);
+        }, $beta, $metadata);
     }
 
     /**

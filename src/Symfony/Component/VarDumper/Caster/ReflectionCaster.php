@@ -38,7 +38,19 @@ class ReflectionCaster
 
         $a = static::castFunctionAbstract($c, $a, $stub, $isNested, $filter);
 
+        if (false === strpos($c->name, '{closure}')) {
+            $stub->class = isset($a[$prefix.'class']) ? $a[$prefix.'class']->value.'::'.$c->name : $c->name;
+            unset($a[$prefix.'class']);
+        }
+        unset($a[$prefix.'extra']);
+
         $stub->class .= self::getSignature($a);
+
+        if ($filter & Caster::EXCLUDE_VERBOSE) {
+            $stub->cut += ($c->getFileName() ? 2 : 0) + \count($a);
+
+            return array();
+        }
 
         if (isset($a[$prefix.'parameters'])) {
             foreach ($a[$prefix.'parameters']->value as &$v) {
@@ -53,13 +65,10 @@ class ReflectionCaster
             }
         }
 
-        if (!($filter & Caster::EXCLUDE_VERBOSE) && $f = $c->getFileName()) {
+        if ($f = $c->getFileName()) {
             $a[$prefix.'file'] = new LinkStub($f, $c->getStartLine());
             $a[$prefix.'line'] = $c->getStartLine().' to '.$c->getEndLine();
         }
-
-        $prefix = Caster::PREFIX_DYNAMIC;
-        unset($a['name'], $a[$prefix.'this'], $a[$prefix.'parameter'], $a[Caster::PREFIX_VIRTUAL.'extra']);
 
         return $a;
     }
@@ -333,7 +342,7 @@ class ReflectionCaster
                 }
             }
         }
-        $signature = '('.substr($signature, 2).')';
+        $signature = (empty($a[$prefix.'returnsReference']) ? '' : '&').'('.substr($signature, 2).')';
 
         if (isset($a[$prefix.'returnType'])) {
             $signature .= ': '.substr(strrchr('\\'.$a[$prefix.'returnType'], '\\'), 1);

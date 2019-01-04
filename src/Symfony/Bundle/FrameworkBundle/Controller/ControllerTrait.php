@@ -12,6 +12,8 @@
 namespace Symfony\Bundle\FrameworkBundle\Controller;
 
 use Doctrine\Common\Persistence\ManagerRegistry;
+use Fig\Link\GenericLinkProvider;
+use Fig\Link\Link;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -19,14 +21,17 @@ use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\WebLink\EventListener\AddLinkHeaderListener;
 
 /**
  * Common features needed in controllers.
@@ -322,6 +327,28 @@ trait ControllerTrait
     }
 
     /**
+     * Handles request and check form validity.
+     *
+     * @final
+     */
+    protected function isFormValid(FormInterface $form, Request $request = null): bool
+    {
+        if ($form->isSubmitted()) {
+            throw new \LogicException('The form is already submitted, use $form->isValid() directly.');
+        }
+
+        if (!$request) {
+            $request = $this->container->get('request_stack')->getCurrentRequest();
+        }
+
+        if (!$request) {
+            throw new \LogicException('You must pass a request as second argument because the request stack is empty.');
+        }
+
+        return $form->handleRequest($request)->isSubmitted() && $form->isValid();
+    }
+
+    /**
      * Shortcut to return the Doctrine Registry service.
      *
      * @throws \LogicException If DoctrineBundle is not available
@@ -386,16 +413,39 @@ trait ControllerTrait
     /**
      * Dispatches a message to the bus.
      *
-     * @param object $message The message to dispatch
+     * @param object|Envelope $message The message or the message pre-wrapped in an envelope
      *
      * @final
      */
-    protected function dispatchMessage($message)
+    protected function dispatchMessage($message): Envelope
     {
         if (!$this->container->has('message_bus')) {
-            throw new \LogicException('The message bus is not enabled in your application. Try running "composer require symfony/messenger".');
+            $message = class_exists(Envelope::class) ? 'You need to define the "messenger.default_bus" configuration option.' : 'Try running "composer require symfony/messenger".';
+            throw new \LogicException('The message bus is not enabled in your application. '.$message);
         }
 
         return $this->container->get('message_bus')->dispatch($message);
+    }
+
+    /**
+     * Adds a Link HTTP header to the current response.
+     *
+     * @see https://tools.ietf.org/html/rfc5988
+     *
+     * @final
+     */
+    protected function addLink(Request $request, Link $link)
+    {
+        if (!class_exists(AddLinkHeaderListener::class)) {
+            throw new \LogicException('You can not use the "addLink" method if the WebLink component is not available. Try running "composer require symfony/web-link".');
+        }
+
+        if (null === $linkProvider = $request->attributes->get('_links')) {
+            $request->attributes->set('_links', new GenericLinkProvider(array($link)));
+
+            return;
+        }
+
+        $request->attributes->set('_links', $linkProvider->withLink($link));
     }
 }

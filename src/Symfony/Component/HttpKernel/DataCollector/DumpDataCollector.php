@@ -113,6 +113,9 @@ class DumpDataCollector extends DataCollector implements DataDumperInterface
                 $dumper->setDisplayOptions(array('fileLinkFormat' => $this->fileLinkFormat));
             } else {
                 $dumper = new CliDumper('php://output', $this->charset);
+                if (method_exists($dumper, 'setDisplayOptions')) {
+                    $dumper->setDisplayOptions(array('fileLinkFormat' => $this->fileLinkFormat));
+                }
             }
 
             foreach ($this->data as $dump) {
@@ -204,11 +207,20 @@ class DumpDataCollector extends DataCollector implements DataDumperInterface
                 --$i;
             }
 
-            if (!\in_array(\PHP_SAPI, array('cli', 'phpdbg'), true) && stripos($h[$i], 'html')) {
+            if (isset($_SERVER['VAR_DUMPER_FORMAT'])) {
+                $html = 'html' === $_SERVER['VAR_DUMPER_FORMAT'];
+            } else {
+                $html = !\in_array(\PHP_SAPI, array('cli', 'phpdbg'), true) && stripos($h[$i], 'html');
+            }
+
+            if ($html) {
                 $dumper = new HtmlDumper('php://output', $this->charset);
                 $dumper->setDisplayOptions(array('fileLinkFormat' => $this->fileLinkFormat));
             } else {
                 $dumper = new CliDumper('php://output', $this->charset);
+                if (method_exists($dumper, 'setDisplayOptions')) {
+                    $dumper->setDisplayOptions(array('fileLinkFormat' => $this->fileLinkFormat));
+                }
             }
 
             foreach ($this->data as $i => $dump) {

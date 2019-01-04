@@ -140,7 +140,7 @@ class Process implements \IteratorAggregate
     public function __construct($command, string $cwd = null, array $env = null, $input = null, ?float $timeout = 60)
     {
         if (!\function_exists('proc_open')) {
-            throw new RuntimeException('The Process class relies on proc_open, which is not available on your PHP installation.');
+            throw new LogicException('The Process class relies on proc_open, which is not available on your PHP installation.');
         }
 
         if (!\is_array($command)) {
@@ -407,7 +407,7 @@ class Process implements \IteratorAggregate
         if (null !== $callback) {
             if (!$this->processPipes->haveReadSupport()) {
                 $this->stop(0);
-                throw new \LogicException('Pass the callback to the Process::start method or enableOutput to use a callback with Process::wait');
+                throw new \LogicException('Pass the callback to the "Process::start" method or call enableOutput to use a callback with "Process::wait"');
             }
             $this->callback = $this->buildCallback($callback);
         }
@@ -427,6 +427,51 @@ class Process implements \IteratorAggregate
         }
 
         return $this->exitcode;
+    }
+
+    /**
+     * Waits until the callback returns true.
+     *
+     * The callback receives the type of output (out or err) and some bytes
+     * from the output in real-time while writing the standard input to the process.
+     * It allows to have feedback from the independent process during execution.
+     *
+     * @throws RuntimeException When process timed out
+     * @throws LogicException   When process is not yet started
+     */
+    public function waitUntil(callable $callback): bool
+    {
+        $this->requireProcessIsStarted(__FUNCTION__);
+        $this->updateStatus(false);
+
+        if (!$this->processPipes->haveReadSupport()) {
+            $this->stop(0);
+            throw new \LogicException('Pass the callback to the "Process::start" method or call enableOutput to use a callback with "Process::waitUntil".');
+        }
+        $callback = $this->buildCallback($callback);
+
+        $ready = false;
+        while (true) {
+            $this->checkTimeout();
+            $running = '\\' === \DIRECTORY_SEPARATOR ? $this->isRunning() : $this->processPipes->areOpen();
+            $output = $this->processPipes->readAndWrite($running, '\\' !== \DIRECTORY_SEPARATOR || !$running);
+
+            foreach ($output as $type => $data) {
+                if (3 !== $type) {
+                    $ready = $callback(self::STDOUT === $type ? self::OUT : self::ERR, $data) || $ready;
+                } elseif (!isset($this->fallbackStatus['signaled'])) {
+                    $this->fallbackStatus['exitcode'] = (int) $data;
+                }
+            }
+            if ($ready) {
+                return true;
+            }
+            if (!$running) {
+                return false;
+            }
+
+            usleep(1000);
+        }
     }
 
     /**
@@ -684,7 +729,7 @@ class Process implements \IteratorAggregate
     /**
      * Returns the exit code returned by the process.
      *
-     * @return null|int The exit status code, null if the Process is not terminated
+     * @return int|null The exit status code, null if the Process is not terminated
      */
     public function getExitCode()
     {
@@ -699,7 +744,7 @@ class Process implements \IteratorAggregate
      * This method relies on the Unix exit code status standardization
      * and might not be relevant for other operating systems.
      *
-     * @return null|string A string representation for the exit status code, null if the Process is not terminated
+     * @return string|null A string representation for the exit status code, null if the Process is not terminated
      *
      * @see http://tldp.org/LDP/abs/html/exitcodes.html
      * @see http://en.wikipedia.org/wiki/Unix_signal
@@ -856,7 +901,7 @@ class Process implements \IteratorAggregate
     {
         $timeoutMicro = microtime(true) + $timeout;
         if ($this->isRunning()) {
-            // given `SIGTERM` may not be defined and that `proc_terminate` uses the constant value and not the constant itself, we use the same here
+            // given SIGTERM may not be defined and that "proc_terminate" uses the constant value and not the constant itself, we use the same here
             $this->doSignal(15, false);
             do {
                 usleep(1000);
@@ -1264,7 +1309,7 @@ class Process implements \IteratorAggregate
         if ($this->outputDisabled) {
             return function ($type, $data) use ($callback) {
                 if (null !== $callback) {
-                    \call_user_func($callback, $type, $data);
+                    return $callback($type, $data);
                 }
             };
         }
@@ -1279,7 +1324,7 @@ class Process implements \IteratorAggregate
             }
 
             if (null !== $callback) {
-                \call_user_func($callback, $type, $data);
+                return $callback($type, $data);
             }
         };
     }
@@ -1429,8 +1474,8 @@ class Process implements \IteratorAggregate
         $this->exitcode = null;
         $this->fallbackStatus = array();
         $this->processInformation = null;
-        $this->stdout = fopen('php://temp/maxmemory:'.(1024 * 1024), 'wb+');
-        $this->stderr = fopen('php://temp/maxmemory:'.(1024 * 1024), 'wb+');
+        $this->stdout = fopen('php://temp/maxmemory:'.(1024 * 1024), 'w+b');
+        $this->stderr = fopen('php://temp/maxmemory:'.(1024 * 1024), 'w+b');
         $this->process = null;
         $this->latestSignal = null;
         $this->status = self::STATUS_READY;
@@ -1479,7 +1524,7 @@ class Process implements \IteratorAggregate
             }
             if (!$ok) {
                 if ($throwException) {
-                    throw new RuntimeException(sprintf('Error while sending signal `%s`.', $signal));
+                    throw new RuntimeException(sprintf('Error while sending signal "%s".', $signal));
                 }
 
                 return false;
@@ -1553,7 +1598,7 @@ class Process implements \IteratorAggregate
     }
 
     /**
-     * Ensures the process is terminated, throws a LogicException if the process has a status different than `terminated`.
+     * Ensures the process is terminated, throws a LogicException if the process has a status different than "terminated".
      *
      * @throws LogicException if the process is not yet terminated
      */
@@ -1567,13 +1612,13 @@ class Process implements \IteratorAggregate
     /**
      * Escapes a string to be used as a shell argument.
      */
-    private function escapeArgument(string $argument): string
+    private function escapeArgument(?string $argument): string
     {
+        if ('' === $argument || null === $argument) {
+            return '""';
+        }
         if ('\\' !== \DIRECTORY_SEPARATOR) {
             return "'".str_replace("'", "'\\''", $argument)."'";
-        }
-        if ('' === $argument = (string) $argument) {
-            return '""';
         }
         if (false !== strpos($argument, "\0")) {
             $argument = str_replace("\0", '?', $argument);

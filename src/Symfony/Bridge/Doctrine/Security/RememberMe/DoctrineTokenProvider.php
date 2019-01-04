@@ -27,13 +27,14 @@ use Symfony\Component\Security\Core\Exception\TokenNotFoundException;
  * and to do the conversion of the datetime column.
  *
  * In order to use this class, you need the following table in your database:
- * CREATE TABLE `rememberme_token` (
- *  `series`   char(88)     UNIQUE PRIMARY KEY NOT NULL,
- *  `value`    char(88)     NOT NULL,
- *  `lastUsed` datetime     NOT NULL,
- *  `class`    varchar(100) NOT NULL,
- *  `username` varchar(200) NOT NULL
- * );
+ *
+ *     CREATE TABLE `rememberme_token` (
+ *         `series`   char(88)     UNIQUE PRIMARY KEY NOT NULL,
+ *         `value`    char(88)     NOT NULL,
+ *         `lastUsed` datetime     NOT NULL,
+ *         `class`    varchar(100) NOT NULL,
+ *         `username` varchar(200) NOT NULL
+ *     );
  */
 class DoctrineTokenProvider implements TokenProviderInterface
 {
@@ -49,7 +50,8 @@ class DoctrineTokenProvider implements TokenProviderInterface
      */
     public function loadTokenBySeries($series)
     {
-        $sql = 'SELECT class, username, value, lastUsed'
+        // the alias for lastUsed works around case insensitivity in PostgreSQL
+        $sql = 'SELECT class, username, value, lastUsed AS last_used'
             .' FROM rememberme_token WHERE series=:series';
         $paramValues = array('series' => $series);
         $paramTypes = array('series' => \PDO::PARAM_STR);
@@ -57,7 +59,7 @@ class DoctrineTokenProvider implements TokenProviderInterface
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($row) {
-            return new PersistentToken($row['class'], $row['username'], $series, $row['value'], new \DateTime($row['lastUsed']));
+            return new PersistentToken($row['class'], $row['username'], $series, $row['value'], new \DateTime($row['last_used']));
         }
 
         throw new TokenNotFoundException('No token found.');

@@ -35,19 +35,6 @@ class FormConfigBuilder implements FormConfigBuilderInterface
     private static $nativeRequestHandler;
 
     /**
-     * The accepted request methods.
-     *
-     * @var array
-     */
-    private static $allowedMethods = array(
-        'GET',
-        'PUT',
-        'POST',
-        'DELETE',
-        'PATCH',
-    );
-
-    /**
      * @var bool
      */
     protected $locked = false;
@@ -192,7 +179,7 @@ class FormConfigBuilder implements FormConfigBuilderInterface
     {
         self::validateName($name);
 
-        if (null !== $dataClass && !class_exists($dataClass) && !interface_exists($dataClass)) {
+        if (null !== $dataClass && !class_exists($dataClass) && !interface_exists($dataClass, false)) {
             throw new InvalidArgumentException(sprintf('Class "%s" not found. Is the "data_class" form option set correctly?', $dataClass));
         }
 
@@ -788,17 +775,7 @@ class FormConfigBuilder implements FormConfigBuilderInterface
             throw new BadMethodCallException('The config builder cannot be modified anymore.');
         }
 
-        $upperCaseMethod = strtoupper($method);
-
-        if (!\in_array($upperCaseMethod, self::$allowedMethods)) {
-            throw new InvalidArgumentException(sprintf(
-                'The form method is "%s", but should be one of "%s".',
-                $method,
-                implode('", "', self::$allowedMethods)
-            ));
-        }
-
-        $this->method = $upperCaseMethod;
+        $this->method = strtoupper($method);
 
         return $this;
     }
@@ -862,10 +839,7 @@ class FormConfigBuilder implements FormConfigBuilderInterface
         }
 
         if (!self::isValidName($name)) {
-            throw new InvalidArgumentException(sprintf(
-                'The name "%s" contains illegal characters. Names should start with a letter, digit or underscore and only contain letters, digits, numbers, underscores ("_"), hyphens ("-") and colons (":").',
-                $name
-            ));
+            throw new InvalidArgumentException(sprintf('The name "%s" contains illegal characters. Names should start with a letter, digit or underscore and only contain letters, digits, numbers, underscores ("_"), hyphens ("-") and colons (":").', $name));
         }
     }
 

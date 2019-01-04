@@ -15,12 +15,12 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\Exception\InvalidArgumentException;
 use Symfony\Component\Cache\ResettableInterface;
 use Symfony\Component\Cache\Traits\AbstractTrait;
-use Symfony\Component\Cache\Traits\GetTrait;
+use Symfony\Component\Cache\Traits\ContractsTrait;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * @author Nicolas Grekas <p@tchwork.com>
@@ -28,7 +28,7 @@ use Symfony\Component\Cache\Traits\GetTrait;
 abstract class AbstractAdapter implements AdapterInterface, CacheInterface, LoggerAwareInterface, ResettableInterface
 {
     use AbstractTrait;
-    use GetTrait;
+    use ContractsTrait;
 
     private static $apcuSupported;
     private static $phpFilesSupported;
@@ -64,7 +64,7 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
             null,
             CacheItem::class
         );
-        $getId = function ($key) { return $this->getId((string) $key); };
+        $getId = \Closure::fromCallable(array($this, 'getId'));
         $this->mergeByLifetime = \Closure::bind(
             function ($deferred, $namespace, &$expiredIds) use ($getId) {
                 $byLifetime = array();
@@ -72,6 +72,7 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
                 $expiredIds = array();
 
                 foreach ($deferred as $key => $item) {
+                    $key = (string) $key;
                     if (null === $item->expiry) {
                         $ttl = 0 < $item->defaultLifetime ? $item->defaultLifetime : 0;
                     } elseif (0 >= $ttl = (int) ($item->expiry - $now)) {
@@ -93,6 +94,10 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
     }
 
     /**
+     * Returns an ApcuAdapter if supported, a PhpFilesAdapter otherwise.
+     *
+     * Using ApcuAdapter makes system caches compatible with read-only filesystems.
+     *
      * @param string               $namespace
      * @param int                  $defaultLifetime
      * @param string               $version
@@ -100,23 +105,15 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
      * @param LoggerInterface|null $logger
      *
      * @return AdapterInterface
-     *
-     * @deprecated since Symfony 4.2
      */
     public static function createSystemCache($namespace, $defaultLifetime, $version, $directory, LoggerInterface $logger = null)
     {
-        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 4.2.', __METHOD__), E_USER_DEPRECATED);
-
         if (null === self::$apcuSupported) {
             self::$apcuSupported = ApcuAdapter::isSupported();
         }
 
-        if (!self::$apcuSupported && null === self::$phpFilesSupported) {
-            self::$phpFilesSupported = PhpFilesAdapter::isSupported();
-        }
-
-        if (self::$phpFilesSupported) {
-            $opcache = new PhpFilesAdapter($namespace, $defaultLifetime, $directory);
+        if (!self::$apcuSupported) {
+            $opcache = new PhpFilesAdapter($namespace, $defaultLifetime, $directory, true);
             if (null !== $logger) {
                 $opcache->setLogger($logger);
             }
@@ -124,22 +121,14 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
             return $opcache;
         }
 
-        $fs = new FilesystemAdapter($namespace, $defaultLifetime, $directory);
-        if (null !== $logger) {
-            $fs->setLogger($logger);
-        }
-        if (!self::$apcuSupported) {
-            return $fs;
-        }
-
         $apcu = new ApcuAdapter($namespace, (int) $defaultLifetime / 5, $version);
-        if ('cli' === \PHP_SAPI && !ini_get('apc.enable_cli')) {
+        if ('cli' === \PHP_SAPI && !filter_var(ini_get('apc.enable_cli'), FILTER_VALIDATE_BOOLEAN)) {
             $apcu->setLogger(new NullLogger());
         } elseif (null !== $logger) {
             $apcu->setLogger($logger);
         }
 
-        return new ChainAdapter(array($apcu, $fs));
+        return $apcu;
     }
 
     public static function createConnection($dsn, array $options = array())
@@ -147,10 +136,10 @@ abstract class AbstractAdapter implements AdapterInterface, CacheInterface, Logg
         if (!\is_string($dsn)) {
             throw new InvalidArgumentException(sprintf('The %s() method expect argument #1 to be string, %s given.', __METHOD__, \gettype($dsn)));
         }
-        if (0 === strpos($dsn, 'redis://')) {
+        if (0 === strpos($dsn, 'redis:')) {
             return RedisAdapter::createConnection($dsn, $options);
         }
-        if (0 === strpos($dsn, 'memcached://')) {
+        if (0 === strpos($dsn, 'memcached:')) {
             return MemcachedAdapter::createConnection($dsn, $options);
         }
 

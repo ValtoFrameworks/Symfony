@@ -22,6 +22,8 @@ trait BlockingStoreTestTrait
 {
     /**
      * @see AbstractStoreTest::getStore()
+     *
+     * @return StoreInterface
      */
     abstract protected function getStore();
 
@@ -36,11 +38,9 @@ trait BlockingStoreTestTrait
      */
     public function testBlockingLocks()
     {
-        // Amount a microsecond used to order async actions
+        // Amount of microseconds we should wait without slowing things down too much
         $clockDelay = 50000;
 
-        /** @var StoreInterface $store */
-        $store = $this->getStore();
         $key = new Key(uniqid(__METHOD__, true));
         $parentPID = posix_getpid();
 
@@ -51,6 +51,7 @@ trait BlockingStoreTestTrait
             // Wait the start of the child
             pcntl_sigwaitinfo(array(SIGHUP), $info);
 
+            $store = $this->getStore();
             try {
                 // This call should failed given the lock should already by acquired by the child
                 $store->save($key);
@@ -72,6 +73,8 @@ trait BlockingStoreTestTrait
         } else {
             // Block SIGHUP signal
             pcntl_sigprocmask(SIG_BLOCK, array(SIGHUP));
+
+            $store = $this->getStore();
             try {
                 $store->save($key);
                 // send the ready signal to the parent

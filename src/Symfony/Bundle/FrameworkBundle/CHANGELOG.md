@@ -1,14 +1,32 @@
 CHANGELOG
 =========
 
+4.3.0
+-----
+
+ * Added `ControllerTrait::isFormValid()`
+
 4.2.0
 -----
 
+ * Added a `AbstractController::addLink()` method to add Link headers to the current response
  * Allowed configuring taggable cache pools via a new `framework.cache.pools.tags` option (bool|service-id)
  * Allowed configuring PDO-based cache pools via a new `cache.adapter.pdo` abstract service
  * Deprecated auto-injection of the container in AbstractController instances, register them as service subscribers instead
  * Deprecated processing of services tagged `security.expression_language_provider` in favor of a new `AddExpressionLanguageProvidersPass` in SecurityBundle.
+ * Deprecated the `Symfony\Bundle\FrameworkBundle\Controller\Controller` class in favor of `Symfony\Bundle\FrameworkBundle\Controller\AbstractController`.
  * Enabled autoconfiguration for `Psr\Log\LoggerAwareInterface`
+ * Added new "auto" mode for `framework.session.cookie_secure` to turn it on when HTTPS is used
+ * Removed the `framework.messenger.encoder` and `framework.messenger.decoder` options. Use the `framework.messenger.serializer.id` option to replace the Messenger serializer.
+ * Deprecated the `ContainerAwareCommand` class in favor of `Symfony\Component\Console\Command\Command`
+ * Made `debug:container` and `debug:autowiring` ignore backslashes in service ids
+ * Deprecated the `Templating\Helper\TranslatorHelper::transChoice()` method, use the `trans()` one instead with a `%count%` parameter
+ * Deprecated `CacheCollectorPass`. Use `Symfony\Component\Cache\DependencyInjection\CacheCollectorPass` instead.
+ * Deprecated `CachePoolClearerPass`. Use `Symfony\Component\Cache\DependencyInjection\CachePoolClearerPass` instead.
+ * Deprecated `CachePoolPass`. Use `Symfony\Component\Cache\DependencyInjection\CachePoolPass` instead.
+ * Deprecated `CachePoolPrunerPass`. Use `Symfony\Component\Cache\DependencyInjection\CachePoolPrunerPass` instead.
+ * Deprecated support for legacy translations directories `src/Resources/translations/` and `src/Resources/<BundleName>/translations/`, use `translations/` instead.
+ * Deprecated support for the legacy directory structure in `translation:update` and `debug:translation` commands.
 
 4.1.0
 -----
@@ -27,6 +45,7 @@ CHANGELOG
  * Deprecated `Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser`
  * The `container.service_locator` tag of `ServiceLocator`s is now autoconfigured.
  * Add the ability to search a route in `debug:router`.
+ * Add the ability to use SameSite cookies for sessions.
 
 4.0.0
 -----
@@ -69,17 +88,17 @@ CHANGELOG
  * Deprecated the `KernelTestCase::getPhpUnitXmlDir()` and `KernelTestCase::getPhpUnitCliConfigArgument()` methods.
  * Deprecated `AddCacheClearerPass`, use tagged iterator arguments instead.
  * Deprecated `AddCacheWarmerPass`, use tagged iterator arguments instead.
- * Deprecated `TranslationDumperPass`, use 
+ * Deprecated `TranslationDumperPass`, use
    `Symfony\Component\Translation\DependencyInjection\TranslationDumperPass` instead
- * Deprecated `TranslationExtractorPass`, use 
+ * Deprecated `TranslationExtractorPass`, use
    `Symfony\Component\Translation\DependencyInjection\TranslationExtractorPass` instead
- * Deprecated `TranslatorPass`, use 
+ * Deprecated `TranslatorPass`, use
    `Symfony\Component\Translation\DependencyInjection\TranslatorPass` instead
  * Added `command` attribute to the `console.command` tag which takes the command
    name as value, using it makes the command lazy
  * Added `cache:pool:prune` command to allow manual stale cache item pruning of supported PSR-6 and PSR-16 cache pool
    implementations
- * Deprecated `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`, use 
+ * Deprecated `Symfony\Bundle\FrameworkBundle\Translation\TranslationLoader`, use
    `Symfony\Component\Translation\Reader\TranslationReader` instead
  * Deprecated `translation.loader` service, use `translation.reader` instead
  * `AssetsInstallCommand::__construct()` now takes an instance of

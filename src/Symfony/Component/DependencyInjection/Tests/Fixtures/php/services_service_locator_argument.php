@@ -18,14 +18,11 @@ class Symfony_DI_PhpDumper_Service_Locator_Argument extends Container
 {
     private $parameters;
     private $targetDirs = array();
-
-    /**
-     * @internal but protected for BC on cache:clear
-     */
-    protected $privates = array();
+    private $getService;
 
     public function __construct()
     {
+        $this->getService = \Closure::fromCallable(array($this, 'getService'));
         $this->services = $this->privates = array();
         $this->syntheticIds = array(
             'foo5' => true,
@@ -36,12 +33,6 @@ class Symfony_DI_PhpDumper_Service_Locator_Argument extends Container
         );
 
         $this->aliases = array();
-    }
-
-    public function reset()
-    {
-        $this->privates = array();
-        parent::reset();
     }
 
     public function compile()
@@ -75,7 +66,7 @@ class Symfony_DI_PhpDumper_Service_Locator_Argument extends Container
     {
         $this->services['bar'] = $instance = new \stdClass();
 
-        $instance->locator = new \Symfony\Component\DependencyInjection\Argument\ServiceLocator(\Closure::fromCallable(array($this, 'getService')), array(
+        $instance->locator = new \Symfony\Component\DependencyInjection\Argument\ServiceLocator($this->getService, array(
             'foo1' => array('services', 'foo1', 'getFoo1Service', false),
             'foo2' => array('privates', 'foo2', 'getFoo2Service', false),
             'foo3' => array(false, 'foo3', 'getFoo3Service', false),

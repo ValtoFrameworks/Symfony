@@ -11,6 +11,7 @@
 
 namespace Symfony\Bundle\FrameworkBundle\Tests\Controller;
 
+use Fig\Link\Link;
 use Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait;
 use Symfony\Bundle\FrameworkBundle\Tests\TestCase;
 use Symfony\Component\DependencyInjection\Container;
@@ -516,6 +517,117 @@ abstract class ControllerTraitTest extends TestCase
         $this->assertEquals($formBuilder, $controller->createFormBuilder('foo'));
     }
 
+    /**
+     * @expectedException \LogicException
+     * @expectedExceptionMessage The form is already submitted, use $form->isValid() directly.
+     */
+    public function testIsFormValidWhenAlreadySubmitted()
+    {
+        $requestStack = new RequestStack();
+        $requestStack->push($request = new Request());
+
+        $container = new Container();
+        $container->set('request_stack', $requestStack);
+
+        $controller = $this->createController();
+        $controller->setContainer($container);
+
+        $form = $this->getMockBuilder('Symfony\Component\Form\FormInterface')->getMock();
+        $form
+            ->expects($this->once())
+            ->method('isSubmitted')
+            ->willReturn(true)
+        ;
+
+        $controller->isFormValid($form);
+    }
+
+    public function testIsFormValidWhenInvalid()
+    {
+        $requestStack = new RequestStack();
+        $requestStack->push($request = new Request());
+
+        $container = new Container();
+        $container->set('request_stack', $requestStack);
+
+        $controller = $this->createController();
+        $controller->setContainer($container);
+
+        $form = $this->getMockBuilder('Symfony\Component\Form\FormInterface')->getMock();
+        $form
+            ->expects($this->at(0))
+            ->method('isSubmitted')
+            ->willReturn(false)
+        ;
+        $form
+            ->expects($this->once())
+            ->method('handleRequest')
+            ->with($request)
+            ->willReturn($form)
+        ;
+        $form
+            ->expects($this->at(2))
+            ->method('isSubmitted')
+            ->willReturn(false)
+        ;
+
+        $this->assertFalse($controller->isFormValid($form));
+    }
+
+    public function testIsFormValidWhenValid()
+    {
+        $requestStack = new RequestStack();
+        $requestStack->push($request = new Request());
+
+        $container = new Container();
+        $container->set('request_stack', $requestStack);
+
+        $controller = $this->createController();
+        $controller->setContainer($container);
+
+        $form = $this->getMockBuilder('Symfony\Component\Form\FormInterface')->getMock();
+        $form
+            ->expects($this->at(0))
+            ->method('isSubmitted')
+            ->willReturn(false)
+        ;
+        $form
+            ->expects($this->once())
+            ->method('handleRequest')
+            ->with($request)
+            ->willReturn($form)
+        ;
+        $form
+            ->expects($this->at(2))
+            ->method('isSubmitted')
+            ->willReturn(true)
+        ;
+        $form
+            ->expects($this->once())
+            ->method('isValid')
+            ->willReturn(true)
+        ;
+
+        $this->assertTrue($controller->isFormValid($form));
+    }
+
+    /**
+     * @expectedException \LogicException
+     * @expectedExceptionMessage You must pass a request as second argument because the request stack is empty.
+     */
+    public function testIsFormValidWhenRequestStackIsEmpty()
+    {
+        $container = new Container();
+        $container->set('request_stack', new RequestStack());
+
+        $controller = $this->createController();
+        $controller->setContainer($container);
+
+        $form = $this->getMockBuilder('Symfony\Component\Form\FormInterface')->getMock();
+
+        $this->assertTrue($controller->isFormValid($form));
+    }
+
     public function testGetDoctrine()
     {
         $doctrine = $this->getMockBuilder('Doctrine\Common\Persistence\ManagerRegistry')->getMock();
@@ -527,6 +639,21 @@ abstract class ControllerTraitTest extends TestCase
         $controller->setContainer($container);
 
         $this->assertEquals($doctrine, $controller->getDoctrine());
+    }
+
+    public function testAddLink()
+    {
+        $request = new Request();
+        $link1 = new Link('mercure', 'https://demo.mercure.rocks');
+        $link2 = new Link('self', 'https://example.com/foo');
+
+        $controller = $this->createController();
+        $controller->addLink($request, $link1);
+        $controller->addLink($request, $link2);
+
+        $links = $request->attributes->get('_links')->getLinks();
+        $this->assertContains($link1, $links);
+        $this->assertContains($link2, $links);
     }
 }
 
@@ -552,5 +679,7 @@ trait TestControllerTrait
         createForm as public;
         createFormBuilder as public;
         getDoctrine as public;
+        addLink as public;
+        isFormValid as public;
     }
 }

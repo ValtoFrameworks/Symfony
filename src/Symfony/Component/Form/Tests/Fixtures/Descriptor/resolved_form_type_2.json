@@ -4,9 +4,11 @@
     "options": {
         "own": [
             "action",
+            "allow_file_upload",
             "attr",
             "auto_initialize",
             "block_name",
+            "block_prefix",
             "by_reference",
             "compound",
             "data",
@@ -15,6 +17,7 @@
             "empty_data",
             "error_bubbling",
             "help",
+            "help_attr",
             "inherit_data",
             "label",
             "label_attr",

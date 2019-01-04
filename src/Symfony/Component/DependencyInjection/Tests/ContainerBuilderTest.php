@@ -559,7 +559,7 @@ class ContainerBuilderTest extends TestCase
         $config->setDefinition('baz', new Definition('BazClass'));
         $config->setAlias('alias_for_foo', 'foo');
         $container->merge($config);
-        $this->assertEquals(array('service_container', 'foo', 'bar', 'baz'), array_keys($container->getDefinitions()), '->merge() merges definitions already defined ones');
+        $this->assertEquals(array('foo', 'bar', 'service_container', 'baz'), array_keys($container->getDefinitions()), '->merge() merges definitions already defined ones');
 
         $aliases = $container->getAliases();
         $this->assertArrayHasKey('alias_for_foo', $aliases);
@@ -736,6 +736,20 @@ class ContainerBuilderTest extends TestCase
         putenv('DUMMY_BAR');
 
         $this->assertSame('someFooBar', $container->getParameter('baz'));
+    }
+
+    public function testFallbackEnv()
+    {
+        putenv('DUMMY_FOO=foo');
+
+        $container = new ContainerBuilder();
+        $container->setParameter('foo', '%env(DUMMY_FOO)%');
+        $container->setParameter('bar', 'bar%env(default:foo:DUMMY_BAR)%');
+
+        $container->compile(true);
+        putenv('DUMMY_FOO');
+
+        $this->assertSame('barfoo', $container->getParameter('bar'));
     }
 
     public function testCastEnv()
@@ -1359,6 +1373,11 @@ class ContainerBuilderTest extends TestCase
 
         $manager = $container->get('manager2');
         $this->assertEquals(new \stdClass(), $manager);
+
+        $foo6 = $container->get('foo6');
+        $this->assertEquals((object) array('bar6' => (object) array()), $foo6);
+
+        $this->assertInstanceOf(\stdClass::class, $container->get('root'));
     }
 
     public function provideAlmostCircular()
@@ -1376,6 +1395,17 @@ class ContainerBuilderTest extends TestCase
 
         // when called multiple times, the same instance is returned
         $this->assertSame($childDefA, $container->registerForAutoconfiguration('AInterface'));
+    }
+
+    public function testRegisterAliasForArgument()
+    {
+        $container = new ContainerBuilder();
+
+        $container->registerAliasForArgument('Foo.bar_baz', 'Some\FooInterface');
+        $this->assertEquals(new Alias('Foo.bar_baz'), $container->getAlias('Some\FooInterface $fooBarBaz'));
+
+        $container->registerAliasForArgument('Foo.bar_baz', 'Some\FooInterface', 'Bar_baz.foo');
+        $this->assertEquals(new Alias('Foo.bar_baz'), $container->getAlias('Some\FooInterface $barBazFoo'));
     }
 
     public function testCaseSensitivity()
@@ -1502,6 +1532,22 @@ class ContainerBuilderTest extends TestCase
 
         $container->set('foo5', $foo5 = new \stdClass());
         $this->assertSame($foo5, $locator->get('foo5'));
+    }
+
+    public function testDecoratedSelfReferenceInvolvingPrivateServices()
+    {
+        $container = new ContainerBuilder();
+        $container->register('foo', 'stdClass')
+            ->setPublic(false)
+            ->setProperty('bar', new Reference('foo'));
+        $container->register('baz', 'stdClass')
+            ->setPublic(false)
+            ->setProperty('inner', new Reference('baz.inner'))
+            ->setDecoratedService('foo');
+
+        $container->compile();
+
+        $this->assertSame(array('service_container'), array_keys($container->getDefinitions()));
     }
 }
 

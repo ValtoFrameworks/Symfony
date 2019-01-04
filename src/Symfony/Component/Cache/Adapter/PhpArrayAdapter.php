@@ -13,13 +13,13 @@ namespace Symfony\Component\Cache\Adapter;
 
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
-use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\Exception\InvalidArgumentException;
 use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Component\Cache\ResettableInterface;
-use Symfony\Component\Cache\Traits\GetTrait;
+use Symfony\Component\Cache\Traits\ContractsTrait;
 use Symfony\Component\Cache\Traits\PhpArrayTrait;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * Caches items at warm up time using a PHP array that is stored in shared memory by OPCache since PHP 7.0.
@@ -31,7 +31,7 @@ use Symfony\Component\Cache\Traits\PhpArrayTrait;
 class PhpArrayAdapter implements AdapterInterface, CacheInterface, PruneableInterface, ResettableInterface
 {
     use PhpArrayTrait;
-    use GetTrait;
+    use ContractsTrait;
 
     private $createCacheItem;
 
@@ -68,7 +68,7 @@ class PhpArrayAdapter implements AdapterInterface, CacheInterface, PruneableInte
     public static function create($file, CacheItemPoolInterface $fallbackPool)
     {
         // Shared memory is available in PHP 7.0+ with OPCache enabled
-        if (ini_get('opcache.enable')) {
+        if (filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOLEAN)) {
             if (!$fallbackPool instanceof AdapterInterface) {
                 $fallbackPool = new ProxyAdapter($fallbackPool);
             }
@@ -82,7 +82,7 @@ class PhpArrayAdapter implements AdapterInterface, CacheInterface, PruneableInte
     /**
      * {@inheritdoc}
      */
-    public function get(string $key, callable $callback, float $beta = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
     {
         if (null === $this->values) {
             $this->initialize();
@@ -90,10 +90,10 @@ class PhpArrayAdapter implements AdapterInterface, CacheInterface, PruneableInte
         if (!isset($this->keys[$key])) {
             get_from_pool:
             if ($this->pool instanceof CacheInterface) {
-                return $this->pool->get($key, $callback, $beta);
+                return $this->pool->get($key, $callback, $beta, $metadata);
             }
 
-            return $this->doGet($this->pool, $key, $callback, $beta ?? 1.0);
+            return $this->doGet($this->pool, $key, $callback, $beta, $metadata);
         }
         $value = $this->values[$this->keys[$key]];
 
@@ -281,9 +281,7 @@ class PhpArrayAdapter implements AdapterInterface, CacheInterface, PruneableInte
         }
 
         if ($fallbackKeys) {
-            foreach ($this->pool->getItems($fallbackKeys) as $key => $item) {
-                yield $key => $item;
-            }
+            yield from $this->pool->getItems($fallbackKeys);
         }
     }
 

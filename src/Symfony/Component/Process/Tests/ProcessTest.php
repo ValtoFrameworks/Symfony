@@ -133,6 +133,30 @@ class ProcessTest extends TestCase
         $this->assertLessThan(15, microtime(true) - $start);
     }
 
+    public function testWaitUntilSpecificOutput()
+    {
+        $p = $this->getProcess(array(self::$phpBin, __DIR__.'/KillableProcessWithOutput.php'));
+        $p->start();
+
+        $start = microtime(true);
+
+        $completeOutput = '';
+        $result = $p->waitUntil(function ($type, $output) use (&$completeOutput) {
+            return false !== strpos($completeOutput .= $output, 'One more');
+        });
+        $this->assertTrue($result);
+        $this->assertLessThan(20, microtime(true) - $start);
+        $this->assertStringStartsWith("First iteration output\nSecond iteration output\nOne more", $completeOutput);
+        $p->stop();
+    }
+
+    public function testWaitUntilCanReturnFalse()
+    {
+        $p = $this->getProcess('echo foo');
+        $p->start();
+        $this->assertFalse($p->waitUntil(function () { return false; }));
+    }
+
     public function testAllOutputIsActuallyReadOnTermination()
     {
         // this code will result in a maximum of 2 reads of 8192 bytes by calling
@@ -1436,7 +1460,7 @@ class ProcessTest extends TestCase
         $p = new Process(array(self::$phpBin, '-r', 'echo $argv[1];', $arg));
         $p->run();
 
-        $this->assertSame($arg, $p->getOutput());
+        $this->assertSame((string) $arg, $p->getOutput());
     }
 
     public function testRawCommandLine()
@@ -1466,6 +1490,9 @@ EOTXT;
         yield array("a!b\tc");
         yield array('a\\\\"\\"');
         yield array('éÉèÈàÀöä');
+        yield array(null);
+        yield array(1);
+        yield array(1.1);
     }
 
     public function testEnvArgument()

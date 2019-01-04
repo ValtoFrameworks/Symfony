@@ -129,7 +129,7 @@ class Crawler implements \Countable, \IteratorAggregate
      * HTTP 1.1 specification.
      *
      * @param string      $content A string to parse as HTML/XML
-     * @param null|string $type    The content type of the string
+     * @param string|null $type    The content type of the string
      */
     public function addContent($content, $type = null)
     {
@@ -501,14 +501,29 @@ class Crawler implements \Countable, \IteratorAggregate
     /**
      * Returns the children nodes of the current selection.
      *
+     * @param string|null $selector An optional CSS selector to filter children
+     *
      * @return self
      *
      * @throws \InvalidArgumentException When current node is empty
+     * @throws \RuntimeException         If the CssSelector Component is not available and $selector is provided
      */
-    public function children()
+    public function children(/* string $selector = null */)
     {
+        if (\func_num_args() < 1 && __CLASS__ !== \get_class($this) && __CLASS__ !== (new \ReflectionMethod($this, __FUNCTION__))->getDeclaringClass()->getName() && !$this instanceof \PHPUnit\Framework\MockObject\MockObject && !$this instanceof \Prophecy\Prophecy\ProphecySubjectInterface) {
+            @trigger_error(sprintf('The "%s()" method will have a new "string $selector = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.', __METHOD__), E_USER_DEPRECATED);
+        }
+        $selector = 0 < \func_num_args() ? func_get_arg(0) : null;
+
         if (!$this->nodes) {
             throw new \InvalidArgumentException('The current node list is empty.');
+        }
+
+        if (null !== $selector) {
+            $converter = $this->createCssSelectorConverter();
+            $xpath = $converter->toXPath($selector, 'child::');
+
+            return $this->filterRelativeXPath($xpath);
         }
 
         $node = $this->getNode(0)->firstChild;
@@ -555,13 +570,19 @@ class Crawler implements \Countable, \IteratorAggregate
     /**
      * Returns the node value of the first node of the list.
      *
+     * @param mixed $default When provided and the current node is empty, this value is returned and no exception is thrown
+     *
      * @return string The node value
      *
      * @throws \InvalidArgumentException When current node is empty
      */
-    public function text()
+    public function text(/* $default = null */)
     {
         if (!$this->nodes) {
+            if (0 < \func_num_args()) {
+                return \func_get_arg(0);
+            }
+
             throw new \InvalidArgumentException('The current node list is empty.');
         }
 
@@ -571,13 +592,19 @@ class Crawler implements \Countable, \IteratorAggregate
     /**
      * Returns the first node of the list as HTML.
      *
+     * @param mixed $default When provided and the current node is empty, this value is returned and no exception is thrown
+     *
      * @return string The node html
      *
      * @throws \InvalidArgumentException When current node is empty
      */
-    public function html()
+    public function html(/* $default = null */)
     {
         if (!$this->nodes) {
+            if (0 < \func_num_args()) {
+                return \func_get_arg(0);
+            }
+
             throw new \InvalidArgumentException('The current node list is empty.');
         }
 
@@ -626,7 +653,7 @@ class Crawler implements \Countable, \IteratorAggregate
      *
      * Example:
      *
-     * $crawler->filter('h1 a')->extract(array('_text', 'href'));
+     *     $crawler->filter('h1 a')->extract(array('_text', 'href'));
      *
      * @param array $attributes An array of attributes
      *
@@ -643,6 +670,8 @@ class Crawler implements \Countable, \IteratorAggregate
             foreach ($attributes as $attribute) {
                 if ('_text' === $attribute) {
                     $elements[] = $node->nodeValue;
+                } elseif ('_name' === $attribute) {
+                    $elements[] = $node->nodeName;
                 } else {
                     $elements[] = $node->getAttribute($attribute);
                 }
@@ -691,11 +720,7 @@ class Crawler implements \Countable, \IteratorAggregate
      */
     public function filter($selector)
     {
-        if (!class_exists(CssSelectorConverter::class)) {
-            throw new \RuntimeException('To filter with a CSS selector, install the CssSelector component ("composer require symfony/css-selector"). Or use filterXpath instead.');
-        }
-
-        $converter = new CssSelectorConverter($this->isHtml);
+        $converter = $this->createCssSelectorConverter();
 
         // The CssSelector already prefixes the selector with descendant-or-self::
         return $this->filterRelativeXPath($converter->toXPath($selector));
@@ -885,7 +910,7 @@ class Crawler implements \Countable, \IteratorAggregate
      * Escaped characters are: quotes (") and apostrophe (').
      *
      *  Examples:
-     *  <code>
+     *
      *     echo Crawler::xpathLiteral('foo " bar');
      *     //prints 'foo " bar'
      *
@@ -894,7 +919,7 @@ class Crawler implements \Countable, \IteratorAggregate
      *
      *     echo Crawler::xpathLiteral('a\'b"c');
      *     //prints concat('a', "'", 'b"c')
-     *  </code>
+     *
      *
      * @param string $s String to be escaped
      *
@@ -1147,5 +1172,17 @@ class Crawler implements \Countable, \IteratorAggregate
         $crawler->namespaces = $this->namespaces;
 
         return $crawler;
+    }
+
+    /**
+     * @throws \RuntimeException If the CssSelector Component is not available
+     */
+    private function createCssSelectorConverter(): CssSelectorConverter
+    {
+        if (!\class_exists(CssSelectorConverter::class)) {
+            throw new \LogicException('To filter with a CSS selector, install the CssSelector component ("composer require symfony/css-selector"). Or use filterXpath instead.');
+        }
+
+        return new CssSelectorConverter($this->isHtml);
     }
 }

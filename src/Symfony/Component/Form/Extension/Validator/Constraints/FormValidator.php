@@ -48,7 +48,7 @@ class FormValidator extends ConstraintValidator
 
             // Validate the data against its own constraints
             if ($form->isRoot() && (\is_object($data) || \is_array($data))) {
-                if (\is_array($groups) && \count($groups) > 0 || $groups instanceof GroupSequence && \count($groups->groups) > 0) {
+                if (($groups && \is_array($groups)) || ($groups instanceof GroupSequence && $groups->groups)) {
                     $validator->atPath('data')->validate($form->getData(), null, $groups);
                 }
             }
@@ -127,7 +127,7 @@ class FormValidator extends ConstraintValidator
         if (!$config->getOption('allow_extra_fields') && \count($form->getExtraData()) > 0) {
             $this->context->setConstraint($constraint);
             $this->context->buildViolation($config->getOption('extra_fields_message'))
-                ->setParameter('{{ extra_fields }}', implode('", "', array_keys($form->getExtraData())))
+                ->setParameter('{{ extra_fields }}', '"'.implode('", "', array_keys($form->getExtraData())).'"')
                 ->setInvalidValue($form->getExtraData())
                 ->setCode(Form::NO_SUCH_FIELD_ERROR)
                 ->addViolation();
@@ -137,7 +137,7 @@ class FormValidator extends ConstraintValidator
     /**
      * Returns the validation groups of the given form.
      *
-     * @return array The validation groups
+     * @return string|GroupSequence|(string|GroupSequence)[] The validation groups
      */
     private static function getValidationGroups(FormInterface $form)
     {
@@ -172,15 +172,15 @@ class FormValidator extends ConstraintValidator
     /**
      * Post-processes the validation groups option for a given form.
      *
-     * @param array|callable $groups The validation groups
-     * @param FormInterface  $form   The validated form
+     * @param string|GroupSequence|(string|GroupSequence)[]|callable $groups The validation groups
+     * @param FormInterface                                          $form   The validated form
      *
-     * @return array The validation groups
+     * @return (string|GroupSequence)[] The validation groups
      */
     private static function resolveValidationGroups($groups, FormInterface $form)
     {
         if (!\is_string($groups) && \is_callable($groups)) {
-            $groups = \call_user_func($groups, $form);
+            $groups = $groups($form);
         }
 
         if ($groups instanceof GroupSequence) {

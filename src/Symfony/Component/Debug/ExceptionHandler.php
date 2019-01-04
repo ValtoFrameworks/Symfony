@@ -26,6 +26,8 @@ use Symfony\Component\HttpKernel\Debug\FileLinkFormatter;
  *
  * @author Fabien Potencier <fabien@symfony.com>
  * @author Nicolas Grekas <p@tchwork.com>
+ *
+ * @final since Symfony 4.3
  */
 class ExceptionHandler
 {
@@ -142,7 +144,7 @@ class ExceptionHandler
         $this->caughtBuffer = null;
 
         try {
-            \call_user_func($this->handler, $exception);
+            ($this->handler)($exception);
             $this->caughtLength = $caughtLength;
         } catch (\Exception $e) {
             if (!$caughtLength) {
@@ -253,7 +255,8 @@ EOF
         } catch (\Exception $e) {
             // something nasty happened and we cannot throw an exception anymore
             if ($this->debug) {
-                $title = sprintf('Exception thrown when handling an exception (%s: %s)', \get_class($e), $this->escapeHtml($e->getMessage()));
+                $e = FlattenException::create($e);
+                $title = sprintf('Exception thrown when handling an exception (%s: %s)', $e->getClass(), $this->escapeHtml($e->getMessage()));
             } else {
                 $title = 'Whoops, looks like something went wrong.';
             }

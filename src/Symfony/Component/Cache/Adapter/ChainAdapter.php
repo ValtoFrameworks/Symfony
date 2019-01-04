@@ -13,12 +13,12 @@ namespace Symfony\Component\Cache\Adapter;
 
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
-use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\Exception\InvalidArgumentException;
 use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Component\Cache\ResettableInterface;
-use Symfony\Component\Cache\Traits\GetTrait;
+use Symfony\Component\Cache\Traits\ContractsTrait;
+use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
 /**
@@ -31,7 +31,7 @@ use Symfony\Contracts\Service\ResetInterface;
  */
 class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterface, ResettableInterface
 {
-    use GetTrait;
+    use ContractsTrait;
 
     private $adapters = array();
     private $adapterCount;
@@ -87,20 +87,20 @@ class ChainAdapter implements AdapterInterface, CacheInterface, PruneableInterfa
     /**
      * {@inheritdoc}
      */
-    public function get(string $key, callable $callback, float $beta = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
     {
         $lastItem = null;
         $i = 0;
-        $wrap = function (CacheItem $item = null) use ($key, $callback, $beta, &$wrap, &$i, &$lastItem) {
+        $wrap = function (CacheItem $item = null) use ($key, $callback, $beta, &$wrap, &$i, &$lastItem, &$metadata) {
             $adapter = $this->adapters[$i];
             if (isset($this->adapters[++$i])) {
                 $callback = $wrap;
                 $beta = INF === $beta ? INF : 0;
             }
             if ($adapter instanceof CacheInterface) {
-                $value = $adapter->get($key, $callback, $beta);
+                $value = $adapter->get($key, $callback, $beta, $metadata);
             } else {
-                $value = $this->doGet($adapter, $key, $callback, $beta ?? 1.0);
+                $value = $this->doGet($adapter, $key, $callback, $beta, $metadata);
             }
             if (null !== $item) {
                 ($this->syncItem)($lastItem = $lastItem ?? $item, $item);

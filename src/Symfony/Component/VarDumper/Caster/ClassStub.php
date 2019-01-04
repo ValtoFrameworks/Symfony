@@ -21,18 +21,12 @@ use Symfony\Component\VarDumper\Cloner\Stub;
 class ClassStub extends ConstStub
 {
     /**
-     * @param string   A PHP identifier, e.g. a class, method, interface, etc. name
-     * @param callable The callable targeted by the identifier when it is ambiguous or not a real PHP identifier
+     * @param string   $identifier A PHP identifier, e.g. a class, method, interface, etc. name
+     * @param callable $callable   The callable targeted by the identifier when it is ambiguous or not a real PHP identifier
      */
     public function __construct(string $identifier, $callable = null)
     {
         $this->value = $identifier;
-
-        if (0 < $i = strrpos($identifier, '\\')) {
-            $this->attr['ellipsis'] = \strlen($identifier) - $i;
-            $this->attr['ellipsis-type'] = 'class';
-            $this->attr['ellipsis-tail'] = 1;
-        }
 
         try {
             if (null !== $callable) {
@@ -61,6 +55,12 @@ class ClassStub extends ConstStub
                 }
             }
 
+            if (false !== strpos($identifier, "class@anonymous\0")) {
+                $this->value = $identifier = preg_replace_callback('/class@anonymous\x00.*?\.php0x?[0-9a-fA-F]++/', function ($m) {
+                    return \class_exists($m[0], false) ? get_parent_class($m[0]).'@anonymous' : $m[0];
+                }, $identifier);
+            }
+
             if (null !== $callable && $r instanceof \ReflectionFunctionAbstract) {
                 $s = ReflectionCaster::castFunctionAbstract($r, array(), new Stub(), true);
                 $s = ReflectionCaster::getSignature($s);
@@ -70,12 +70,15 @@ class ClassStub extends ConstStub
                 } else {
                     $this->value .= $s;
                 }
-                if (isset($this->attr['ellipsis'])) {
-                    $this->attr['ellipsis'] += \strlen($this->value) - \strlen($identifier);
-                }
             }
         } catch (\ReflectionException $e) {
             return;
+        } finally {
+            if (0 < $i = strrpos($this->value, '\\')) {
+                $this->attr['ellipsis'] = \strlen($this->value) - $i;
+                $this->attr['ellipsis-type'] = 'class';
+                $this->attr['ellipsis-tail'] = 1;
+            }
         }
 
         if ($f = $r->getFileName()) {

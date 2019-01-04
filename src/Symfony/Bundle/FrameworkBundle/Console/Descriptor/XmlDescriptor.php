@@ -304,6 +304,11 @@ class XmlDescriptor extends Descriptor
             $serviceXML->setAttribute('id', $id);
         }
 
+        if ('' !== $classDescription = $this->getClassDescription($definition->getClass())) {
+            $serviceXML->appendChild($descriptionXML = $dom->createElement('description'));
+            $descriptionXML->appendChild($dom->createCDATASection($classDescription));
+        }
+
         $serviceXML->setAttribute('class', $definition->getClass());
 
         if ($factory = $definition->getFactory()) {
@@ -518,6 +523,19 @@ class XmlDescriptor extends Descriptor
 
         if ($callable instanceof \Closure) {
             $callableXML->setAttribute('type', 'closure');
+
+            $r = new \ReflectionFunction($callable);
+            if (false !== strpos($r->name, '{closure}')) {
+                return $dom;
+            }
+            $callableXML->setAttribute('name', $r->name);
+
+            if ($class = $r->getClosureScopeClass()) {
+                $callableXML->setAttribute('class', $class->name);
+                if (!$r->getClosureThis()) {
+                    $callableXML->setAttribute('static', 'true');
+                }
+            }
 
             return $dom;
         }

@@ -19,10 +19,9 @@ use Symfony\Component\Validator\ConstraintViolation;
 /**
  * Iterates over the errors of a form.
  *
- * Optionally, this class supports recursive iteration. In order to iterate
- * recursively, set the constructor argument $deep to true. Now each element
- * returned by the iterator is either an instance of {@link FormError} or of
- * {@link FormErrorIterator}, in case the errors belong to a sub-form.
+ * This class supports recursive iteration. In order to iterate recursively,
+ * pass a structure of {@link FormError} and {@link FormErrorIterator} objects
+ * to the $errors constructor argument.
  *
  * You can also wrap the iterator into a {@link \RecursiveIteratorIterator} to
  * flatten the recursive structure into a flat list of errors.
@@ -51,12 +50,7 @@ class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \Array
     {
         foreach ($errors as $error) {
             if (!($error instanceof FormError || $error instanceof self)) {
-                throw new InvalidArgumentException(sprintf(
-                    'The errors must be instances of '.
-                    '"\Symfony\Component\Form\FormError" or "%s". Got: "%s".',
-                    __CLASS__,
-                    \is_object($error) ? \get_class($error) : \gettype($error)
-                ));
+                throw new InvalidArgumentException(sprintf('The errors must be instances of "Symfony\Component\Form\FormError" or "%s". Got: "%s".', __CLASS__, \is_object($error) ? \get_class($error) : \gettype($error)));
             }
         }
 

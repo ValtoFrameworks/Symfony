@@ -21,15 +21,16 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\CacheClearer\Psr6CacheClearer;
 
+/**
+ * @group legacy
+ */
 class CachePoolClearerPassTest extends TestCase
 {
     public function testPoolRefsAreWeak()
     {
         $container = new ContainerBuilder();
-        $container->setParameter('kernel.debug', false);
-        $container->setParameter('kernel.name', 'app');
-        $container->setParameter('kernel.environment', 'prod');
-        $container->setParameter('kernel.root_dir', 'foo');
+        $container->setParameter('kernel.container_class', 'app');
+        $container->setParameter('kernel.project_dir', 'foo');
 
         $globalClearer = new Definition(Psr6CacheClearer::class);
         $container->setDefinition('cache.global_clearer', $globalClearer);

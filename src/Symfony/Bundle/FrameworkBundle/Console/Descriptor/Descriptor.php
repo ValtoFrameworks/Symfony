@@ -284,4 +284,25 @@ abstract class Descriptor implements DescriptorInterface
 
         return $serviceIds;
     }
+
+    /**
+     * Gets class description from a docblock.
+     */
+    public static function getClassDescription(string $class, string &$resolvedClass = null): string
+    {
+        $resolvedClass = $class;
+        try {
+            $r = new \ReflectionClass($class);
+            $resolvedClass = $r->name;
+
+            if ($docComment = $r->getDocComment()) {
+                $docComment = preg_split('#\n\s*\*\s*[\n@]#', substr($docComment, 3, -2), 2)[0];
+
+                return trim(preg_replace('#\s*\n\s*\*\s*#', ' ', $docComment));
+            }
+        } catch (\ReflectionException $e) {
+        }
+
+        return '';
+    }
 }

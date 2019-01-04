@@ -13,10 +13,10 @@ namespace Symfony\Component\Cache\Adapter;
 
 use Psr\Cache\CacheItemInterface;
 use Psr\Log\LoggerAwareInterface;
-use Symfony\Component\Cache\CacheInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\ResettableInterface;
 use Symfony\Component\Cache\Traits\ArrayTrait;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * @author Nicolas Grekas <p@tchwork.com>
@@ -52,9 +52,10 @@ class ArrayAdapter implements AdapterInterface, CacheInterface, LoggerAwareInter
     /**
      * {@inheritdoc}
      */
-    public function get(string $key, callable $callback, float $beta = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
     {
         $item = $this->getItem($key);
+        $metadata = $item->getMetadata();
 
         // ArrayAdapter works in memory, we don't care about stampede protection
         if (INF === $beta || !$item->isHit()) {
@@ -123,7 +124,7 @@ class ArrayAdapter implements AdapterInterface, CacheInterface, LoggerAwareInter
 
             return true;
         }
-        if ($this->storeSerialized && null === $value = $this->freeze($value)) {
+        if ($this->storeSerialized && null === $value = $this->freeze($value, $key)) {
             return false;
         }
         if (null === $expiry && 0 < $item["\0*\0defaultLifetime"]) {
@@ -150,5 +151,13 @@ class ArrayAdapter implements AdapterInterface, CacheInterface, LoggerAwareInter
     public function commit()
     {
         return true;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function delete(string $key): bool
+    {
+        return $this->deleteItem($key);
     }
 }

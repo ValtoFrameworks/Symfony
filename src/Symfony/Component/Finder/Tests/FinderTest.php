@@ -611,6 +611,30 @@ class FinderTest extends Iterator\RealIteratorTestCase
         )), $finder->in(self::$tmpDir)->getIterator());
     }
 
+    public function testReverseSorting()
+    {
+        $finder = $this->buildFinder();
+        $this->assertSame($finder, $finder->sortByName());
+        $this->assertSame($finder, $finder->reverseSorting());
+        $this->assertOrderedIteratorInForeach($this->toAbsolute(array(
+            'toto',
+            'test.py',
+            'test.php',
+            'qux_2_0.php',
+            'qux_12_0.php',
+            'qux_10_2.php',
+            'qux_1002_0.php',
+            'qux_1000_1.php',
+            'qux_0_1.php',
+            'qux/baz_1_2.py',
+            'qux/baz_100_1.py',
+            'qux',
+            'foo/bar.tmp',
+            'foo bar',
+            'foo',
+        )), $finder->in(self::$tmpDir)->getIterator());
+    }
+
     public function testSortByNameNatural()
     {
         $finder = $this->buildFinder();
@@ -1185,7 +1209,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
         // restore original permissions
         chmod($testDir, 0777);
-        clearstatcache($testDir);
+        clearstatcache(true, $testDir);
 
         if ($couldRead) {
             $this->markTestSkipped('could read test files while test requires unreadable');
@@ -1224,15 +1248,33 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
         // restore original permissions
         chmod($testDir, 0777);
-        clearstatcache($testDir);
+        clearstatcache(true, $testDir);
 
         if ($couldRead) {
             $this->markTestSkipped('could read test files while test requires unreadable');
         }
     }
 
+    /**
+     * @group legacy
+     * @expectedDeprecation The "Symfony\Component\Finder\Finder::sortByName()" method will have a new "bool $useNaturalSort = false" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
+     */
+    public function testInheritedClassCallSortByNameWithNoArguments()
+    {
+        $finderChild = new ClassThatInheritFinder();
+        $finderChild->sortByName();
+    }
+
     protected function buildFinder()
     {
         return Finder::create();
+    }
+}
+
+class ClassThatInheritFinder extends Finder
+{
+    public function sortByName()
+    {
+        parent::sortByName();
     }
 }

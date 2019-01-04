@@ -100,7 +100,26 @@ CSV
 
     public function testEncodeCustomSettings()
     {
-        $this->encoder = new CsvEncoder(';', "'", '|', '-');
+        $this->doTestEncodeCustomSettings();
+    }
+
+    public function testLegacyEncodeCustomSettings()
+    {
+        $this->doTestEncodeCustomSettings(true);
+    }
+
+    private function doTestEncodeCustomSettings(bool $legacy = false)
+    {
+        if ($legacy) {
+            $this->encoder = new CsvEncoder(';', "'", '|', '-');
+        } else {
+            $this->encoder = new CsvEncoder(array(
+                CsvEncoder::DELIMITER_KEY => ';',
+                CsvEncoder::ENCLOSURE_KEY => "'",
+                CsvEncoder::ESCAPE_CHAR_KEY => '|',
+                CsvEncoder::KEY_SEPARATOR_KEY => '-',
+            ));
+        }
 
         $value = array('a' => 'he\'llo', 'c' => array('d' => 'foo'));
 
@@ -175,7 +194,21 @@ CSV;
 
     public function testEncodeFormulas()
     {
-        $this->encoder = new CsvEncoder(',', '"', '\\', '.', true);
+        $this->doTestEncodeFormulas();
+    }
+
+    public function testLegacyEncodeFormulas()
+    {
+        $this->doTestEncodeFormulas(true);
+    }
+
+    private function doTestEncodeFormulas(bool $legacy = false)
+    {
+        if ($legacy) {
+            $this->encoder = new CsvEncoder(',', '"', '\\', '.', true);
+        } else {
+            $this->encoder = new CsvEncoder(array(CsvEncoder::ESCAPE_FORMULAS_KEY => true));
+        }
 
         $this->assertSame(<<<'CSV'
 0
@@ -273,6 +306,18 @@ CSV
 CSV
             , $this->encoder->encode(array('@MyDataColumn'), 'csv', array(
                 CsvEncoder::ESCAPE_FORMULAS_KEY => true,
+            )));
+    }
+
+    public function testEncodeWithoutHeader()
+    {
+        $this->assertSame(<<<'CSV'
+a,b
+c,d
+
+CSV
+            , $this->encoder->encode(array(array('a', 'b'), array('c', 'd')), 'csv', array(
+                CsvEncoder::NO_HEADERS_KEY => true,
             )));
     }
 
@@ -378,7 +423,26 @@ CSV
 
     public function testDecodeCustomSettings()
     {
-        $this->encoder = new CsvEncoder(';', "'", '|', '-');
+        $this->doTestDecodeCustomSettings();
+    }
+
+    public function testLegacyDecodeCustomSettings()
+    {
+        $this->doTestDecodeCustomSettings(true);
+    }
+
+    private function doTestDecodeCustomSettings(bool $legacy = false)
+    {
+        if ($legacy) {
+            $this->encoder = new CsvEncoder(';', "'", '|', '-');
+        } else {
+            $this->encoder = new CsvEncoder(array(
+                CsvEncoder::DELIMITER_KEY => ';',
+                CsvEncoder::ENCLOSURE_KEY => "'",
+                CsvEncoder::ESCAPE_CHAR_KEY => '|',
+                CsvEncoder::KEY_SEPARATOR_KEY => '-',
+            ));
+        }
 
         $expected = array(array('a' => 'hell\'o', 'bar' => array('baz' => 'b')));
         $this->assertEquals($expected, $this->encoder->decode(<<<'CSV'
@@ -427,5 +491,17 @@ CSV
     public function testDecodeEmptyArray()
     {
         $this->assertEquals(array(), $this->encoder->decode('', 'csv'));
+    }
+
+    public function testDecodeWithoutHeader()
+    {
+        $this->assertEquals(array(array('a', 'b'), array('c', 'd')), $this->encoder->decode(<<<'CSV'
+a,b
+c,d
+
+CSV
+        , 'csv', array(
+            CsvEncoder::NO_HEADERS_KEY => true,
+        )));
     }
 }

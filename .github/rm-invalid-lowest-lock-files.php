@@ -48,7 +48,6 @@ $composerJsons = array();
 
 foreach ($dirs as $dir) {
     if (!file_exists($dir.'/composer.lock') || !$composerLock = @json_decode(file_get_contents($dir.'/composer.lock'), true)) {
-        echo "$dir/composer.lock not found or invalid.\n";
         @unlink($dir.'/composer.lock');
         continue;
     }
@@ -62,7 +61,8 @@ foreach ($dirs as $dir) {
         @unlink($dir.'/composer.lock');
         continue;
     }
-    $composerJsons[$composerJson['name']] = array($dir, $composerLock['packages'], getRelevantContent($composerJson));
+    $composerLock += array('packages' => array(), 'packages-dev' => array());
+    $composerJsons[$composerJson['name']] = array($dir, $composerLock['packages'] + $composerLock['packages-dev'], getRelevantContent($composerJson));
 }
 
 $referencedCommits = array();
@@ -79,7 +79,7 @@ foreach ($composerJsons as list($dir, $lockedPackages)) {
             continue 2;
         }
 
-        if (isset($composerJsons[$name][2]['repositories']) && !isset($lockedJson[$key]['repositories'])) {
+        if (isset($composerJsons[$name][2]['repositories']) && !isset($lockedJson['repositories'])) {
             // the locked package has been patched locally but the lock references a commit,
             // which means the referencing package itself is not modified
             continue;
@@ -104,8 +104,7 @@ foreach ($composerJsons as list($dir, $lockedPackages)) {
     }
 }
 
-if (!$referencedCommits || (isset($_SERVER['TRAVIS_PULL_REQUEST']) && 'false' !== $_SERVER['TRAVIS_PULL_REQUEST'])) {
-    // cached commits cannot be stale for PRs
+if (!$referencedCommits) {
     return;
 }
 

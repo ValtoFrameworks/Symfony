@@ -16,8 +16,8 @@ use Symfony\Component\Form\Extension\Core\DataTransformer\ArrayToPartsTransforme
 use Symfony\Component\Form\Extension\Core\DataTransformer\DataTransformerChain;
 use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeImmutableToDateTimeTransformer;
 use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToArrayTransformer;
+use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToHtml5LocalDateTimeTransformer;
 use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToLocalizedStringTransformer;
-use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToRfc3339Transformer;
 use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToStringTransformer;
 use Symfony\Component\Form\Extension\Core\DataTransformer\DateTimeToTimestampTransformer;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -34,21 +34,8 @@ class DateTimeType extends AbstractType
     const DEFAULT_TIME_FORMAT = \IntlDateFormatter::MEDIUM;
 
     /**
-     * This is not quite the HTML5 format yet, because ICU lacks the
-     * capability of parsing and generating RFC 3339 dates.
-     *
-     * For more information see:
-     *
-     * http://userguide.icu-project.org/formatparse/datetime#TOC-Date-Time-Format-Syntax
-     * https://www.w3.org/TR/html5/sec-forms.html#local-date-and-time-state-typedatetimelocal
-     * http://tools.ietf.org/html/rfc3339
-     *
-     * An ICU ticket was created:
-     * http://icu-project.org/trac/ticket/9421
-     *
-     * It was supposedly fixed, but is not available in all PHP installations
-     * yet. To temporarily circumvent this issue, DateTimeToRfc3339Transformer
-     * is used when the format matches this constant.
+     * The HTML5 datetime-local format as defined in
+     * http://w3c.github.io/html-reference/datatypes.html#form.data.datetime-local.
      */
     const HTML5_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
 
@@ -89,7 +76,7 @@ class DateTimeType extends AbstractType
 
         if ('single_text' === $options['widget']) {
             if (self::HTML5_FORMAT === $pattern) {
-                $builder->addViewTransformer(new DateTimeToRfc3339Transformer(
+                $builder->addViewTransformer(new DateTimeToHtml5LocalDateTimeTransformer(
                     $options['model_timezone'],
                     $options['view_timezone']
                 ));
@@ -104,6 +91,9 @@ class DateTimeType extends AbstractType
                 ));
             }
         } else {
+            // when the form is compound the entries of the array are ignored in favor of children data
+            // so we need to handle the cascade setting here
+            $emptyData = $builder->getEmptyData() ?: array();
             // Only pass a subset of the options to children
             $dateOptions = array_intersect_key($options, array_flip(array(
                 'years',
@@ -117,6 +107,10 @@ class DateTimeType extends AbstractType
                 'invalid_message',
                 'invalid_message_parameters',
             )));
+
+            if (isset($emptyData['date'])) {
+                $dateOptions['empty_data'] = $emptyData['date'];
+            }
 
             $timeOptions = array_intersect_key($options, array_flip(array(
                 'hours',
@@ -132,6 +126,15 @@ class DateTimeType extends AbstractType
                 'invalid_message',
                 'invalid_message_parameters',
             )));
+
+            if (isset($emptyData['time'])) {
+                $timeOptions['empty_data'] = $emptyData['time'];
+            }
+
+            if (false === $options['label']) {
+                $dateOptions['label'] = false;
+                $timeOptions['label'] = false;
+            }
 
             if (null !== $options['date_widget']) {
                 $dateOptions['widget'] = $options['date_widget'];
@@ -245,6 +248,9 @@ class DateTimeType extends AbstractType
             'compound' => $compound,
             'date_label' => null,
             'time_label' => null,
+            'empty_data' => function (Options $options) {
+                return $options['compound'] ? array() : '';
+            },
         ));
 
         // Don't add some defaults in order to preserve the defaults

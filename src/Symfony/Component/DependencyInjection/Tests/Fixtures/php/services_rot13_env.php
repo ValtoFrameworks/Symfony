@@ -18,14 +18,11 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
 {
     private $parameters;
     private $targetDirs = array();
-
-    /**
-     * @internal but protected for BC on cache:clear
-     */
-    protected $privates = array();
+    private $getService;
 
     public function __construct()
     {
+        $this->getService = \Closure::fromCallable(array($this, 'getService'));
         $this->parameters = $this->getDefaultParameters();
 
         $this->services = $this->privates = array();
@@ -35,12 +32,6 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
         );
 
         $this->aliases = array();
-    }
-
-    public function reset()
-    {
-        $this->privates = array();
-        parent::reset();
     }
 
     public function compile()
@@ -79,7 +70,7 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
      */
     protected function getContainer_EnvVarProcessorsLocatorService()
     {
-        return $this->services['container.env_var_processors_locator'] = new \Symfony\Component\DependencyInjection\Argument\ServiceLocator(\Closure::fromCallable(array($this, 'getService')), array(
+        return $this->services['container.env_var_processors_locator'] = new \Symfony\Component\DependencyInjection\Argument\ServiceLocator($this->getService, array(
             'rot13' => array('services', 'Symfony\\Component\\DependencyInjection\\Tests\\Dumper\\Rot13EnvVarProcessor', 'getRot13EnvVarProcessorService', false),
         ));
     }
@@ -131,7 +122,7 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
     /**
      * Computes a dynamic parameter.
      *
-     * @param string The name of the dynamic parameter to load
+     * @param string $name The name of the dynamic parameter to load
      *
      * @return mixed The value of the dynamic parameter
      *

@@ -171,11 +171,6 @@ class Request
     protected $format;
 
     /**
-     * @var array
-     */
-    private $acceptableFormats;
-
-    /**
      * @var \Symfony\Component\HttpFoundation\Session\SessionInterface
      */
     protected $session;
@@ -268,7 +263,6 @@ class Request
         $this->charsets = null;
         $this->encodings = null;
         $this->acceptableContentTypes = null;
-        $this->acceptableFormats = null;
         $this->pathInfo = null;
         $this->requestUri = null;
         $this->baseUrl = null;
@@ -350,7 +344,7 @@ class Request
 
         if (isset($components['port'])) {
             $server['SERVER_PORT'] = $components['port'];
-            $server['HTTP_HOST'] = $server['HTTP_HOST'].':'.$components['port'];
+            $server['HTTP_HOST'] .= ':'.$components['port'];
         }
 
         if (isset($components['user'])) {
@@ -456,7 +450,6 @@ class Request
         $dup->charsets = null;
         $dup->encodings = null;
         $dup->acceptableContentTypes = null;
-        $dup->acceptableFormats = null;
         $dup->pathInfo = null;
         $dup->requestUri = null;
         $dup->baseUrl = null;
@@ -552,10 +545,13 @@ class Request
         $requestOrder = ini_get('request_order') ?: ini_get('variables_order');
         $requestOrder = preg_replace('#[^cgp]#', '', strtolower($requestOrder)) ?: 'gp';
 
-        $_REQUEST = array();
+        $_REQUEST = array(array());
+
         foreach (str_split($requestOrder) as $order) {
-            $_REQUEST = array_merge($_REQUEST, $request[$order]);
+            $_REQUEST[] = $request[$order];
         }
+
+        $_REQUEST = array_merge(...$_REQUEST);
     }
 
     /**
@@ -1066,7 +1062,7 @@ class Request
         }
 
         $sourceDirs = explode('/', isset($basePath[0]) && '/' === $basePath[0] ? substr($basePath, 1) : $basePath);
-        $targetDirs = explode('/', isset($path[0]) && '/' === $path[0] ? substr($path, 1) : $path);
+        $targetDirs = explode('/', substr($path, 1));
         array_pop($sourceDirs);
         $targetFile = array_pop($targetDirs);
 
@@ -1291,7 +1287,7 @@ class Request
     {
         $canonicalMimeType = null;
         if (false !== $pos = strpos($mimeType, ';')) {
-            $canonicalMimeType = substr($mimeType, 0, $pos);
+            $canonicalMimeType = trim(substr($mimeType, 0, $pos));
         }
 
         if (null === static::$formats) {
@@ -1332,7 +1328,7 @@ class Request
      *  * _format request attribute
      *  * $default
      *
-     * @param string $default The default format
+     * @param string|null $default The default format
      *
      * @return string The request format
      */
@@ -1363,18 +1359,6 @@ class Request
     public function getContentType()
     {
         return $this->getFormat($this->headers->get('CONTENT_TYPE'));
-    }
-
-    /**
-     * Gets the acceptable client formats associated with the request.
-     */
-    public function getAcceptableFormats(): array
-    {
-        if (null !== $this->acceptableFormats) {
-            return $this->acceptableFormats;
-        }
-
-        return $this->acceptableFormats = array_values(array_unique(array_filter(array_map(array($this, 'getFormat'), $this->getAcceptableContentTypes()))));
     }
 
     /**
@@ -1467,7 +1451,7 @@ class Request
      *
      * @see https://tools.ietf.org/html/rfc7231#section-4.2.3
      *
-     * @return bool
+     * @return bool True for GET and HEAD, false otherwise
      */
     public function isMethodCacheable()
     {
@@ -1714,10 +1698,16 @@ class Request
             $this->server->remove('IIS_WasUrlRewritten');
         } elseif ($this->server->has('REQUEST_URI')) {
             $requestUri = $this->server->get('REQUEST_URI');
+
             // HTTP proxy reqs setup request URI with scheme and host [and port] + the URL path, only use URL path
-            $schemeAndHttpHost = $this->getSchemeAndHttpHost();
-            if (0 === strpos($requestUri, $schemeAndHttpHost)) {
-                $requestUri = substr($requestUri, \strlen($schemeAndHttpHost));
+            $uriComponents = parse_url($requestUri);
+
+            if (isset($uriComponents['path'])) {
+                $requestUri = $uriComponents['path'];
+            }
+
+            if (isset($uriComponents['query'])) {
+                $requestUri .= '?'.$uriComponents['query'];
             }
         } elseif ($this->server->has('ORIG_PATH_INFO')) {
             // IIS 5.0, PHP as CGI
@@ -1918,7 +1908,7 @@ class Request
     private static function createRequestFromFactory(array $query = array(), array $request = array(), array $attributes = array(), array $cookies = array(), array $files = array(), array $server = array(), $content = null)
     {
         if (self::$requestFactory) {
-            $request = \call_user_func(self::$requestFactory, $query, $request, $attributes, $cookies, $files, $server, $content);
+            $request = (self::$requestFactory)($query, $request, $attributes, $cookies, $files, $server, $content);
 
             if (!$request instanceof self) {
                 throw new \LogicException('The Request factory must return an instance of Symfony\Component\HttpFoundation\Request.');
@@ -2010,7 +2000,7 @@ class Request
                 if ($i) {
                     $clientIps[$key] = $clientIp = substr($clientIp, 0, $i);
                 }
-            } elseif ('[' == $clientIp[0]) {
+            } elseif (0 === strpos($clientIp, '[')) {
                 // Strip brackets and :port from IPv6 addresses.
                 $i = strpos($clientIp, ']', 1);
                 $clientIps[$key] = $clientIp = substr($clientIp, 1, $i - 1);

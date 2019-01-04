@@ -118,7 +118,7 @@ abstract class Client
     public function insulate($insulated = true)
     {
         if ($insulated && !class_exists('Symfony\\Component\\Process\\Process')) {
-            throw new \RuntimeException('Unable to isolate requests as the Symfony Process Component is not installed.');
+            throw new \LogicException('Unable to isolate requests as the Symfony Process Component is not installed.');
         }
 
         $this->insulated = (bool) $insulated;
@@ -297,7 +297,11 @@ abstract class Client
      */
     public function clickLink(string $linkText): Crawler
     {
-        return $this->click($this->getCrawler()->selectLink($linkText)->link());
+        if (null === $this->crawler) {
+            throw new BadMethodCallException(sprintf('The "request()" method must be called before "%s()".', __METHOD__));
+        }
+
+        return $this->click($this->crawler->selectLink($linkText)->link());
     }
 
     /**
@@ -311,6 +315,10 @@ abstract class Client
      */
     public function submit(Form $form, array $values = array()/*, array $serverParameters = array()*/)
     {
+        if (\func_num_args() < 3 && __CLASS__ !== \get_class($this) && __CLASS__ !== (new \ReflectionMethod($this, __FUNCTION__))->getDeclaringClass()->getName() && !$this instanceof \PHPUnit\Framework\MockObject\MockObject && !$this instanceof \Prophecy\Prophecy\ProphecySubjectInterface) {
+            @trigger_error(sprintf('The "%s()" method will have a new "array $serverParameters = array()" argument in version 5.0, not defining it is deprecated since Symfony 4.2.', __METHOD__), E_USER_DEPRECATED);
+        }
+
         $form->setValues($values);
         $serverParameters = 2 < \func_num_args() ? func_get_arg(2) : array();
 
@@ -328,7 +336,11 @@ abstract class Client
      */
     public function submitForm(string $button, array $fieldValues = array(), string $method = 'POST', array $serverParameters = array()): Crawler
     {
-        $buttonNode = $this->getCrawler()->selectButton($button);
+        if (null === $this->crawler) {
+            throw new BadMethodCallException(sprintf('The "request()" method must be called before "%s()".', __METHOD__));
+        }
+
+        $buttonNode = $this->crawler->selectButton($button);
         $form = $buttonNode->form($fieldValues, $method);
 
         return $this->submit($form, array(), $serverParameters);
@@ -355,11 +367,17 @@ abstract class Client
             ++$this->redirectCount;
         }
 
+        $originalUri = $uri;
+
         $uri = $this->getAbsoluteUri($uri);
 
         $server = array_merge($this->server, $server);
 
-        if (isset($server['HTTPS'])) {
+        if (!empty($server['HTTP_HOST']) && null === parse_url($originalUri, PHP_URL_HOST)) {
+            $uri = preg_replace('{^(https?\://)'.preg_quote($this->extractHost($uri)).'}', '${1}'.$server['HTTP_HOST'], $uri);
+        }
+
+        if (isset($server['HTTPS']) && null === parse_url($originalUri, PHP_URL_SCHEME)) {
             $uri = preg_replace('{^'.parse_url($uri, PHP_URL_SCHEME).'}', $server['HTTPS'] ? 'https' : 'http', $uri);
         }
 

@@ -108,6 +108,7 @@ abstract class AbstractCloner implements ClonerInterface
 
         'Redis' => array('Symfony\Component\VarDumper\Caster\RedisCaster', 'castRedis'),
         'RedisArray' => array('Symfony\Component\VarDumper\Caster\RedisCaster', 'castRedisArray'),
+        'RedisCluster' => array('Symfony\Component\VarDumper\Caster\RedisCaster', 'castRedisCluster'),
 
         'DateTimeInterface' => array('Symfony\Component\VarDumper\Caster\DateCaster', 'castDateTime'),
         'DateInterval' => array('Symfony\Component\VarDumper\Caster\DateCaster', 'castInterval'),
@@ -115,6 +116,14 @@ abstract class AbstractCloner implements ClonerInterface
         'DatePeriod' => array('Symfony\Component\VarDumper\Caster\DateCaster', 'castPeriod'),
 
         'GMP' => array('Symfony\Component\VarDumper\Caster\GmpCaster', 'castGmp'),
+
+        'MessageFormatter' => array('Symfony\Component\VarDumper\Caster\IntlCaster', 'castMessageFormatter'),
+        'NumberFormatter' => array('Symfony\Component\VarDumper\Caster\IntlCaster', 'castNumberFormatter'),
+        'IntlTimeZone' => array('Symfony\Component\VarDumper\Caster\IntlCaster', 'castIntlTimeZone'),
+        'IntlCalendar' => array('Symfony\Component\VarDumper\Caster\IntlCaster', 'castIntlCalendar'),
+        'IntlDateFormatter' => array('Symfony\Component\VarDumper\Caster\IntlCaster', 'castIntlDateFormatter'),
+
+        'Memcached' => array('Symfony\Component\VarDumper\Caster\MemcachedCaster', 'castMemcached'),
 
         ':curl' => array('Symfony\Component\VarDumper\Caster\ResourceCaster', 'castCurl'),
         ':dba' => array('Symfony\Component\VarDumper\Caster\ResourceCaster', 'castDba'),
@@ -167,7 +176,10 @@ abstract class AbstractCloner implements ClonerInterface
     public function addCasters(array $casters)
     {
         foreach ($casters as $type => $callback) {
-            $this->casters[strtolower($type)][] = \is_string($callback) && false !== strpos($callback, '::') ? explode('::', $callback, 2) : $callback;
+            $closure = &$this->casters[strtolower($type)][];
+            $closure = $callback instanceof \Closure ? $callback : static function (...$args) use ($callback, &$closure) {
+                return ($closure = \Closure::fromCallable($callback))(...$args);
+            };
         }
     }
 
@@ -219,7 +231,7 @@ abstract class AbstractCloner implements ClonerInterface
             }
 
             if ($this->prevErrorHandler) {
-                return \call_user_func($this->prevErrorHandler, $type, $msg, $file, $line, $context);
+                return ($this->prevErrorHandler)($type, $msg, $file, $line, $context);
             }
 
             return false;

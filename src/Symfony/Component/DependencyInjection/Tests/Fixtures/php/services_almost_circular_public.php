@@ -19,11 +19,6 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
     private $parameters;
     private $targetDirs = array();
 
-    /**
-     * @internal but protected for BC on cache:clear
-     */
-    protected $privates = array();
-
     public function __construct()
     {
         $this->services = $this->privates = array();
@@ -31,6 +26,7 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
             'bar' => 'getBarService',
             'bar3' => 'getBar3Service',
             'bar5' => 'getBar5Service',
+            'baz6' => 'getBaz6Service',
             'connection' => 'getConnectionService',
             'connection2' => 'getConnection2Service',
             'dispatcher' => 'getDispatcherService',
@@ -39,6 +35,7 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
             'foo2' => 'getFoo2Service',
             'foo4' => 'getFoo4Service',
             'foo5' => 'getFoo5Service',
+            'foo6' => 'getFoo6Service',
             'foobar' => 'getFoobarService',
             'foobar2' => 'getFoobar2Service',
             'foobar3' => 'getFoobar3Service',
@@ -46,16 +43,11 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
             'logger' => 'getLoggerService',
             'manager' => 'getManagerService',
             'manager2' => 'getManager2Service',
+            'root' => 'getRootService',
             'subscriber' => 'getSubscriberService',
         );
 
         $this->aliases = array();
-    }
-
-    public function reset()
-    {
-        $this->privates = array();
-        parent::reset();
     }
 
     public function compile()
@@ -74,9 +66,16 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
             'Psr\\Container\\ContainerInterface' => true,
             'Symfony\\Component\\DependencyInjection\\ContainerInterface' => true,
             'bar2' => true,
+            'bar6' => true,
             'config' => true,
             'config2' => true,
+            'level2' => true,
+            'level3' => true,
+            'level4' => true,
+            'level5' => true,
+            'level6' => true,
             'logger2' => true,
+            'multiuse1' => true,
             'subscriber2' => true,
         );
     }
@@ -104,7 +103,7 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
     {
         $this->services['bar3'] = $instance = new \BarCircular();
 
-        $a = ($this->services['foobar3'] ?? $this->services['foobar3'] = new \FoobarCircular());
+        $a = ($this->services['foobar3'] ?? ($this->services['foobar3'] = new \FoobarCircular()));
 
         $instance->addFoobar($a, $a);
 
@@ -132,6 +131,20 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
     }
 
     /**
+     * Gets the public 'baz6' shared service.
+     *
+     * @return \stdClass
+     */
+    protected function getBaz6Service()
+    {
+        $this->services['baz6'] = $instance = new \stdClass();
+
+        $instance->bar6 = ($this->privates['bar6'] ?? $this->getBar6Service());
+
+        return $instance;
+    }
+
+    /**
      * Gets the public 'connection' shared service.
      *
      * @return \stdClass
@@ -143,7 +156,6 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
         if (isset($this->services['connection'])) {
             return $this->services['connection'];
         }
-
         $b = new \stdClass();
 
         $this->services['connection'] = $instance = new \stdClass($a, $b);
@@ -165,14 +177,13 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
         if (isset($this->services['connection2'])) {
             return $this->services['connection2'];
         }
-
         $b = new \stdClass();
 
         $this->services['connection2'] = $instance = new \stdClass($a, $b);
 
         $c = new \stdClass($instance);
-
         $c->handler2 = new \stdClass(($this->services['manager2'] ?? $this->getManager2Service()));
+
         $b->logger2 = $c;
 
         return $instance;
@@ -262,6 +273,20 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
         $this->services['foo5'] = $instance = new \stdClass();
 
         $instance->bar = ($this->services['bar5'] ?? $this->getBar5Service());
+
+        return $instance;
+    }
+
+    /**
+     * Gets the public 'foo6' shared service.
+     *
+     * @return \stdClass
+     */
+    protected function getFoo6Service()
+    {
+        $this->services['foo6'] = $instance = new \stdClass();
+
+        $instance->bar6 = ($this->privates['bar6'] ?? $this->getBar6Service());
 
         return $instance;
     }
@@ -377,6 +402,22 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
     }
 
     /**
+     * Gets the public 'root' shared service.
+     *
+     * @return \stdClass
+     */
+    protected function getRootService()
+    {
+        $a = new \Symfony\Component\DependencyInjection\Tests\Fixtures\FooForCircularWithAddCalls();
+
+        $b = new \stdClass();
+
+        $a->call(new \stdClass(new \stdClass($b, ($this->privates['level5'] ?? $this->getLevel5Service()))));
+
+        return $this->services['root'] = new \stdClass($a, $b);
+    }
+
+    /**
      * Gets the public 'subscriber' shared service.
      *
      * @return \stdClass
@@ -390,5 +431,37 @@ class Symfony_DI_PhpDumper_Test_Almost_Circular_Public extends Container
         }
 
         return $this->services['subscriber'] = new \stdClass($a);
+    }
+
+    /**
+     * Gets the private 'bar6' shared service.
+     *
+     * @return \stdClass
+     */
+    protected function getBar6Service()
+    {
+        $a = ($this->services['foo6'] ?? $this->getFoo6Service());
+
+        if (isset($this->privates['bar6'])) {
+            return $this->privates['bar6'];
+        }
+
+        return $this->privates['bar6'] = new \stdClass($a);
+    }
+
+    /**
+     * Gets the private 'level5' shared service.
+     *
+     * @return \stdClass
+     */
+    protected function getLevel5Service()
+    {
+        $a = new \Symfony\Component\DependencyInjection\Tests\Fixtures\FooForCircularWithAddCalls();
+
+        $this->privates['level5'] = $instance = new \stdClass($a);
+
+        $a->call($instance);
+
+        return $instance;
     }
 }
